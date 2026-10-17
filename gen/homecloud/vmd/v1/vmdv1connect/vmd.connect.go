@@ -31,6 +31,8 @@ const (
 	DiskServiceName = "homecloud.vmd.v1.DiskService"
 	// ExecServiceName is the fully-qualified name of the ExecService service.
 	ExecServiceName = "homecloud.vmd.v1.ExecService"
+	// ClusterServiceName is the fully-qualified name of the ClusterService service.
+	ClusterServiceName = "homecloud.vmd.v1.ClusterService"
 	// MetricsServiceName is the fully-qualified name of the MetricsService service.
 	MetricsServiceName = "homecloud.vmd.v1.MetricsService"
 )
@@ -96,6 +98,9 @@ const (
 	ExecServicePutFileProcedure = "/homecloud.vmd.v1.ExecService/PutFile"
 	// ExecServiceGetFileProcedure is the fully-qualified name of the ExecService's GetFile RPC.
 	ExecServiceGetFileProcedure = "/homecloud.vmd.v1.ExecService/GetFile"
+	// ClusterServiceSetNodeDrainingProcedure is the fully-qualified name of the ClusterService's
+	// SetNodeDraining RPC.
+	ClusterServiceSetNodeDrainingProcedure = "/homecloud.vmd.v1.ClusterService/SetNodeDraining"
 	// MetricsServiceGetVMMetricsProcedure is the fully-qualified name of the MetricsService's
 	// GetVMMetrics RPC.
 	MetricsServiceGetVMMetricsProcedure = "/homecloud.vmd.v1.MetricsService/GetVMMetrics"
@@ -928,6 +933,80 @@ func (UnimplementedExecServiceHandler) PutFile(context.Context, *connect.Request
 
 func (UnimplementedExecServiceHandler) GetFile(context.Context, *connect.Request[v1.GetFileRequest]) (*connect.Response[v1.GetFileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("homecloud.vmd.v1.ExecService.GetFile is not implemented"))
+}
+
+// ClusterServiceClient is a client for the homecloud.vmd.v1.ClusterService service.
+type ClusterServiceClient interface {
+	// Stop (draining=true) or resume (false) placing new VM starts on a node. VMs already running there keep
+	// running; stopped VMs on it wait until it is undrained. The decision survives outages and restarts.
+	SetNodeDraining(context.Context, *connect.Request[v1.SetNodeDrainingRequest]) (*connect.Response[v1.NodeCapacity], error)
+}
+
+// NewClusterServiceClient constructs a client for the homecloud.vmd.v1.ClusterService service. By
+// default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses,
+// and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
+// connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewClusterServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) ClusterServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	clusterServiceMethods := v1.File_homecloud_vmd_v1_vmd_proto.Services().ByName("ClusterService").Methods()
+	return &clusterServiceClient{
+		setNodeDraining: connect.NewClient[v1.SetNodeDrainingRequest, v1.NodeCapacity](
+			httpClient,
+			baseURL+ClusterServiceSetNodeDrainingProcedure,
+			connect.WithSchema(clusterServiceMethods.ByName("SetNodeDraining")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// clusterServiceClient implements ClusterServiceClient.
+type clusterServiceClient struct {
+	setNodeDraining *connect.Client[v1.SetNodeDrainingRequest, v1.NodeCapacity]
+}
+
+// SetNodeDraining calls homecloud.vmd.v1.ClusterService.SetNodeDraining.
+func (c *clusterServiceClient) SetNodeDraining(ctx context.Context, req *connect.Request[v1.SetNodeDrainingRequest]) (*connect.Response[v1.NodeCapacity], error) {
+	return c.setNodeDraining.CallUnary(ctx, req)
+}
+
+// ClusterServiceHandler is an implementation of the homecloud.vmd.v1.ClusterService service.
+type ClusterServiceHandler interface {
+	// Stop (draining=true) or resume (false) placing new VM starts on a node. VMs already running there keep
+	// running; stopped VMs on it wait until it is undrained. The decision survives outages and restarts.
+	SetNodeDraining(context.Context, *connect.Request[v1.SetNodeDrainingRequest]) (*connect.Response[v1.NodeCapacity], error)
+}
+
+// NewClusterServiceHandler builds an HTTP handler from the service implementation. It returns the
+// path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewClusterServiceHandler(svc ClusterServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	clusterServiceMethods := v1.File_homecloud_vmd_v1_vmd_proto.Services().ByName("ClusterService").Methods()
+	clusterServiceSetNodeDrainingHandler := connect.NewUnaryHandler(
+		ClusterServiceSetNodeDrainingProcedure,
+		svc.SetNodeDraining,
+		connect.WithSchema(clusterServiceMethods.ByName("SetNodeDraining")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/homecloud.vmd.v1.ClusterService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case ClusterServiceSetNodeDrainingProcedure:
+			clusterServiceSetNodeDrainingHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedClusterServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedClusterServiceHandler struct{}
+
+func (UnimplementedClusterServiceHandler) SetNodeDraining(context.Context, *connect.Request[v1.SetNodeDrainingRequest]) (*connect.Response[v1.NodeCapacity], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("homecloud.vmd.v1.ClusterService.SetNodeDraining is not implemented"))
 }
 
 // MetricsServiceClient is a client for the homecloud.vmd.v1.MetricsService service.

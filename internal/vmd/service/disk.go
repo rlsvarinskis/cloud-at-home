@@ -24,7 +24,7 @@ func (b *base) pickDiskNode(ctx context.Context, sizeGB int) (string, error) {
 	}
 	best, bestFree := "", int64(-1)
 	for _, n := range rows {
-		if n.State == domain.NodeReady && n.DiskBytesFree >= int64(sizeGB)<<30 && n.DiskBytesFree > bestFree {
+		if n.Effective() == domain.NodeReady && n.DiskBytesFree >= int64(sizeGB)<<30 && n.DiskBytesFree > bestFree {
 			best, bestFree = n.ID, n.DiskBytesFree
 		}
 	}

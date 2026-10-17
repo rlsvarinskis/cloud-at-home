@@ -125,12 +125,27 @@ const (
 )
 
 type Node struct {
-	ID, Address                   string
+	ID, Address string
+	// State is the node's HEALTH as observed (ready or down). Drain is the operator's decision to take no new
+	// VM starts on it; it is kept apart so an outage can never erase it. Use Effective for scheduling.
 	State                         NodeState
+	Drain                         bool
 	CPUs                          int
 	MemoryMB                      int64
 	DiskBytesTotal, DiskBytesFree int64
 	LastHeartbeat                 time.Time
+}
+
+// Effective is what scheduling should act on: down beats draining beats ready. (A legacy row whose State is
+// "draining" counts as drained.)
+func (n *Node) Effective() NodeState {
+	switch {
+	case n.State == NodeDown:
+		return NodeDown
+	case n.Drain || n.State == NodeDraining:
+		return NodeDraining
+	}
+	return NodeReady
 }
 
 // Usage is what a project currently consumes (VMs that are, or should be, running plus all disks).

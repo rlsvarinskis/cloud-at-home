@@ -3381,6 +3381,58 @@ func (x *GetCapacityResponse) GetTotal() *NodeCapacity {
 	return nil
 }
 
+type SetNodeDrainingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Draining      bool                   `protobuf:"varint,2,opt,name=draining,proto3" json:"draining,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetNodeDrainingRequest) Reset() {
+	*x = SetNodeDrainingRequest{}
+	mi := &file_homecloud_vmd_v1_vmd_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetNodeDrainingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetNodeDrainingRequest) ProtoMessage() {}
+
+func (x *SetNodeDrainingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_homecloud_vmd_v1_vmd_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetNodeDrainingRequest.ProtoReflect.Descriptor instead.
+func (*SetNodeDrainingRequest) Descriptor() ([]byte, []int) {
+	return file_homecloud_vmd_v1_vmd_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *SetNodeDrainingRequest) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *SetNodeDrainingRequest) GetDraining() bool {
+	if x != nil {
+		return x.Draining
+	}
+	return false
+}
+
 var File_homecloud_vmd_v1_vmd_proto protoreflect.FileDescriptor
 
 const file_homecloud_vmd_v1_vmd_proto_rawDesc = "" +
@@ -3664,7 +3716,10 @@ const file_homecloud_vmd_v1_vmd_proto_rawDesc = "" +
 	"\x12GetCapacityRequest\"\x81\x01\n" +
 	"\x13GetCapacityResponse\x124\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x1e.homecloud.vmd.v1.NodeCapacityR\x05nodes\x124\n" +
-	"\x05total\x18\x02 \x01(\v2\x1e.homecloud.vmd.v1.NodeCapacityR\x05total*[\n" +
+	"\x05total\x18\x02 \x01(\v2\x1e.homecloud.vmd.v1.NodeCapacityR\x05total\"M\n" +
+	"\x16SetNodeDrainingRequest\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
+	"\bdraining\x18\x02 \x01(\bR\bdraining*[\n" +
 	"\n" +
 	"PowerState\x12\x1b\n" +
 	"\x17POWER_STATE_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -3733,7 +3788,9 @@ const file_homecloud_vmd_v1_vmd_proto_rawDesc = "" +
 	"\tCancelJob\x12\".homecloud.vmd.v1.CancelJobRequest\x1a\x1b.homecloud.vmd.v1.JobOutput\x12Q\n" +
 	"\bListJobs\x12!.homecloud.vmd.v1.ListJobsRequest\x1a\".homecloud.vmd.v1.ListJobsResponse\x12N\n" +
 	"\aPutFile\x12 .homecloud.vmd.v1.PutFileRequest\x1a!.homecloud.vmd.v1.PutFileResponse\x12N\n" +
-	"\aGetFile\x12 .homecloud.vmd.v1.GetFileRequest\x1a!.homecloud.vmd.v1.GetFileResponse2\xc0\x01\n" +
+	"\aGetFile\x12 .homecloud.vmd.v1.GetFileRequest\x1a!.homecloud.vmd.v1.GetFileResponse2m\n" +
+	"\x0eClusterService\x12[\n" +
+	"\x0fSetNodeDraining\x12(.homecloud.vmd.v1.SetNodeDrainingRequest\x1a\x1e.homecloud.vmd.v1.NodeCapacity2\xc0\x01\n" +
 	"\x0eMetricsService\x12R\n" +
 	"\fGetVMMetrics\x12%.homecloud.vmd.v1.GetVMMetricsRequest\x1a\x1b.homecloud.vmd.v1.VMMetrics\x12Z\n" +
 	"\vGetCapacity\x12$.homecloud.vmd.v1.GetCapacityRequest\x1a%.homecloud.vmd.v1.GetCapacityResponseB2Z0example.com/homecloud/gen/homecloud/vmd/v1;vmdv1b\x06proto3"
@@ -3751,90 +3808,91 @@ func file_homecloud_vmd_v1_vmd_proto_rawDescGZIP() []byte {
 }
 
 var file_homecloud_vmd_v1_vmd_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_homecloud_vmd_v1_vmd_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
+var file_homecloud_vmd_v1_vmd_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
 var file_homecloud_vmd_v1_vmd_proto_goTypes = []any{
-	(PowerState)(0),               // 0: homecloud.vmd.v1.PowerState
-	(VMState)(0),                  // 1: homecloud.vmd.v1.VMState
-	(ImageState)(0),               // 2: homecloud.vmd.v1.ImageState
-	(DiskState)(0),                // 3: homecloud.vmd.v1.DiskState
-	(JobState)(0),                 // 4: homecloud.vmd.v1.JobState
-	(*VM)(nil),                    // 5: homecloud.vmd.v1.VM
-	(*CreateVMRequest)(nil),       // 6: homecloud.vmd.v1.CreateVMRequest
-	(*GetVMRequest)(nil),          // 7: homecloud.vmd.v1.GetVMRequest
-	(*ListVMsRequest)(nil),        // 8: homecloud.vmd.v1.ListVMsRequest
-	(*ListVMsResponse)(nil),       // 9: homecloud.vmd.v1.ListVMsResponse
-	(*UpdateVMRequest)(nil),       // 10: homecloud.vmd.v1.UpdateVMRequest
-	(*StartVMRequest)(nil),        // 11: homecloud.vmd.v1.StartVMRequest
-	(*StopVMRequest)(nil),         // 12: homecloud.vmd.v1.StopVMRequest
-	(*DeleteVMRequest)(nil),       // 13: homecloud.vmd.v1.DeleteVMRequest
-	(*DeleteVMResponse)(nil),      // 14: homecloud.vmd.v1.DeleteVMResponse
-	(*HoldRequest)(nil),           // 15: homecloud.vmd.v1.HoldRequest
-	(*Image)(nil),                 // 16: homecloud.vmd.v1.Image
-	(*RegisterImageRequest)(nil),  // 17: homecloud.vmd.v1.RegisterImageRequest
-	(*GetImageRequest)(nil),       // 18: homecloud.vmd.v1.GetImageRequest
-	(*ListImagesRequest)(nil),     // 19: homecloud.vmd.v1.ListImagesRequest
-	(*ListImagesResponse)(nil),    // 20: homecloud.vmd.v1.ListImagesResponse
-	(*DeleteImageRequest)(nil),    // 21: homecloud.vmd.v1.DeleteImageRequest
-	(*DeleteImageResponse)(nil),   // 22: homecloud.vmd.v1.DeleteImageResponse
-	(*Disk)(nil),                  // 23: homecloud.vmd.v1.Disk
-	(*CreateDiskRequest)(nil),     // 24: homecloud.vmd.v1.CreateDiskRequest
-	(*GetDiskRequest)(nil),        // 25: homecloud.vmd.v1.GetDiskRequest
-	(*ListDisksRequest)(nil),      // 26: homecloud.vmd.v1.ListDisksRequest
-	(*ListDisksResponse)(nil),     // 27: homecloud.vmd.v1.ListDisksResponse
-	(*ResizeDiskRequest)(nil),     // 28: homecloud.vmd.v1.ResizeDiskRequest
-	(*DeleteDiskRequest)(nil),     // 29: homecloud.vmd.v1.DeleteDiskRequest
-	(*DeleteDiskResponse)(nil),    // 30: homecloud.vmd.v1.DeleteDiskResponse
-	(*SnapshotDiskRequest)(nil),   // 31: homecloud.vmd.v1.SnapshotDiskRequest
-	(*Job)(nil),                   // 32: homecloud.vmd.v1.Job
-	(*JobOutput)(nil),             // 33: homecloud.vmd.v1.JobOutput
-	(*StartJobRequest)(nil),       // 34: homecloud.vmd.v1.StartJobRequest
-	(*PollJobRequest)(nil),        // 35: homecloud.vmd.v1.PollJobRequest
-	(*CancelJobRequest)(nil),      // 36: homecloud.vmd.v1.CancelJobRequest
-	(*ListJobsRequest)(nil),       // 37: homecloud.vmd.v1.ListJobsRequest
-	(*ListJobsResponse)(nil),      // 38: homecloud.vmd.v1.ListJobsResponse
-	(*PutFileRequest)(nil),        // 39: homecloud.vmd.v1.PutFileRequest
-	(*PutFileResponse)(nil),       // 40: homecloud.vmd.v1.PutFileResponse
-	(*GetFileRequest)(nil),        // 41: homecloud.vmd.v1.GetFileRequest
-	(*GetFileResponse)(nil),       // 42: homecloud.vmd.v1.GetFileResponse
-	(*GuestFilesystem)(nil),       // 43: homecloud.vmd.v1.GuestFilesystem
-	(*DiskAllocation)(nil),        // 44: homecloud.vmd.v1.DiskAllocation
-	(*VMMetrics)(nil),             // 45: homecloud.vmd.v1.VMMetrics
-	(*GetVMMetricsRequest)(nil),   // 46: homecloud.vmd.v1.GetVMMetricsRequest
-	(*NodeCapacity)(nil),          // 47: homecloud.vmd.v1.NodeCapacity
-	(*GetCapacityRequest)(nil),    // 48: homecloud.vmd.v1.GetCapacityRequest
-	(*GetCapacityResponse)(nil),   // 49: homecloud.vmd.v1.GetCapacityResponse
-	nil,                           // 50: homecloud.vmd.v1.VM.LabelsEntry
-	nil,                           // 51: homecloud.vmd.v1.CreateVMRequest.LabelsEntry
-	nil,                           // 52: homecloud.vmd.v1.ListVMsRequest.LabelSelectorEntry
-	nil,                           // 53: homecloud.vmd.v1.UpdateVMRequest.LabelsEntry
-	(*timestamppb.Timestamp)(nil), // 54: google.protobuf.Timestamp
+	(PowerState)(0),                // 0: homecloud.vmd.v1.PowerState
+	(VMState)(0),                   // 1: homecloud.vmd.v1.VMState
+	(ImageState)(0),                // 2: homecloud.vmd.v1.ImageState
+	(DiskState)(0),                 // 3: homecloud.vmd.v1.DiskState
+	(JobState)(0),                  // 4: homecloud.vmd.v1.JobState
+	(*VM)(nil),                     // 5: homecloud.vmd.v1.VM
+	(*CreateVMRequest)(nil),        // 6: homecloud.vmd.v1.CreateVMRequest
+	(*GetVMRequest)(nil),           // 7: homecloud.vmd.v1.GetVMRequest
+	(*ListVMsRequest)(nil),         // 8: homecloud.vmd.v1.ListVMsRequest
+	(*ListVMsResponse)(nil),        // 9: homecloud.vmd.v1.ListVMsResponse
+	(*UpdateVMRequest)(nil),        // 10: homecloud.vmd.v1.UpdateVMRequest
+	(*StartVMRequest)(nil),         // 11: homecloud.vmd.v1.StartVMRequest
+	(*StopVMRequest)(nil),          // 12: homecloud.vmd.v1.StopVMRequest
+	(*DeleteVMRequest)(nil),        // 13: homecloud.vmd.v1.DeleteVMRequest
+	(*DeleteVMResponse)(nil),       // 14: homecloud.vmd.v1.DeleteVMResponse
+	(*HoldRequest)(nil),            // 15: homecloud.vmd.v1.HoldRequest
+	(*Image)(nil),                  // 16: homecloud.vmd.v1.Image
+	(*RegisterImageRequest)(nil),   // 17: homecloud.vmd.v1.RegisterImageRequest
+	(*GetImageRequest)(nil),        // 18: homecloud.vmd.v1.GetImageRequest
+	(*ListImagesRequest)(nil),      // 19: homecloud.vmd.v1.ListImagesRequest
+	(*ListImagesResponse)(nil),     // 20: homecloud.vmd.v1.ListImagesResponse
+	(*DeleteImageRequest)(nil),     // 21: homecloud.vmd.v1.DeleteImageRequest
+	(*DeleteImageResponse)(nil),    // 22: homecloud.vmd.v1.DeleteImageResponse
+	(*Disk)(nil),                   // 23: homecloud.vmd.v1.Disk
+	(*CreateDiskRequest)(nil),      // 24: homecloud.vmd.v1.CreateDiskRequest
+	(*GetDiskRequest)(nil),         // 25: homecloud.vmd.v1.GetDiskRequest
+	(*ListDisksRequest)(nil),       // 26: homecloud.vmd.v1.ListDisksRequest
+	(*ListDisksResponse)(nil),      // 27: homecloud.vmd.v1.ListDisksResponse
+	(*ResizeDiskRequest)(nil),      // 28: homecloud.vmd.v1.ResizeDiskRequest
+	(*DeleteDiskRequest)(nil),      // 29: homecloud.vmd.v1.DeleteDiskRequest
+	(*DeleteDiskResponse)(nil),     // 30: homecloud.vmd.v1.DeleteDiskResponse
+	(*SnapshotDiskRequest)(nil),    // 31: homecloud.vmd.v1.SnapshotDiskRequest
+	(*Job)(nil),                    // 32: homecloud.vmd.v1.Job
+	(*JobOutput)(nil),              // 33: homecloud.vmd.v1.JobOutput
+	(*StartJobRequest)(nil),        // 34: homecloud.vmd.v1.StartJobRequest
+	(*PollJobRequest)(nil),         // 35: homecloud.vmd.v1.PollJobRequest
+	(*CancelJobRequest)(nil),       // 36: homecloud.vmd.v1.CancelJobRequest
+	(*ListJobsRequest)(nil),        // 37: homecloud.vmd.v1.ListJobsRequest
+	(*ListJobsResponse)(nil),       // 38: homecloud.vmd.v1.ListJobsResponse
+	(*PutFileRequest)(nil),         // 39: homecloud.vmd.v1.PutFileRequest
+	(*PutFileResponse)(nil),        // 40: homecloud.vmd.v1.PutFileResponse
+	(*GetFileRequest)(nil),         // 41: homecloud.vmd.v1.GetFileRequest
+	(*GetFileResponse)(nil),        // 42: homecloud.vmd.v1.GetFileResponse
+	(*GuestFilesystem)(nil),        // 43: homecloud.vmd.v1.GuestFilesystem
+	(*DiskAllocation)(nil),         // 44: homecloud.vmd.v1.DiskAllocation
+	(*VMMetrics)(nil),              // 45: homecloud.vmd.v1.VMMetrics
+	(*GetVMMetricsRequest)(nil),    // 46: homecloud.vmd.v1.GetVMMetricsRequest
+	(*NodeCapacity)(nil),           // 47: homecloud.vmd.v1.NodeCapacity
+	(*GetCapacityRequest)(nil),     // 48: homecloud.vmd.v1.GetCapacityRequest
+	(*GetCapacityResponse)(nil),    // 49: homecloud.vmd.v1.GetCapacityResponse
+	(*SetNodeDrainingRequest)(nil), // 50: homecloud.vmd.v1.SetNodeDrainingRequest
+	nil,                            // 51: homecloud.vmd.v1.VM.LabelsEntry
+	nil,                            // 52: homecloud.vmd.v1.CreateVMRequest.LabelsEntry
+	nil,                            // 53: homecloud.vmd.v1.ListVMsRequest.LabelSelectorEntry
+	nil,                            // 54: homecloud.vmd.v1.UpdateVMRequest.LabelsEntry
+	(*timestamppb.Timestamp)(nil),  // 55: google.protobuf.Timestamp
 }
 var file_homecloud_vmd_v1_vmd_proto_depIdxs = []int32{
 	0,  // 0: homecloud.vmd.v1.VM.desired_state:type_name -> homecloud.vmd.v1.PowerState
 	1,  // 1: homecloud.vmd.v1.VM.state:type_name -> homecloud.vmd.v1.VMState
-	50, // 2: homecloud.vmd.v1.VM.labels:type_name -> homecloud.vmd.v1.VM.LabelsEntry
-	54, // 3: homecloud.vmd.v1.VM.created_at:type_name -> google.protobuf.Timestamp
-	54, // 4: homecloud.vmd.v1.VM.updated_at:type_name -> google.protobuf.Timestamp
-	51, // 5: homecloud.vmd.v1.CreateVMRequest.labels:type_name -> homecloud.vmd.v1.CreateVMRequest.LabelsEntry
+	51, // 2: homecloud.vmd.v1.VM.labels:type_name -> homecloud.vmd.v1.VM.LabelsEntry
+	55, // 3: homecloud.vmd.v1.VM.created_at:type_name -> google.protobuf.Timestamp
+	55, // 4: homecloud.vmd.v1.VM.updated_at:type_name -> google.protobuf.Timestamp
+	52, // 5: homecloud.vmd.v1.CreateVMRequest.labels:type_name -> homecloud.vmd.v1.CreateVMRequest.LabelsEntry
 	1,  // 6: homecloud.vmd.v1.GetVMRequest.wait_for_state:type_name -> homecloud.vmd.v1.VMState
-	52, // 7: homecloud.vmd.v1.ListVMsRequest.label_selector:type_name -> homecloud.vmd.v1.ListVMsRequest.LabelSelectorEntry
+	53, // 7: homecloud.vmd.v1.ListVMsRequest.label_selector:type_name -> homecloud.vmd.v1.ListVMsRequest.LabelSelectorEntry
 	5,  // 8: homecloud.vmd.v1.ListVMsResponse.vms:type_name -> homecloud.vmd.v1.VM
-	53, // 9: homecloud.vmd.v1.UpdateVMRequest.labels:type_name -> homecloud.vmd.v1.UpdateVMRequest.LabelsEntry
+	54, // 9: homecloud.vmd.v1.UpdateVMRequest.labels:type_name -> homecloud.vmd.v1.UpdateVMRequest.LabelsEntry
 	2,  // 10: homecloud.vmd.v1.Image.state:type_name -> homecloud.vmd.v1.ImageState
-	54, // 11: homecloud.vmd.v1.Image.created_at:type_name -> google.protobuf.Timestamp
+	55, // 11: homecloud.vmd.v1.Image.created_at:type_name -> google.protobuf.Timestamp
 	16, // 12: homecloud.vmd.v1.ListImagesResponse.images:type_name -> homecloud.vmd.v1.Image
 	3,  // 13: homecloud.vmd.v1.Disk.state:type_name -> homecloud.vmd.v1.DiskState
-	54, // 14: homecloud.vmd.v1.Disk.created_at:type_name -> google.protobuf.Timestamp
+	55, // 14: homecloud.vmd.v1.Disk.created_at:type_name -> google.protobuf.Timestamp
 	23, // 15: homecloud.vmd.v1.ListDisksResponse.disks:type_name -> homecloud.vmd.v1.Disk
 	4,  // 16: homecloud.vmd.v1.Job.state:type_name -> homecloud.vmd.v1.JobState
-	54, // 17: homecloud.vmd.v1.Job.started_at:type_name -> google.protobuf.Timestamp
-	54, // 18: homecloud.vmd.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
+	55, // 17: homecloud.vmd.v1.Job.started_at:type_name -> google.protobuf.Timestamp
+	55, // 18: homecloud.vmd.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
 	32, // 19: homecloud.vmd.v1.JobOutput.job:type_name -> homecloud.vmd.v1.Job
 	32, // 20: homecloud.vmd.v1.ListJobsResponse.jobs:type_name -> homecloud.vmd.v1.Job
-	54, // 21: homecloud.vmd.v1.VMMetrics.sampled_at:type_name -> google.protobuf.Timestamp
+	55, // 21: homecloud.vmd.v1.VMMetrics.sampled_at:type_name -> google.protobuf.Timestamp
 	43, // 22: homecloud.vmd.v1.VMMetrics.filesystems:type_name -> homecloud.vmd.v1.GuestFilesystem
 	44, // 23: homecloud.vmd.v1.VMMetrics.disks:type_name -> homecloud.vmd.v1.DiskAllocation
-	54, // 24: homecloud.vmd.v1.NodeCapacity.last_heartbeat:type_name -> google.protobuf.Timestamp
+	55, // 24: homecloud.vmd.v1.NodeCapacity.last_heartbeat:type_name -> google.protobuf.Timestamp
 	47, // 25: homecloud.vmd.v1.GetCapacityResponse.nodes:type_name -> homecloud.vmd.v1.NodeCapacity
 	47, // 26: homecloud.vmd.v1.GetCapacityResponse.total:type_name -> homecloud.vmd.v1.NodeCapacity
 	6,  // 27: homecloud.vmd.v1.VMService.CreateVM:input_type -> homecloud.vmd.v1.CreateVMRequest
@@ -3862,37 +3920,39 @@ var file_homecloud_vmd_v1_vmd_proto_depIdxs = []int32{
 	37, // 49: homecloud.vmd.v1.ExecService.ListJobs:input_type -> homecloud.vmd.v1.ListJobsRequest
 	39, // 50: homecloud.vmd.v1.ExecService.PutFile:input_type -> homecloud.vmd.v1.PutFileRequest
 	41, // 51: homecloud.vmd.v1.ExecService.GetFile:input_type -> homecloud.vmd.v1.GetFileRequest
-	46, // 52: homecloud.vmd.v1.MetricsService.GetVMMetrics:input_type -> homecloud.vmd.v1.GetVMMetricsRequest
-	48, // 53: homecloud.vmd.v1.MetricsService.GetCapacity:input_type -> homecloud.vmd.v1.GetCapacityRequest
-	5,  // 54: homecloud.vmd.v1.VMService.CreateVM:output_type -> homecloud.vmd.v1.VM
-	5,  // 55: homecloud.vmd.v1.VMService.GetVM:output_type -> homecloud.vmd.v1.VM
-	9,  // 56: homecloud.vmd.v1.VMService.ListVMs:output_type -> homecloud.vmd.v1.ListVMsResponse
-	5,  // 57: homecloud.vmd.v1.VMService.UpdateVM:output_type -> homecloud.vmd.v1.VM
-	5,  // 58: homecloud.vmd.v1.VMService.StartVM:output_type -> homecloud.vmd.v1.VM
-	5,  // 59: homecloud.vmd.v1.VMService.StopVM:output_type -> homecloud.vmd.v1.VM
-	14, // 60: homecloud.vmd.v1.VMService.DeleteVM:output_type -> homecloud.vmd.v1.DeleteVMResponse
-	5,  // 61: homecloud.vmd.v1.VMService.AddHold:output_type -> homecloud.vmd.v1.VM
-	5,  // 62: homecloud.vmd.v1.VMService.RemoveHold:output_type -> homecloud.vmd.v1.VM
-	16, // 63: homecloud.vmd.v1.ImageService.RegisterImage:output_type -> homecloud.vmd.v1.Image
-	16, // 64: homecloud.vmd.v1.ImageService.GetImage:output_type -> homecloud.vmd.v1.Image
-	20, // 65: homecloud.vmd.v1.ImageService.ListImages:output_type -> homecloud.vmd.v1.ListImagesResponse
-	22, // 66: homecloud.vmd.v1.ImageService.DeleteImage:output_type -> homecloud.vmd.v1.DeleteImageResponse
-	23, // 67: homecloud.vmd.v1.DiskService.CreateDisk:output_type -> homecloud.vmd.v1.Disk
-	23, // 68: homecloud.vmd.v1.DiskService.GetDisk:output_type -> homecloud.vmd.v1.Disk
-	27, // 69: homecloud.vmd.v1.DiskService.ListDisks:output_type -> homecloud.vmd.v1.ListDisksResponse
-	23, // 70: homecloud.vmd.v1.DiskService.ResizeDisk:output_type -> homecloud.vmd.v1.Disk
-	30, // 71: homecloud.vmd.v1.DiskService.DeleteDisk:output_type -> homecloud.vmd.v1.DeleteDiskResponse
-	16, // 72: homecloud.vmd.v1.DiskService.SnapshotDisk:output_type -> homecloud.vmd.v1.Image
-	33, // 73: homecloud.vmd.v1.ExecService.StartJob:output_type -> homecloud.vmd.v1.JobOutput
-	33, // 74: homecloud.vmd.v1.ExecService.PollJob:output_type -> homecloud.vmd.v1.JobOutput
-	33, // 75: homecloud.vmd.v1.ExecService.CancelJob:output_type -> homecloud.vmd.v1.JobOutput
-	38, // 76: homecloud.vmd.v1.ExecService.ListJobs:output_type -> homecloud.vmd.v1.ListJobsResponse
-	40, // 77: homecloud.vmd.v1.ExecService.PutFile:output_type -> homecloud.vmd.v1.PutFileResponse
-	42, // 78: homecloud.vmd.v1.ExecService.GetFile:output_type -> homecloud.vmd.v1.GetFileResponse
-	45, // 79: homecloud.vmd.v1.MetricsService.GetVMMetrics:output_type -> homecloud.vmd.v1.VMMetrics
-	49, // 80: homecloud.vmd.v1.MetricsService.GetCapacity:output_type -> homecloud.vmd.v1.GetCapacityResponse
-	54, // [54:81] is the sub-list for method output_type
-	27, // [27:54] is the sub-list for method input_type
+	50, // 52: homecloud.vmd.v1.ClusterService.SetNodeDraining:input_type -> homecloud.vmd.v1.SetNodeDrainingRequest
+	46, // 53: homecloud.vmd.v1.MetricsService.GetVMMetrics:input_type -> homecloud.vmd.v1.GetVMMetricsRequest
+	48, // 54: homecloud.vmd.v1.MetricsService.GetCapacity:input_type -> homecloud.vmd.v1.GetCapacityRequest
+	5,  // 55: homecloud.vmd.v1.VMService.CreateVM:output_type -> homecloud.vmd.v1.VM
+	5,  // 56: homecloud.vmd.v1.VMService.GetVM:output_type -> homecloud.vmd.v1.VM
+	9,  // 57: homecloud.vmd.v1.VMService.ListVMs:output_type -> homecloud.vmd.v1.ListVMsResponse
+	5,  // 58: homecloud.vmd.v1.VMService.UpdateVM:output_type -> homecloud.vmd.v1.VM
+	5,  // 59: homecloud.vmd.v1.VMService.StartVM:output_type -> homecloud.vmd.v1.VM
+	5,  // 60: homecloud.vmd.v1.VMService.StopVM:output_type -> homecloud.vmd.v1.VM
+	14, // 61: homecloud.vmd.v1.VMService.DeleteVM:output_type -> homecloud.vmd.v1.DeleteVMResponse
+	5,  // 62: homecloud.vmd.v1.VMService.AddHold:output_type -> homecloud.vmd.v1.VM
+	5,  // 63: homecloud.vmd.v1.VMService.RemoveHold:output_type -> homecloud.vmd.v1.VM
+	16, // 64: homecloud.vmd.v1.ImageService.RegisterImage:output_type -> homecloud.vmd.v1.Image
+	16, // 65: homecloud.vmd.v1.ImageService.GetImage:output_type -> homecloud.vmd.v1.Image
+	20, // 66: homecloud.vmd.v1.ImageService.ListImages:output_type -> homecloud.vmd.v1.ListImagesResponse
+	22, // 67: homecloud.vmd.v1.ImageService.DeleteImage:output_type -> homecloud.vmd.v1.DeleteImageResponse
+	23, // 68: homecloud.vmd.v1.DiskService.CreateDisk:output_type -> homecloud.vmd.v1.Disk
+	23, // 69: homecloud.vmd.v1.DiskService.GetDisk:output_type -> homecloud.vmd.v1.Disk
+	27, // 70: homecloud.vmd.v1.DiskService.ListDisks:output_type -> homecloud.vmd.v1.ListDisksResponse
+	23, // 71: homecloud.vmd.v1.DiskService.ResizeDisk:output_type -> homecloud.vmd.v1.Disk
+	30, // 72: homecloud.vmd.v1.DiskService.DeleteDisk:output_type -> homecloud.vmd.v1.DeleteDiskResponse
+	16, // 73: homecloud.vmd.v1.DiskService.SnapshotDisk:output_type -> homecloud.vmd.v1.Image
+	33, // 74: homecloud.vmd.v1.ExecService.StartJob:output_type -> homecloud.vmd.v1.JobOutput
+	33, // 75: homecloud.vmd.v1.ExecService.PollJob:output_type -> homecloud.vmd.v1.JobOutput
+	33, // 76: homecloud.vmd.v1.ExecService.CancelJob:output_type -> homecloud.vmd.v1.JobOutput
+	38, // 77: homecloud.vmd.v1.ExecService.ListJobs:output_type -> homecloud.vmd.v1.ListJobsResponse
+	40, // 78: homecloud.vmd.v1.ExecService.PutFile:output_type -> homecloud.vmd.v1.PutFileResponse
+	42, // 79: homecloud.vmd.v1.ExecService.GetFile:output_type -> homecloud.vmd.v1.GetFileResponse
+	47, // 80: homecloud.vmd.v1.ClusterService.SetNodeDraining:output_type -> homecloud.vmd.v1.NodeCapacity
+	45, // 81: homecloud.vmd.v1.MetricsService.GetVMMetrics:output_type -> homecloud.vmd.v1.VMMetrics
+	49, // 82: homecloud.vmd.v1.MetricsService.GetCapacity:output_type -> homecloud.vmd.v1.GetCapacityResponse
+	55, // [55:83] is the sub-list for method output_type
+	27, // [27:55] is the sub-list for method input_type
 	27, // [27:27] is the sub-list for extension type_name
 	27, // [27:27] is the sub-list for extension extendee
 	0,  // [0:27] is the sub-list for field type_name
@@ -3915,9 +3975,9 @@ func file_homecloud_vmd_v1_vmd_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_homecloud_vmd_v1_vmd_proto_rawDesc), len(file_homecloud_vmd_v1_vmd_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   49,
+			NumMessages:   50,
 			NumExtensions: 0,
-			NumServices:   5,
+			NumServices:   6,
 		},
 		GoTypes:           file_homecloud_vmd_v1_vmd_proto_goTypes,
 		DependencyIndexes: file_homecloud_vmd_v1_vmd_proto_depIdxs,

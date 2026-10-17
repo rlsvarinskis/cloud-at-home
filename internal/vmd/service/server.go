@@ -45,6 +45,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle(vmdv1connect.NewImageServiceHandler(&ImageServer{b}, opts...))
 	mux.Handle(vmdv1connect.NewExecServiceHandler(&ExecServer{b}, opts...))
 	mux.Handle(vmdv1connect.NewMetricsServiceHandler(&MetricsServer{b}, opts...))
+	mux.Handle(vmdv1connect.NewClusterServiceHandler(&ClusterServer{b}, opts...))
 
 	live, ready := obs.HealthHandlers(d.Ready...)
 	mux.Handle("/healthz", live)

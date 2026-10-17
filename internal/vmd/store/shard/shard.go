@@ -212,6 +212,10 @@ func (s *Store) UpsertNode(ctx context.Context, n *domain.Node) error {
 	return s.shards[systemShard].UpsertNode(ctx, n)
 }
 
+func (s *Store) SetNodeDrain(ctx context.Context, id string, drain bool) error {
+	return s.shards[systemShard].SetNodeDrain(ctx, id, drain)
+}
+
 func (s *Store) GetNode(ctx context.Context, id string) (*domain.Node, error) {
 	return s.shards[systemShard].GetNode(ctx, id)
 }

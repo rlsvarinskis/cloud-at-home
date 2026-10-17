@@ -444,7 +444,7 @@ func (r *Reconciler) fits(ctx context.Context, vm *domain.VM) (bool, string) {
 		if err != nil {
 			return true, ""
 		}
-		info := scheduler.NodeInfo{ID: n.ID, State: n.State, CPUs: n.CPUs, MemoryMB: n.MemoryMB, DiskBytesFree: n.DiskBytesFree}
+		info := scheduler.NodeInfo{ID: n.ID, State: n.Effective(), CPUs: n.CPUs, MemoryMB: n.MemoryMB, DiskBytesFree: n.DiskBytesFree}
 		for _, o := range vms {
 			if o.ID == vm.ID {
 				continue

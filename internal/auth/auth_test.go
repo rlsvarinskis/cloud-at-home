@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -352,5 +353,83 @@ func TestRolePermissionsAreListed(t *testing.T) {
 				t.Errorf("%s lists %s but does not grant it", r, p)
 			}
 		}
+	}
+}
+
+func TestFileRevocations(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "revoked.txt")
+	write := func(content string, mtime time.Time) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, mtime, mtime); err != nil {
+			t.Fatal(err)
+		}
+	}
+	base := time.Now().Add(-time.Hour)
+	write("# revoked after the laptop theft\ntok_aaa\n\n  tok_bbb  # trailing comment\n", base)
+
+	r, err := auth.NewFileRevocations(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Revoked("tok_aaa") || !r.Revoked("tok_bbb") || r.Revoked("tok_ccc") || r.Revoked("# revoked") || r.Len() != 2 {
+		t.Fatalf("parsing: len=%d", r.Len())
+	}
+	if _, err := auth.NewFileRevocations(filepath.Join(dir, "missing")); err == nil {
+		t.Fatal("a missing file at start-up must be an error (a typo must not silently disable revocation)")
+	}
+
+	// The watcher picks up changes...
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go r.Watch(ctx, 10*time.Millisecond, nil)
+	write("tok_aaa\ntok_ccc\n", base.Add(time.Minute))
+	deadline := time.Now().Add(3 * time.Second)
+	for !r.Revoked("tok_ccc") {
+		if time.Now().After(deadline) {
+			t.Fatal("reload not noticed")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if r.Revoked("tok_bbb") {
+		t.Fatal("an id removed from the file is no longer revoked")
+	}
+
+	// ...but a vanished file keeps the last good list in force.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(60 * time.Millisecond)
+	if !r.Revoked("tok_aaa") || !r.Revoked("tok_ccc") {
+		t.Fatal("a transient file problem must not un-revoke tokens")
+	}
+}
+
+func TestVerifierRejectsRevokedTokenFromFile(t *testing.T) {
+	iss, trusted := newIssuer(t, "k1")
+	path := filepath.Join(t.TempDir(), "revoked.txt")
+	tok, _ := iss.Mint(editorOn("p1"), time.Hour)
+	v := &auth.Verifier{Keys: map[string]auth.TrustedKey{"k1": trusted}}
+	p, err := v.Verify(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(p.TokenID+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := auth.NewFileRevocations(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.Revocations = r
+	if _, err := v.Verify(tok); !errors.Is(err, errs.ErrUnauthenticated) {
+		t.Fatalf("revoked token accepted: %v", err)
+	}
+	other, _ := iss.Mint(editorOn("p1"), time.Hour)
+	if _, err := v.Verify(other); err != nil {
+		t.Fatalf("other tokens are unaffected: %v", err)
 	}
 }

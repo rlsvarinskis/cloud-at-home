@@ -34,6 +34,7 @@ func Run(t *testing.T, newStore func(t *testing.T) store.Store) {
 	}{
 		{"Nodes/UpsertAndGet", testNodesUpsertAndGet},
 		{"Nodes/ListSorted", testNodesListSorted},
+		{"Nodes/DrainSurvivesHealthUpdates", testNodesDrain},
 
 		{"Images/CreateAndGet", testImagesCreateAndGet},
 		{"Images/DuplicateNameScopedToProject", testImagesDuplicateName},
@@ -1300,4 +1301,47 @@ func testClaimBumpsVersion(t *testing.T, s store.Store) {
 	mine := claimed[0]
 	mine.LeaseOwner, mine.LeaseUntil = "", time.Time{}
 	must(t, s.UpdateVM(ctx, mine))
+}
+
+// The operator's drain decision belongs to SetNodeDrain alone: refreshing a node's health and capacity (what the
+// poller does every few seconds, including when the node goes down) may never change it.
+func testNodesDrain(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	wantErr(t, s.SetNodeDrain(ctx, "ghost", true), errs.ErrNotFound)
+
+	n := newNode("n1")
+	must(t, s.UpsertNode(ctx, n))
+	got, err := s.GetNode(ctx, "n1")
+	must(t, err)
+	if got.Drain {
+		t.Fatal("a new node must not be draining")
+	}
+
+	must(t, s.SetNodeDrain(ctx, "n1", true))
+	for _, st := range []domain.NodeState{domain.NodeDown, domain.NodeReady} { // an outage, then recovery
+		n.State, n.Drain = st, false // even a refresh that says Drain=false must not clear it
+		n.CPUs++
+		must(t, s.UpsertNode(ctx, n))
+		got, err = s.GetNode(ctx, "n1")
+		must(t, err)
+		if !got.Drain || got.State != st || got.CPUs != n.CPUs {
+			t.Fatalf("after refresh with state %s: drain=%v state=%s cpus=%d", st, got.Drain, got.State, got.CPUs)
+		}
+	}
+
+	must(t, s.SetNodeDrain(ctx, "n1", false))
+	got, err = s.GetNode(ctx, "n1")
+	must(t, err)
+	if got.Drain {
+		t.Fatal("SetNodeDrain(false) must undrain")
+	}
+	if e := (&domain.Node{State: domain.NodeDown, Drain: true}).Effective(); e != domain.NodeDown {
+		t.Errorf("down beats draining: %s", e)
+	}
+	if e := (&domain.Node{State: domain.NodeReady, Drain: true}).Effective(); e != domain.NodeDraining {
+		t.Errorf("draining: %s", e)
+	}
+	if e := (&domain.Node{State: domain.NodeReady}).Effective(); e != domain.NodeReady {
+		t.Errorf("ready: %s", e)
+	}
 }

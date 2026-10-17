@@ -51,6 +51,7 @@ const (
 
 	VMMetrics   Permission = "vm.metrics"   // per-VM CPU/RAM/disk usage
 	CapacityGet Permission = "capacity.get" // cluster-wide capacity; operators only (global scope)
+	NodeDrain   Permission = "node.drain"   // stop/resume placing new VM starts on a node; operators only
 
 	NodeManage Permission = "node.manage" // the node API; only the vmd control plane holds it
 )
@@ -81,7 +82,7 @@ var rolePerms = map[Role]map[Permission]bool{
 	RoleService: set([]Permission{VMGet, VMList, VMMetrics, VMHold, ExecRun, ExecGet, ExecCancel, ExecList,
 		FileRead, FileWrite, ModelList}),
 	RoleNode:     set([]Permission{NodeManage}),
-	RoleOperator: set([]Permission{CapacityGet}),
+	RoleOperator: set([]Permission{CapacityGet, NodeDrain}),
 }
 
 func set(p []Permission) map[Permission]bool {

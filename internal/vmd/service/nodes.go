@@ -93,33 +93,37 @@ func (m *NodeManager) pollOne(ctx context.Context, id string) {
 	res, err := d.GetCapacity(cctx, &nodev1.GetCapacityRequest{})
 	prev, perr := m.st.GetNode(ctx, id)
 	n := &domain.Node{ID: id, Address: m.addrs[id], State: domain.NodeReady}
+	legacyDrain := false
 	if perr == nil {
 		*n = *prev
 		n.Address = m.addrs[id]
+		if n.State == domain.NodeDraining { // older rows stored the drain decision as the state
+			n.State, legacyDrain = domain.NodeReady, true
+		}
 	}
 	if err != nil {
-		// Only declare the node down after it has been silent for a while.
-		if perr == nil && m.now().Sub(prev.LastHeartbeat) > m.downAfter && prev.State != domain.NodeDown {
+		// Only declare the node down after it has been silent for a while. Drain is the operator's decision and
+		// lives apart from health (the store never lets a health update change it), so an outage cannot erase it.
+		if perr == nil && m.now().Sub(prev.LastHeartbeat) > m.downAfter {
+			if prev.State != domain.NodeDown {
+				m.log.Warn("node down", "node", id, "err", err)
+			}
 			n.State = domain.NodeDown
-			m.log.Warn("node down", "node", id, "err", err)
 		}
 		if perr != nil {
 			n.State, n.LastHeartbeat = domain.NodeDown, time.Time{}
 		}
-		_ = m.st.UpsertNode(ctx, n)
-		return
-	}
-	c := res.GetCapacity()
-	n.CPUs, n.MemoryMB, n.DiskBytesFree, n.DiskBytesTotal = int(c.GetCpusTotal()), c.GetMemoryMbTotal(), c.GetDiskBytesFree(), c.GetDiskBytesTotal()
-	n.LastHeartbeat = m.now()
-	if n.State == domain.NodeDown || perr != nil {
-		n.State = domain.NodeReady // recovered (a draining node stays draining)
-		if perr == nil && prev.State == domain.NodeDraining {
-			n.State = domain.NodeDraining
-		}
+	} else {
+		c := res.GetCapacity()
+		n.CPUs, n.MemoryMB, n.DiskBytesFree, n.DiskBytesTotal = int(c.GetCpusTotal()), c.GetMemoryMbTotal(), c.GetDiskBytesFree(), c.GetDiskBytesTotal()
+		n.LastHeartbeat, n.State = m.now(), domain.NodeReady
 	}
 	if err := m.st.UpsertNode(ctx, n); err != nil {
 		m.log.Error("upsert node", "node", id, "err", err)
+		return
+	}
+	if legacyDrain {
+		_ = m.st.SetNodeDrain(ctx, id, true)
 	}
 }
 
@@ -150,7 +154,7 @@ func (m *NodeManager) Info(ctx context.Context) ([]scheduler.NodeInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("list vms of %s: %w", n.ID, err)
 		}
-		ni := scheduler.NodeInfo{ID: n.ID, State: n.State, CPUs: n.CPUs, MemoryMB: n.MemoryMB, DiskBytesFree: n.DiskBytesFree}
+		ni := scheduler.NodeInfo{ID: n.ID, State: n.Effective(), CPUs: n.CPUs, MemoryMB: n.MemoryMB, DiskBytesFree: n.DiskBytesFree}
 		for _, v := range vms {
 			if v.Desired == domain.PowerRunning {
 				ni.AllocatedCPUs += v.CPUs

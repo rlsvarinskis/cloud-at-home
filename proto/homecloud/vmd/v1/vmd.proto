@@ -364,6 +364,18 @@ message GetCapacityResponse {
   NodeCapacity total = 2;      // sums over ready nodes (node_id "*")
 }
 
+message SetNodeDrainingRequest {
+  string node_id = 1;
+  bool draining = 2;
+}
+
+// Operator actions on the fleet (global, not project-scoped).
+service ClusterService {
+  // Stop (draining=true) or resume (false) placing new VM starts on a node. VMs already running there keep
+  // running; stopped VMs on it wait until it is undrained. The decision survives outages and restarts.
+  rpc SetNodeDraining(SetNodeDrainingRequest) returns (NodeCapacity);
+}
+
 service MetricsService {
   // Per-VM metrics: needs the VM to be running.
   rpc GetVMMetrics(GetVMMetricsRequest) returns (VMMetrics);

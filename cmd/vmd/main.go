@@ -36,6 +36,7 @@ import (
 	"example.com/homecloud/internal/vmd/service"
 	"example.com/homecloud/internal/vmd/store"
 	pgstore "example.com/homecloud/internal/vmd/store/postgres"
+	"example.com/homecloud/internal/vmd/store/shard"
 )
 
 var version = "dev" // set with -ldflags "-X main.version=..."
@@ -58,14 +59,16 @@ func main() {
 }
 
 type options struct {
-	role, listen, dsn, logLevel, dataDir, nodeID, sshKey, runAs, tlsCert, tlsKey string
-	serviceKey, serviceKeyID, sharedDir                                          string
-	maxTTL                                                                       time.Duration
-	metrics, kvm, noFirewall                                                     bool
-	trusted                                                                      daemon.TrustedKeys
-	nodes, allowDNS                                                              multi
-	cpuOvercommit, memOvercommit                                                 float64
-	reserveMemMB                                                                 int64
+	role, listen, logLevel, revoked, dataDir, nodeID, sshKey, runAs, tlsCert, tlsKey string
+	serviceKey, serviceKeyID, sharedDir                                              string
+	maxTTL                                                                           time.Duration
+	metrics, kvm, noFirewall                                                         bool
+	trusted                                                                          daemon.TrustedKeys
+	nodes, allowDNS, dsns                                                            multi
+	quotaVMs, quotaVCPUs, quotaDiskGB                                                int
+	quotaMemMB                                                                       int64
+	cpuOvercommit, memOvercommit                                                     float64
+	reserveMemMB                                                                     int64
 }
 
 func run(ctx context.Context, args []string, stderr io.Writer) error {
@@ -74,7 +77,12 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 	fs.SetOutput(stderr)
 	fs.StringVar(&o.role, "role", "all", "all | control | node")
 	fs.StringVar(&o.listen, "listen", ":8080", "address to listen on")
-	fs.StringVar(&o.dsn, "postgres-dsn", os.Getenv("HOMECLOUD_POSTGRES_DSN"), "Postgres DSN (control plane); empty = in-memory store, development only")
+	fs.Var(&o.dsns, "postgres-dsn", "Postgres DSN (control plane; env HOMECLOUD_POSTGRES_DSN). Repeat to shard projects across several databases (the set is part of your data layout: do not change it once data exists). None = in-memory store, development only")
+	fs.StringVar(&o.revoked, "revoked-tokens", "", "file of revoked token ids (jti), one per line; reloaded when it changes")
+	fs.IntVar(&o.quotaVMs, "quota-vms", 0, "max VMs per project (0 = unlimited)")
+	fs.IntVar(&o.quotaVCPUs, "quota-vcpus", 0, "max vCPUs of running VMs per project (0 = unlimited)")
+	fs.Int64Var(&o.quotaMemMB, "quota-memory-mb", 0, "max RAM (MB) of running VMs per project (0 = unlimited)")
+	fs.IntVar(&o.quotaDiskGB, "quota-disk-gb", 0, "max disk (GB) per project (0 = unlimited)")
 	fs.StringVar(&o.logLevel, "log-level", "info", "debug | info | warn | error")
 	fs.DurationVar(&o.maxTTL, "max-token-ttl", 24*time.Hour, "reject tokens valid for longer than this")
 	fs.Var(&o.trusted, "trusted-key", "kid=path[:role,role] public key to trust (repeatable)")
@@ -98,6 +106,9 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if len(o.dsns) == 0 && os.Getenv("HOMECLOUD_POSTGRES_DSN") != "" {
+		o.dsns = multi{os.Getenv("HOMECLOUD_POSTGRES_DSN")}
 	}
 	if *showVersion {
 		fmt.Println(version)
@@ -156,6 +167,9 @@ func runNode(ctx context.Context, log *slog.Logger, o *options) error {
 	if err != nil {
 		return err
 	}
+	if err := daemon.WithRevocations(ctx, ver, o.revoked, log); err != nil {
+		return err
+	}
 	drv, err := newDriver(ctx, log, o)
 	if err != nil {
 		return err
@@ -178,22 +192,12 @@ func runControl(ctx context.Context, log *slog.Logger, o *options) error {
 	if err != nil {
 		return err
 	}
-	var st store.Store
-	var checks []obs.NamedCheck
-	if o.dsn == "" {
-		log.Warn("no -postgres-dsn: using the in-memory store; all state is lost on restart")
-		st = store.NewMemory()
-	} else {
-		pool, err := pg.Open(ctx, o.dsn)
-		if err != nil {
-			return err
-		}
-		defer pool.Close()
-		if err := pgstore.Migrate(ctx, pool); err != nil {
-			return err
-		}
-		st = pgstore.New(pool)
-		checks = append(checks, obs.NamedCheck{Name: "postgres", Check: func(c context.Context) error { return pool.Ping(c) }})
+	if err := daemon.WithRevocations(ctx, ver, o.revoked, log); err != nil {
+		return err
+	}
+	st, checks, shardHooks, err := openStore(ctx, log, o.dsns)
+	if err != nil {
+		return err
 	}
 
 	nodes := service.NewNodeManager(st, log, nil)
@@ -225,7 +229,11 @@ func runControl(ctx context.Context, log *slog.Logger, o *options) error {
 
 	cfg := service.Config{
 		Scheduler: scheduler.Config{CPUOvercommit: o.cpuOvercommit, MemoryOvercommit: o.memOvercommit, ReserveMemoryMB: o.reserveMemMB},
+		Quota:     service.Quota{MaxVMs: o.quotaVMs, MaxCPUs: o.quotaVCPUs, MaxMemoryMB: o.quotaMemMB, MaxDiskGB: o.quotaDiskGB},
 		Log:       log,
+	}
+	if shardHooks != nil {
+		cfg.NewID, cfg.ProjectContext = shardHooks.NewID, shardHooks.ProjectContext
 	}
 	var reg = obs.NewRegistry()
 	obs.RegisterBuildInfo(reg, version)
@@ -268,4 +276,41 @@ func netListen(addr string) (net.Listener, error) {
 		onListen(ln.Addr())
 	}
 	return ln, err
+}
+
+// shardRouting are the two hooks the services need when projects are spread over several databases.
+type shardRouting struct {
+	NewID          func(prefix, project string) string
+	ProjectContext func(context.Context, string) context.Context
+}
+
+// openStore opens the control plane's database: one DSN is used directly, several are combined into a store that
+// shards projects across them, and none gives the in-memory development store.
+func openStore(ctx context.Context, log *slog.Logger, dsns []string) (store.Store, []obs.NamedCheck, *shardRouting, error) {
+	if len(dsns) == 0 {
+		log.Warn("no -postgres-dsn: using the in-memory store; all state is lost on restart")
+		return store.NewMemory(), nil, nil, nil
+	}
+	var stores []store.Store
+	var checks []obs.NamedCheck
+	for i, dsn := range dsns {
+		pool, err := pg.Open(ctx, dsn)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("database %d: %w", i, err)
+		}
+		if err := pgstore.Migrate(ctx, pool); err != nil {
+			return nil, nil, nil, fmt.Errorf("database %d: %w", i, err)
+		}
+		stores = append(stores, pgstore.New(pool))
+		checks = append(checks, obs.NamedCheck{Name: fmt.Sprintf("postgres-%d", i), Check: func(c context.Context) error { return pool.Ping(c) }})
+	}
+	if len(stores) == 1 {
+		return stores[0], checks, nil, nil
+	}
+	ss, err := shard.New(stores)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	log.Info("sharding projects across databases", "shards", len(stores))
+	return ss, checks, &shardRouting{NewID: ss.NewID, ProjectContext: shard.WithProject}, nil
 }

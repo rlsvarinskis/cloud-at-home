@@ -58,6 +58,22 @@ func (k TrustedKeys) Verifier(maxTTL time.Duration) (*auth.Verifier, error) {
 	return v, nil
 }
 
+// WithRevocations makes v reject the token ids listed in the file at path (see auth.FileRevocations) and keeps the
+// list fresh until ctx ends. An empty path leaves revocation off.
+func WithRevocations(ctx context.Context, v *auth.Verifier, path string, log *slog.Logger) error {
+	if path == "" {
+		return nil
+	}
+	r, err := auth.NewFileRevocations(path)
+	if err != nil {
+		return err
+	}
+	v.Revocations = r
+	go r.Watch(ctx, 5*time.Second, log)
+	log.Info("token revocation list loaded", "path", path, "entries", r.Len())
+	return nil
+}
+
 // LoadIssuer loads a private key for minting this service's own tokens.
 func LoadIssuer(path, kid string) (*auth.Issuer, error) {
 	if path == "" || kid == "" {

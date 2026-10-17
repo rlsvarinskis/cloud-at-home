@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -280,7 +281,7 @@ func TestSimpleSuccess(t *testing.T) {
 		t.Fatalf("StartJob calls = %d, want 1", len(reqs))
 	}
 	want := &vmdv1.StartJobRequest{VmId: "vm1", Command: "ls", Workdir: "/home/agent/work",
-		TimeoutSeconds: 600, WaitSeconds: 25, MaxOutput: 16384, IdempotencyKey: "t1-1"}
+		TimeoutSeconds: 600, WaitSeconds: startWait, MaxOutput: 16384, IdempotencyKey: "t1-1"}
 	if got := reqs[0]; got.VmId != want.VmId || got.Command != want.Command || got.Workdir != want.Workdir ||
 		got.TimeoutSeconds != want.TimeoutSeconds || got.WaitSeconds != want.WaitSeconds ||
 		got.MaxOutput != want.MaxOutput || got.IdempotencyKey != want.IdempotencyKey {
@@ -989,5 +990,64 @@ func TestLeaseLossDoesNotKillTheRunningCommand(t *testing.T) {
 	waitErr(t, errc)
 	if got := fx.vm.cancelled(); len(got) != 0 {
 		t.Fatalf("lease loss cancelled VM jobs %v; the new owner now depends on them", got)
+	}
+}
+
+// slowStartVM makes the StartJob RPC itself take a while, as vmd does when it waits for a quick command.
+type slowStartVM struct {
+	*fakeVM
+	entered chan struct{} // closed when StartJob has been called
+	release chan struct{} // StartJob returns once this is closed
+	once    sync.Once
+	sawDone atomic.Bool // the context StartJob received was cancelled
+}
+
+func (s *slowStartVM) StartJob(ctx context.Context, r *vmdv1.StartJobRequest) (*vmdv1.JobOutput, error) {
+	s.once.Do(func() { close(s.entered) })
+	select {
+	case <-s.release:
+	case <-ctx.Done():
+		s.sawDone.Store(true)
+		return nil, ctx.Err()
+	}
+	return s.fakeVM.StartJob(ctx, r)
+}
+
+// A cancel that arrives while the start request is in flight must not leave the command running unsupervised:
+// the request is not abortable, so its job id is learned and the job is cancelled.
+func TestCancelWhileStartRequestIsInFlightStillCancelsTheJob(t *testing.T) {
+	fx := newFixture(t, bash("sleep 100"))
+	fx.vm.setScript("sleep 100", jobScript{hang: true})
+	slow := &slowStartVM{fakeVM: fx.vm, entered: make(chan struct{}), release: make(chan struct{})}
+	fx.cfg.VM = slow
+	fx.addTask("t1", "", 0)
+	errc := runAsync(fx.runner(), fx.ctx)
+
+	<-slow.entered
+	fx.requestCancel("t1")
+	time.Sleep(100 * time.Millisecond) // let the cancel watcher fire while StartJob is still blocked
+	close(slow.release)
+	waitErr(t, errc)
+
+	if slow.sawDone.Load() {
+		t.Fatal("the StartJob request was aborted by the cancel; its job id would have been lost")
+	}
+	if got := fx.vm.cancelled(); len(got) != 1 || got[0] != "job-1" {
+		t.Fatalf("CancelJob calls = %v, want [job-1]", got)
+	}
+	if tk := fx.task("t1"); tk.State != domain.TaskCancelled {
+		t.Fatalf("task state = %s, want cancelled", tk.State)
+	}
+}
+
+// A task that is already being cancelled must not start new commands at all.
+func TestNoCommandIsStartedForACancelledTask(t *testing.T) {
+	fx := newFixture(t, bash("echo should-not-run"))
+	fx.addTask("t1", "", 0)
+	fx.requestCancel("t1")
+	errc := runAsync(fx.runner(), fx.ctx)
+	waitErr(t, errc)
+	if n := fx.vm.startCount(); n != 0 {
+		t.Fatalf("StartJob was called %d times for a task cancelled before it ran", n)
 	}
 }

@@ -23,7 +23,11 @@ type Store interface {
 	// Tx runs fn atomically: either every write inside it happens or none does.
 	Tx(ctx context.Context, fn func(Store) error) error
 
+	// UpsertNode inserts a node or refreshes an existing one's health, address and capacity. It NEVER changes
+	// an existing node's Drain flag (that belongs to SetNodeDrain), so a health poll cannot race an operator.
 	UpsertNode(ctx context.Context, n *domain.Node) error
+	// SetNodeDrain records the operator's drain decision (errs.ErrNotFound for an unknown node).
+	SetNodeDrain(ctx context.Context, id string, drain bool) error
 	GetNode(ctx context.Context, id string) (*domain.Node, error)
 	ListNodes(ctx context.Context) ([]*domain.Node, error)
 

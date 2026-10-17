@@ -87,8 +87,8 @@ func ClusterCapacity(ctx context.Context, st store.Store, sc scheduler.Config) (
 		if err != nil {
 			return nil, nil, err
 		}
-		info := scheduler.NodeInfo{ID: n.ID, State: n.State, CPUs: n.CPUs, MemoryMB: n.MemoryMB, DiskBytesFree: n.DiskBytesFree}
-		c := &vmdv1.NodeCapacity{NodeId: n.ID, State: string(n.State), CpusTotal: int32(n.CPUs), MemoryMbTotal: n.MemoryMB,
+		info := scheduler.NodeInfo{ID: n.ID, State: n.Effective(), CPUs: n.CPUs, MemoryMB: n.MemoryMB, DiskBytesFree: n.DiskBytesFree}
+		c := &vmdv1.NodeCapacity{NodeId: n.ID, State: string(n.Effective()), CpusTotal: int32(n.CPUs), MemoryMbTotal: n.MemoryMB,
 			DiskBytesTotal: n.DiskBytesTotal, DiskBytesFree: n.DiskBytesFree, VmsTotal: int32(len(vms))}
 		if !n.LastHeartbeat.IsZero() {
 			c.LastHeartbeat = timestamppb.New(n.LastHeartbeat)
@@ -103,12 +103,12 @@ func ClusterCapacity(ctx context.Context, st store.Store, sc scheduler.Config) (
 			}
 		}
 		c.CpusAllocated, c.MemoryMbAllocated = int32(info.AllocatedCPUs), info.AllocatedMemoryMB
-		if n.State == domain.NodeReady { // a down or draining node hands out nothing
+		if n.Effective() == domain.NodeReady { // a down or draining node hands out nothing
 			av := scheduler.Avail(info, sc)
 			c.CpusAvailable, c.MemoryMbAvailable = int32(av.CPUs), av.MemoryMB
 		}
 		nodes = append(nodes, c)
-		if n.State == domain.NodeReady {
+		if n.Effective() == domain.NodeReady {
 			total.CpusTotal += c.CpusTotal
 			total.CpusAllocated += c.CpusAllocated
 			total.CpusAvailable += c.CpusAvailable

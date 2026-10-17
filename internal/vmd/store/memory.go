@@ -89,8 +89,25 @@ func (m *Memory) Tx(ctx context.Context, fn func(Store) error) error {
 func (m *Memory) with(fn func()) { m.mu.Lock(); defer m.mu.Unlock(); fn() }
 
 func (m *Memory) UpsertNode(ctx context.Context, n *domain.Node) error {
-	m.with(func() { m.d.nodes[n.ID] = cp(n) })
+	m.with(func() {
+		c := cp(n)
+		if old, ok := m.d.nodes[n.ID]; ok {
+			c.Drain = old.Drain // the drain flag is only ever changed by SetNodeDrain
+		}
+		m.d.nodes[n.ID] = c
+	})
 	return nil
+}
+func (m *Memory) SetNodeDrain(ctx context.Context, id string, drain bool) (err error) {
+	m.with(func() {
+		n, ok := m.d.nodes[id]
+		if !ok {
+			err = errs.NotFound("node %s", id)
+			return
+		}
+		n.Drain = drain
+	})
+	return
 }
 func (m *Memory) GetNode(ctx context.Context, id string) (n *domain.Node, err error) {
 	m.with(func() {

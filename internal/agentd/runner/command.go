@@ -15,6 +15,8 @@ const (
 	pollWait     = 25               // seconds a StartJob or PollJob call may wait inside vmd (max 30)
 	pollMaxOut   = 16384            // bytes per stream vmd returns per call
 	checkTimeout = 5 * time.Minute  // lifetime limit for the task's check_command
+	startWait    = 2                // seconds the start request may wait for a quick command to finish
+	startTimeout = 20 * time.Second // upper bound for the start request itself
 	cancelGrace  = 10 * time.Second // how long a CancelJob call may take after the task was stopped
 )
 
@@ -82,12 +84,21 @@ func (r *Runner) runCommand(ctx context.Context, agent *domain.Agent, key, comma
 		secs = 1
 	}
 	command = Clean(command)
-	out, err := r.cfg.VM.StartJob(ctx, &vmdv1.StartJobRequest{
+	if err := ctx.Err(); err != nil {
+		return cmdResult{}, err // the task is already stopping: do not start anything new
+	}
+	// The start request itself is deliberately NOT cancellable. Once vmd is asked to run a command we must learn
+	// its job id: if a cancel aborted the request in flight, the command could run on, unsupervised and
+	// unstoppable. It only waits briefly (startWait), so a cancel is still noticed within a couple of seconds;
+	// the poll loop below, which does react to cancellation, takes over from there.
+	sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), startTimeout)
+	defer cancel()
+	out, err := r.cfg.VM.StartJob(sctx, &vmdv1.StartJobRequest{
 		VmId:           agent.VMID,
 		Command:        command,
 		Workdir:        agent.Workdir,
 		TimeoutSeconds: secs,
-		WaitSeconds:    pollWait,
+		WaitSeconds:    startWait,
 		MaxOutput:      pollMaxOut,
 		IdempotencyKey: key,
 	})

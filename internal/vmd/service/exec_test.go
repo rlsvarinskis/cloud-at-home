@@ -13,6 +13,7 @@ import (
 	vmdv1 "example.com/homecloud/gen/homecloud/vmd/v1"
 	"example.com/homecloud/gen/homecloud/vmd/v1/vmdv1connect"
 	"example.com/homecloud/internal/errs"
+	"example.com/homecloud/internal/vmd/domain"
 )
 
 // exectHook is the signature of fake.Driver.Exec.
@@ -989,5 +990,77 @@ func TestExecIdempotencyKeyReuseForDifferentRequestIsRejected(t *testing.T) {
 	}
 	if n := exectCount(e.node.Calls(), "StartJob"); n != 1 {
 		t.Fatalf("rejected replays must not start anything; node saw %d StartJob calls", n)
+	}
+}
+
+// A StartJob whose node call failed never reached the guest. The client's retry (same idempotency key) must
+// start that very job, not replay the failure forever.
+func TestExecRetryAfterFailedStartRunsTheSameJob(t *testing.T) {
+	e := newEnv(t)
+	vm := e.runningVM("retry")
+	e.node.Exec = exectFixed(0, "done\n", 0)
+	ed := e.editor()
+	ctx := context.Background()
+	req := func() *connect.Request[vmdv1.StartJobRequest] {
+		return connect.NewRequest(&vmdv1.StartJobRequest{VmId: vm.Id, Command: "make", IdempotencyKey: "retry-1"})
+	}
+
+	e.node.FailNext("StartJob", errs.Unavailable("node blip"))
+	_, err := ed.Exec.StartJob(ctx, req())
+	if code(err) != connect.CodeUnavailable {
+		t.Fatalf("first attempt: want Unavailable, got %v", err)
+	}
+	jobs := exectList(t, ed, vm.Id)
+	if len(jobs) != 1 || jobs[0].State != vmdv1.JobState_JOB_STATE_FAILED {
+		t.Fatalf("after the failed start there should be one FAILED record: %+v", jobs)
+	}
+	failedID := jobs[0].Id
+
+	res, err := ed.Exec.StartJob(ctx, req()) // the retry, node healthy again
+	if err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if res.Msg.Job.Id != failedID || res.Msg.Job.State != vmdv1.JobState_JOB_STATE_SUCCEEDED || string(res.Msg.Stdout) != "done\n" {
+		t.Fatalf("retry must run the SAME job to completion: %+v stdout=%q", res.Msg.Job, res.Msg.Stdout)
+	}
+	if n := exectCount(e.node.Calls(), "StartJob"); n != 2 { // one that failed, one that worked
+		t.Fatalf("node StartJob calls = %d, want 2", n)
+	}
+	if l := exectList(t, ed, vm.Id); len(l) != 1 {
+		t.Fatalf("a retry must not create a second job record: %d", len(l))
+	}
+
+	again, err := ed.Exec.StartJob(ctx, req()) // a further replay is just a read
+	if err != nil || again.Msg.Job.Id != failedID || exectCount(e.node.Calls(), "StartJob") != 2 {
+		t.Fatalf("replay after success must not start anything: %v %v", again, err)
+	}
+}
+
+// If the node actually had the job (the start succeeded but its reply was lost), the retry adopts it.
+func TestExecRetryAdoptsAJobTheNodeAlreadyHas(t *testing.T) {
+	e := newEnv(t)
+	vm := e.runningVM("adopt")
+	e.node.Exec = exectFixed(0, "ok\n", 0)
+	ed := e.editor()
+	ctx := context.Background()
+	req := func() *connect.Request[vmdv1.StartJobRequest] {
+		return connect.NewRequest(&vmdv1.StartJobRequest{VmId: vm.Id, Command: "true", IdempotencyKey: "adopt-1"})
+	}
+	first, err := ed.Exec.StartJob(ctx, req())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Rewrite the record as the failed-start state while the node still has the job.
+	j, err := e.st.GetJob(ctx, first.Msg.Job.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j.State, j.ExitCode, j.KilledReason = domain.JobFailed, nil, "could not start: node n1 is unavailable"
+	if err := e.st.UpdateJob(ctx, j); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ed.Exec.StartJob(ctx, req())
+	if err != nil || res.Msg.Job.Id != first.Msg.Job.Id || res.Msg.Job.State != vmdv1.JobState_JOB_STATE_SUCCEEDED {
+		t.Fatalf("retry should adopt the existing job: %+v %v", res, err)
 	}
 }

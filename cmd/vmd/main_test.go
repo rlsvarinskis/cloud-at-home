@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/jackc/pgx/v5"
 	"io"
 	"net"
 	"net/http"
@@ -180,4 +182,137 @@ func TestVMDRefusesBadConfiguration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func capacityURL(base string) string { return base + "/homecloud.vmd.v1.MetricsService/GetCapacity" }
+
+// Several -postgres-dsn flags shard projects across the databases: every database gets its schema AND receives
+// rows, the rows of a project stay together, and the API behaves as with one database.
+func TestVMDShardsAcrossSeveralDatabases(t *testing.T) {
+	k := newKeys(t)
+	dsns := []string{pgtest.DSN(t), pgtest.DSN(t), pgtest.DSN(t)}
+	args := []string{"-role", "all", "-listen", "127.0.0.1:0", "-node-id", "n1"}
+	for _, d := range dsns {
+		args = append(args, "-postgres-dsn", d)
+	}
+	base := start(t, append(append(args, k.args...), nodeArgs(t)...)...)
+
+	if res, err := http.Get(base + "/readyz"); err != nil || res.StatusCode != 200 { // pings every database
+		t.Fatalf("readyz: %v %v", res, err)
+	}
+	create := base + "/homecloud.vmd.v1.DiskService/CreateDisk"
+	const projects = 30 // enough that an empty shard is practically impossible by chance
+	for i := range projects {
+		p := fmt.Sprintf("proj-%02d", i)
+		var code int
+		var body string
+		for range 50 { // wait for the node to register
+			code, body = call(t, create, k.token(t, auth.RoleEditor, p), `{"projectId":"`+p+`","name":"data","sizeGb":1}`)
+			if code != 412 {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if code != 200 {
+			t.Fatalf("create disk in %s: %d %s", p, code, body)
+		}
+		// Reading it back through the API finds it on whichever shard holds the project.
+		code, body = call(t, base+"/homecloud.vmd.v1.DiskService/ListDisks", k.token(t, auth.RoleViewer, p), `{"projectId":"`+p+`"}`)
+		if code != 200 || strings.Count(body, `"name":"data"`) != 1 {
+			t.Fatalf("list disks in %s: %d %s", p, code, body)
+		}
+	}
+
+	total := 0
+	for i, d := range dsns {
+		conn, err := pgx.Connect(context.Background(), d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var n int
+		if err := conn.QueryRow(context.Background(), "SELECT count(*) FROM disks").Scan(&n); err != nil {
+			t.Fatalf("database %d has no schema: %v", i, err)
+		}
+		conn.Close(context.Background())
+		if n == 0 {
+			t.Errorf("database %d received no rows: the projects are not being spread across the databases", i)
+		}
+		total += n
+	}
+	if total != projects {
+		t.Errorf("rows across databases = %d, want %d (one disk per project, none duplicated)", total, projects)
+	}
+}
+
+// -quota-* flags reach the services: a project cannot create more disk than its quota.
+func TestVMDQuotaFlags(t *testing.T) {
+	k := newKeys(t)
+	args := append([]string{"-role", "all", "-listen", "127.0.0.1:0", "-node-id", "n1", "-quota-disk-gb", "10"}, k.args...)
+	base := start(t, append(args, nodeArgs(t)...)...)
+	ed := k.token(t, auth.RoleEditor, "p1")
+	create := base + "/homecloud.vmd.v1.DiskService/CreateDisk"
+
+	var code int
+	var body string
+	for range 50 { // wait for the node to register
+		code, body = call(t, create, ed, `{"projectId":"p1","name":"d1","sizeGb":6}`)
+		if code != 412 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if code != 200 {
+		t.Fatalf("first disk within quota: %d %s", code, body)
+	}
+	code, body = call(t, create, ed, `{"projectId":"p1","name":"d2","sizeGb":6}`)
+	if code != 429 || !strings.Contains(body, "quota") {
+		t.Fatalf("second disk exceeds the 10 GB quota: %d %s", code, body)
+	}
+}
+
+// -revoked-tokens: a token that works is refused once its id is added to the file, without restarting the daemon.
+func TestVMDRevokedTokens(t *testing.T) {
+	k := newKeys(t)
+	revoked := filepath.Join(t.TempDir(), "revoked.txt")
+	if err := os.WriteFile(revoked, []byte("# nothing revoked yet\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	args := append([]string{"-role", "all", "-listen", "127.0.0.1:0", "-node-id", "n1", "-revoked-tokens", revoked}, k.args...)
+	base := start(t, append(args, nodeArgs(t)...)...)
+
+	tok := k.token(t, auth.RoleOperator, auth.AnyProject)
+	if code, _ := call(t, capacityURL(base), tok, "{}"); code != 200 {
+		t.Fatalf("token before revocation: %d", code)
+	}
+	v := &auth.Verifier{Keys: map[string]auth.TrustedKey{"admin": mustPub(t, k)}}
+	p, err := v.Verify(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(revoked, []byte(p.TokenID+" # compromised\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		code, _ := call(t, capacityURL(base), tok, "{}")
+		if code == 401 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the revoked token still works (%d)", code)
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	if code, _ := call(t, capacityURL(base), k.token(t, auth.RoleOperator, auth.AnyProject), "{}"); code != 200 {
+		t.Fatalf("other tokens must keep working: %d", code)
+	}
+}
+
+func mustPub(t *testing.T, k keys) auth.TrustedKey {
+	t.Helper()
+	pub, err := auth.LoadPublicKey(filepath.Join(k.dir, "admin.pub"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return auth.TrustedKey{Public: pub}
 }

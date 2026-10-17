@@ -57,6 +57,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 	serviceKey := fs.String("service-key", "", "private key this service signs its own vmd tokens with (required)")
 	serviceKeyID := fs.String("service-key-id", "agentd", "key id of -service-key; vmd must trust it with -trusted-key kid=path:service")
 	workers := fs.Int("workers", 2, "tasks run concurrently by this process")
+	revoked := fs.String("revoked-tokens", "", "file of revoked token ids (jti), one per line; reloaded when it changes")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -74,6 +75,9 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 	}
 	ver, err := trusted.Verifier(*maxTTL)
 	if err != nil {
+		return err
+	}
+	if err := daemon.WithRevocations(ctx, ver, *revoked, log); err != nil {
 		return err
 	}
 	iss, err := daemon.LoadIssuer(*serviceKey, *serviceKeyID)

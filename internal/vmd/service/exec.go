@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	couldNotStart   = "could not start: " // KilledReason prefix of a job that never reached the guest
 	maxCommandBytes = 256 << 10
 	maxFileBytes    = 8 << 20
 	maxJobWait      = 30 // seconds a single call may block
@@ -185,7 +186,7 @@ func (s *ExecServer) StartJob(ctx context.Context, req *connect.Request[vmdv1.St
 	if _, err := drv.StartJob(ctx, &nodev1.StartJobRequest{VmId: vm.ID, Spec: &nodev1.JobSpec{
 		JobId: j.ID, Command: m.Command, Workdir: m.Workdir, TimeoutSeconds: int32(timeout)}}); err != nil {
 		clientErr := s.nodeErr(vm.NodeID, err)
-		j.State, j.KilledReason, j.FinishedAt = domain.JobFailed, "could not start: "+clientErr.Error(), s.now()
+		j.State, j.KilledReason, j.FinishedAt = domain.JobFailed, couldNotStart+clientErr.Error(), s.now()
 		s.saveJob(ctx, j)
 		return nil, clientErr
 	}
@@ -199,8 +200,37 @@ func (s *ExecServer) replay(ctx context.Context, vm *domain.VM, prev *domain.Job
 	if prev.VMID != vm.ID || prev.Command != m.Command || prev.Workdir != m.Workdir {
 		return nil, errs.Invalid("idempotency_key %q was already used for a different request", m.IdempotencyKey)
 	}
+	if prev.State == domain.JobFailed && prev.ExitCode == nil && strings.HasPrefix(prev.KilledReason, couldNotStart) {
+		// The first attempt never reached the guest (the node was unreachable). Replaying that failure would make
+		// every retry of the same request fail forever, so start the very same job again.
+		if err := s.restart(ctx, vm, prev); err != nil {
+			return nil, err
+		}
+	}
 	res, err := s.waitOutput(ctx, vm, prev, m.WaitSeconds, 0, 0, clampOutput(m.MaxOutput), true)
 	return respond(res, err)
+}
+
+// restart re-launches a job whose start never reached the guest. If the node already has it (a start whose
+// reply was lost) that counts as started.
+func (s *ExecServer) restart(ctx context.Context, vm *domain.VM, j *domain.Job) error {
+	drv, err := s.runningDriver(vm)
+	if err != nil {
+		return err
+	}
+	j.State, j.KilledReason, j.FinishedAt, j.StartedAt = domain.JobRunning, "", time.Time{}, s.now()
+	if err := s.st.UpdateJob(ctx, j); err != nil { // compare-and-swap: of several concurrent retries only one wins
+		return err
+	}
+	_, err = drv.StartJob(ctx, &nodev1.StartJobRequest{VmId: vm.ID, Spec: &nodev1.JobSpec{
+		JobId: j.ID, Command: j.Command, Workdir: j.Workdir, TimeoutSeconds: int32(j.TimeoutSeconds)}})
+	if err != nil && !errors.Is(err, errs.ErrAlreadyExists) {
+		clientErr := s.nodeErr(vm.NodeID, err)
+		j.State, j.KilledReason, j.FinishedAt = domain.JobFailed, couldNotStart+clientErr.Error(), s.now()
+		s.saveJob(ctx, j)
+		return clientErr
+	}
+	return nil
 }
 
 func respond(res *vmdv1.JobOutput, err error) (*connect.Response[vmdv1.JobOutput], error) {
