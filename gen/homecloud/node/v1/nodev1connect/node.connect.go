@@ -70,6 +70,9 @@ const (
 	NodeServicePutFileProcedure = "/homecloud.node.v1.NodeService/PutFile"
 	// NodeServiceGetFileProcedure is the fully-qualified name of the NodeService's GetFile RPC.
 	NodeServiceGetFileProcedure = "/homecloud.node.v1.NodeService/GetFile"
+	// NodeServiceGetVMMetricsProcedure is the fully-qualified name of the NodeService's GetVMMetrics
+	// RPC.
+	NodeServiceGetVMMetricsProcedure = "/homecloud.node.v1.NodeService/GetVMMetrics"
 )
 
 // NodeServiceClient is a client for the homecloud.node.v1.NodeService service.
@@ -90,6 +93,7 @@ type NodeServiceClient interface {
 	CancelJob(context.Context, *connect.Request[v1.CancelJobRequest]) (*connect.Response[v1.CancelJobResponse], error)
 	PutFile(context.Context, *connect.Request[v1.PutFileRequest]) (*connect.Response[v1.PutFileResponse], error)
 	GetFile(context.Context, *connect.Request[v1.GetFileRequest]) (*connect.Response[v1.GetFileResponse], error)
+	GetVMMetrics(context.Context, *connect.Request[v1.GetVMMetricsRequest]) (*connect.Response[v1.GetVMMetricsResponse], error)
 }
 
 // NewNodeServiceClient constructs a client for the homecloud.node.v1.NodeService service. By
@@ -199,6 +203,12 @@ func NewNodeServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(nodeServiceMethods.ByName("GetFile")),
 			connect.WithClientOptions(opts...),
 		),
+		getVMMetrics: connect.NewClient[v1.GetVMMetricsRequest, v1.GetVMMetricsResponse](
+			httpClient,
+			baseURL+NodeServiceGetVMMetricsProcedure,
+			connect.WithSchema(nodeServiceMethods.ByName("GetVMMetrics")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -220,6 +230,7 @@ type nodeServiceClient struct {
 	cancelJob     *connect.Client[v1.CancelJobRequest, v1.CancelJobResponse]
 	putFile       *connect.Client[v1.PutFileRequest, v1.PutFileResponse]
 	getFile       *connect.Client[v1.GetFileRequest, v1.GetFileResponse]
+	getVMMetrics  *connect.Client[v1.GetVMMetricsRequest, v1.GetVMMetricsResponse]
 }
 
 // GetCapacity calls homecloud.node.v1.NodeService.GetCapacity.
@@ -302,6 +313,11 @@ func (c *nodeServiceClient) GetFile(ctx context.Context, req *connect.Request[v1
 	return c.getFile.CallUnary(ctx, req)
 }
 
+// GetVMMetrics calls homecloud.node.v1.NodeService.GetVMMetrics.
+func (c *nodeServiceClient) GetVMMetrics(ctx context.Context, req *connect.Request[v1.GetVMMetricsRequest]) (*connect.Response[v1.GetVMMetricsResponse], error) {
+	return c.getVMMetrics.CallUnary(ctx, req)
+}
+
 // NodeServiceHandler is an implementation of the homecloud.node.v1.NodeService service.
 type NodeServiceHandler interface {
 	GetCapacity(context.Context, *connect.Request[v1.GetCapacityRequest]) (*connect.Response[v1.GetCapacityResponse], error)
@@ -320,6 +336,7 @@ type NodeServiceHandler interface {
 	CancelJob(context.Context, *connect.Request[v1.CancelJobRequest]) (*connect.Response[v1.CancelJobResponse], error)
 	PutFile(context.Context, *connect.Request[v1.PutFileRequest]) (*connect.Response[v1.PutFileResponse], error)
 	GetFile(context.Context, *connect.Request[v1.GetFileRequest]) (*connect.Response[v1.GetFileResponse], error)
+	GetVMMetrics(context.Context, *connect.Request[v1.GetVMMetricsRequest]) (*connect.Response[v1.GetVMMetricsResponse], error)
 }
 
 // NewNodeServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -425,6 +442,12 @@ func NewNodeServiceHandler(svc NodeServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(nodeServiceMethods.ByName("GetFile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	nodeServiceGetVMMetricsHandler := connect.NewUnaryHandler(
+		NodeServiceGetVMMetricsProcedure,
+		svc.GetVMMetrics,
+		connect.WithSchema(nodeServiceMethods.ByName("GetVMMetrics")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/homecloud.node.v1.NodeService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case NodeServiceGetCapacityProcedure:
@@ -459,6 +482,8 @@ func NewNodeServiceHandler(svc NodeServiceHandler, opts ...connect.HandlerOption
 			nodeServicePutFileHandler.ServeHTTP(w, r)
 		case NodeServiceGetFileProcedure:
 			nodeServiceGetFileHandler.ServeHTTP(w, r)
+		case NodeServiceGetVMMetricsProcedure:
+			nodeServiceGetVMMetricsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -530,4 +555,8 @@ func (UnimplementedNodeServiceHandler) PutFile(context.Context, *connect.Request
 
 func (UnimplementedNodeServiceHandler) GetFile(context.Context, *connect.Request[v1.GetFileRequest]) (*connect.Response[v1.GetFileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("homecloud.node.v1.NodeService.GetFile is not implemented"))
+}
+
+func (UnimplementedNodeServiceHandler) GetVMMetrics(context.Context, *connect.Request[v1.GetVMMetricsRequest]) (*connect.Response[v1.GetVMMetricsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("homecloud.node.v1.NodeService.GetVMMetrics is not implemented"))
 }

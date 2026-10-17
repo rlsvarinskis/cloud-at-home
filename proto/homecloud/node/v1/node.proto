@@ -10,6 +10,8 @@ message Capacity {
   int32 cpus_total = 1;
   int64 memory_mb_total = 2;
   int64 disk_bytes_free = 3;
+  int64 memory_mb_available = 4;   // what the host could still give out (MemAvailable)
+  int64 disk_bytes_total = 5;
 }
 message GetCapacityRequest {}
 message GetCapacityResponse { Capacity capacity = 1; }
@@ -133,6 +135,38 @@ message GetFileResponse {
   bool truncated = 2;
 }
 
+message GuestFilesystem {
+  string disk_id = 1;
+  string device = 2;
+  string mount_point = 3;
+  int64 size_bytes = 4;
+  int64 used_bytes = 5;
+}
+message DiskAllocation {
+  string disk_id = 1;
+  int64 virtual_size_bytes = 2;
+  int64 allocated_bytes = 3;
+}
+message GetVMMetricsRequest {
+  string vm_id = 1;
+  repeated string disk_ids = 2;    // in attach order: vda = first, vdb = second, ...
+}
+message GetVMMetricsResponse {
+  double cpu_percent = 1;
+  int32 cpu_cores = 2;
+  double load1 = 3;
+  double load5 = 4;
+  double load15 = 5;
+  int64 mem_total_bytes = 6;
+  int64 mem_used_bytes = 7;
+  int64 mem_available_bytes = 8;
+  int64 swap_total_bytes = 9;
+  int64 swap_used_bytes = 10;
+  int64 uptime_seconds = 11;
+  repeated GuestFilesystem filesystems = 12;
+  repeated DiskAllocation disks = 13;
+}
+
 service NodeService {
   rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
   rpc RegisterImage(RegisterImageRequest) returns (RegisterImageResponse);
@@ -150,4 +184,5 @@ service NodeService {
   rpc CancelJob(CancelJobRequest) returns (CancelJobResponse);
   rpc PutFile(PutFileRequest) returns (PutFileResponse);
   rpc GetFile(GetFileRequest) returns (GetFileResponse);
+  rpc GetVMMetrics(GetVMMetricsRequest) returns (GetVMMetricsResponse);
 }

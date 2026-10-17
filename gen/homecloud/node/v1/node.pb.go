@@ -135,12 +135,14 @@ func (GuestJobState) EnumDescriptor() ([]byte, []int) {
 }
 
 type Capacity struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CpusTotal     int32                  `protobuf:"varint,1,opt,name=cpus_total,json=cpusTotal,proto3" json:"cpus_total,omitempty"`
-	MemoryMbTotal int64                  `protobuf:"varint,2,opt,name=memory_mb_total,json=memoryMbTotal,proto3" json:"memory_mb_total,omitempty"`
-	DiskBytesFree int64                  `protobuf:"varint,3,opt,name=disk_bytes_free,json=diskBytesFree,proto3" json:"disk_bytes_free,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	CpusTotal         int32                  `protobuf:"varint,1,opt,name=cpus_total,json=cpusTotal,proto3" json:"cpus_total,omitempty"`
+	MemoryMbTotal     int64                  `protobuf:"varint,2,opt,name=memory_mb_total,json=memoryMbTotal,proto3" json:"memory_mb_total,omitempty"`
+	DiskBytesFree     int64                  `protobuf:"varint,3,opt,name=disk_bytes_free,json=diskBytesFree,proto3" json:"disk_bytes_free,omitempty"`
+	MemoryMbAvailable int64                  `protobuf:"varint,4,opt,name=memory_mb_available,json=memoryMbAvailable,proto3" json:"memory_mb_available,omitempty"` // what the host could still give out (MemAvailable)
+	DiskBytesTotal    int64                  `protobuf:"varint,5,opt,name=disk_bytes_total,json=diskBytesTotal,proto3" json:"disk_bytes_total,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Capacity) Reset() {
@@ -190,6 +192,20 @@ func (x *Capacity) GetMemoryMbTotal() int64 {
 func (x *Capacity) GetDiskBytesFree() int64 {
 	if x != nil {
 		return x.DiskBytesFree
+	}
+	return 0
+}
+
+func (x *Capacity) GetMemoryMbAvailable() int64 {
+	if x != nil {
+		return x.MemoryMbAvailable
+	}
+	return 0
+}
+
+func (x *Capacity) GetDiskBytesTotal() int64 {
+	if x != nil {
+		return x.DiskBytesTotal
 	}
 	return 0
 }
@@ -1915,16 +1931,346 @@ func (x *GetFileResponse) GetTruncated() bool {
 	return false
 }
 
+type GuestFilesystem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DiskId        string                 `protobuf:"bytes,1,opt,name=disk_id,json=diskId,proto3" json:"disk_id,omitempty"`
+	Device        string                 `protobuf:"bytes,2,opt,name=device,proto3" json:"device,omitempty"`
+	MountPoint    string                 `protobuf:"bytes,3,opt,name=mount_point,json=mountPoint,proto3" json:"mount_point,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	UsedBytes     int64                  `protobuf:"varint,5,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GuestFilesystem) Reset() {
+	*x = GuestFilesystem{}
+	mi := &file_homecloud_node_v1_node_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GuestFilesystem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GuestFilesystem) ProtoMessage() {}
+
+func (x *GuestFilesystem) ProtoReflect() protoreflect.Message {
+	mi := &file_homecloud_node_v1_node_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GuestFilesystem.ProtoReflect.Descriptor instead.
+func (*GuestFilesystem) Descriptor() ([]byte, []int) {
+	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *GuestFilesystem) GetDiskId() string {
+	if x != nil {
+		return x.DiskId
+	}
+	return ""
+}
+
+func (x *GuestFilesystem) GetDevice() string {
+	if x != nil {
+		return x.Device
+	}
+	return ""
+}
+
+func (x *GuestFilesystem) GetMountPoint() string {
+	if x != nil {
+		return x.MountPoint
+	}
+	return ""
+}
+
+func (x *GuestFilesystem) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *GuestFilesystem) GetUsedBytes() int64 {
+	if x != nil {
+		return x.UsedBytes
+	}
+	return 0
+}
+
+type DiskAllocation struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	DiskId           string                 `protobuf:"bytes,1,opt,name=disk_id,json=diskId,proto3" json:"disk_id,omitempty"`
+	VirtualSizeBytes int64                  `protobuf:"varint,2,opt,name=virtual_size_bytes,json=virtualSizeBytes,proto3" json:"virtual_size_bytes,omitempty"`
+	AllocatedBytes   int64                  `protobuf:"varint,3,opt,name=allocated_bytes,json=allocatedBytes,proto3" json:"allocated_bytes,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *DiskAllocation) Reset() {
+	*x = DiskAllocation{}
+	mi := &file_homecloud_node_v1_node_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiskAllocation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiskAllocation) ProtoMessage() {}
+
+func (x *DiskAllocation) ProtoReflect() protoreflect.Message {
+	mi := &file_homecloud_node_v1_node_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiskAllocation.ProtoReflect.Descriptor instead.
+func (*DiskAllocation) Descriptor() ([]byte, []int) {
+	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *DiskAllocation) GetDiskId() string {
+	if x != nil {
+		return x.DiskId
+	}
+	return ""
+}
+
+func (x *DiskAllocation) GetVirtualSizeBytes() int64 {
+	if x != nil {
+		return x.VirtualSizeBytes
+	}
+	return 0
+}
+
+func (x *DiskAllocation) GetAllocatedBytes() int64 {
+	if x != nil {
+		return x.AllocatedBytes
+	}
+	return 0
+}
+
+type GetVMMetricsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	VmId          string                 `protobuf:"bytes,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
+	DiskIds       []string               `protobuf:"bytes,2,rep,name=disk_ids,json=diskIds,proto3" json:"disk_ids,omitempty"` // in attach order: vda = first, vdb = second, ...
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetVMMetricsRequest) Reset() {
+	*x = GetVMMetricsRequest{}
+	mi := &file_homecloud_node_v1_node_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVMMetricsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVMMetricsRequest) ProtoMessage() {}
+
+func (x *GetVMMetricsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_homecloud_node_v1_node_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVMMetricsRequest.ProtoReflect.Descriptor instead.
+func (*GetVMMetricsRequest) Descriptor() ([]byte, []int) {
+	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *GetVMMetricsRequest) GetVmId() string {
+	if x != nil {
+		return x.VmId
+	}
+	return ""
+}
+
+func (x *GetVMMetricsRequest) GetDiskIds() []string {
+	if x != nil {
+		return x.DiskIds
+	}
+	return nil
+}
+
+type GetVMMetricsResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	CpuPercent        float64                `protobuf:"fixed64,1,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"`
+	CpuCores          int32                  `protobuf:"varint,2,opt,name=cpu_cores,json=cpuCores,proto3" json:"cpu_cores,omitempty"`
+	Load1             float64                `protobuf:"fixed64,3,opt,name=load1,proto3" json:"load1,omitempty"`
+	Load5             float64                `protobuf:"fixed64,4,opt,name=load5,proto3" json:"load5,omitempty"`
+	Load15            float64                `protobuf:"fixed64,5,opt,name=load15,proto3" json:"load15,omitempty"`
+	MemTotalBytes     int64                  `protobuf:"varint,6,opt,name=mem_total_bytes,json=memTotalBytes,proto3" json:"mem_total_bytes,omitempty"`
+	MemUsedBytes      int64                  `protobuf:"varint,7,opt,name=mem_used_bytes,json=memUsedBytes,proto3" json:"mem_used_bytes,omitempty"`
+	MemAvailableBytes int64                  `protobuf:"varint,8,opt,name=mem_available_bytes,json=memAvailableBytes,proto3" json:"mem_available_bytes,omitempty"`
+	SwapTotalBytes    int64                  `protobuf:"varint,9,opt,name=swap_total_bytes,json=swapTotalBytes,proto3" json:"swap_total_bytes,omitempty"`
+	SwapUsedBytes     int64                  `protobuf:"varint,10,opt,name=swap_used_bytes,json=swapUsedBytes,proto3" json:"swap_used_bytes,omitempty"`
+	UptimeSeconds     int64                  `protobuf:"varint,11,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
+	Filesystems       []*GuestFilesystem     `protobuf:"bytes,12,rep,name=filesystems,proto3" json:"filesystems,omitempty"`
+	Disks             []*DiskAllocation      `protobuf:"bytes,13,rep,name=disks,proto3" json:"disks,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GetVMMetricsResponse) Reset() {
+	*x = GetVMMetricsResponse{}
+	mi := &file_homecloud_node_v1_node_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVMMetricsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVMMetricsResponse) ProtoMessage() {}
+
+func (x *GetVMMetricsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_homecloud_node_v1_node_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVMMetricsResponse.ProtoReflect.Descriptor instead.
+func (*GetVMMetricsResponse) Descriptor() ([]byte, []int) {
+	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *GetVMMetricsResponse) GetCpuPercent() float64 {
+	if x != nil {
+		return x.CpuPercent
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetCpuCores() int32 {
+	if x != nil {
+		return x.CpuCores
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetLoad1() float64 {
+	if x != nil {
+		return x.Load1
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetLoad5() float64 {
+	if x != nil {
+		return x.Load5
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetLoad15() float64 {
+	if x != nil {
+		return x.Load15
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetMemTotalBytes() int64 {
+	if x != nil {
+		return x.MemTotalBytes
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetMemUsedBytes() int64 {
+	if x != nil {
+		return x.MemUsedBytes
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetMemAvailableBytes() int64 {
+	if x != nil {
+		return x.MemAvailableBytes
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetSwapTotalBytes() int64 {
+	if x != nil {
+		return x.SwapTotalBytes
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetSwapUsedBytes() int64 {
+	if x != nil {
+		return x.SwapUsedBytes
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetUptimeSeconds() int64 {
+	if x != nil {
+		return x.UptimeSeconds
+	}
+	return 0
+}
+
+func (x *GetVMMetricsResponse) GetFilesystems() []*GuestFilesystem {
+	if x != nil {
+		return x.Filesystems
+	}
+	return nil
+}
+
+func (x *GetVMMetricsResponse) GetDisks() []*DiskAllocation {
+	if x != nil {
+		return x.Disks
+	}
+	return nil
+}
+
 var File_homecloud_node_v1_node_proto protoreflect.FileDescriptor
 
 const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\n" +
-	"\x1chomecloud/node/v1/node.proto\x12\x11homecloud.node.v1\"y\n" +
+	"\x1chomecloud/node/v1/node.proto\x12\x11homecloud.node.v1\"\xd3\x01\n" +
 	"\bCapacity\x12\x1d\n" +
 	"\n" +
 	"cpus_total\x18\x01 \x01(\x05R\tcpusTotal\x12&\n" +
 	"\x0fmemory_mb_total\x18\x02 \x01(\x03R\rmemoryMbTotal\x12&\n" +
-	"\x0fdisk_bytes_free\x18\x03 \x01(\x03R\rdiskBytesFree\"\x14\n" +
+	"\x0fdisk_bytes_free\x18\x03 \x01(\x03R\rdiskBytesFree\x12.\n" +
+	"\x13memory_mb_available\x18\x04 \x01(\x03R\x11memoryMbAvailable\x12(\n" +
+	"\x10disk_bytes_total\x18\x05 \x01(\x03R\x0ediskBytesTotal\"\x14\n" +
 	"\x12GetCapacityRequest\"N\n" +
 	"\x13GetCapacityResponse\x127\n" +
 	"\bcapacity\x18\x01 \x01(\v2\x1b.homecloud.node.v1.CapacityR\bcapacity\"E\n" +
@@ -2028,7 +2374,39 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\tmax_bytes\x18\x03 \x01(\x03R\bmaxBytes\"I\n" +
 	"\x0fGetFileResponse\x12\x18\n" +
 	"\acontent\x18\x01 \x01(\fR\acontent\x12\x1c\n" +
-	"\ttruncated\x18\x02 \x01(\bR\ttruncated*\x97\x01\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\"\xa1\x01\n" +
+	"\x0fGuestFilesystem\x12\x17\n" +
+	"\adisk_id\x18\x01 \x01(\tR\x06diskId\x12\x16\n" +
+	"\x06device\x18\x02 \x01(\tR\x06device\x12\x1f\n" +
+	"\vmount_point\x18\x03 \x01(\tR\n" +
+	"mountPoint\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x04 \x01(\x03R\tsizeBytes\x12\x1d\n" +
+	"\n" +
+	"used_bytes\x18\x05 \x01(\x03R\tusedBytes\"\x80\x01\n" +
+	"\x0eDiskAllocation\x12\x17\n" +
+	"\adisk_id\x18\x01 \x01(\tR\x06diskId\x12,\n" +
+	"\x12virtual_size_bytes\x18\x02 \x01(\x03R\x10virtualSizeBytes\x12'\n" +
+	"\x0fallocated_bytes\x18\x03 \x01(\x03R\x0eallocatedBytes\"E\n" +
+	"\x13GetVMMetricsRequest\x12\x13\n" +
+	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x19\n" +
+	"\bdisk_ids\x18\x02 \x03(\tR\adiskIds\"\x8e\x04\n" +
+	"\x14GetVMMetricsResponse\x12\x1f\n" +
+	"\vcpu_percent\x18\x01 \x01(\x01R\n" +
+	"cpuPercent\x12\x1b\n" +
+	"\tcpu_cores\x18\x02 \x01(\x05R\bcpuCores\x12\x14\n" +
+	"\x05load1\x18\x03 \x01(\x01R\x05load1\x12\x14\n" +
+	"\x05load5\x18\x04 \x01(\x01R\x05load5\x12\x16\n" +
+	"\x06load15\x18\x05 \x01(\x01R\x06load15\x12&\n" +
+	"\x0fmem_total_bytes\x18\x06 \x01(\x03R\rmemTotalBytes\x12$\n" +
+	"\x0emem_used_bytes\x18\a \x01(\x03R\fmemUsedBytes\x12.\n" +
+	"\x13mem_available_bytes\x18\b \x01(\x03R\x11memAvailableBytes\x12(\n" +
+	"\x10swap_total_bytes\x18\t \x01(\x03R\x0eswapTotalBytes\x12&\n" +
+	"\x0fswap_used_bytes\x18\n" +
+	" \x01(\x03R\rswapUsedBytes\x12%\n" +
+	"\x0euptime_seconds\x18\v \x01(\x03R\ruptimeSeconds\x12D\n" +
+	"\vfilesystems\x18\f \x03(\v2\".homecloud.node.v1.GuestFilesystemR\vfilesystems\x127\n" +
+	"\x05disks\x18\r \x03(\v2!.homecloud.node.v1.DiskAllocationR\x05disks*\x97\x01\n" +
 	"\fRuntimeState\x12\x1d\n" +
 	"\x19RUNTIME_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14RUNTIME_STATE_ABSENT\x10\x01\x12\x19\n" +
@@ -2040,7 +2418,7 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\x17GUEST_JOB_STATE_MISSING\x10\x01\x12\x1b\n" +
 	"\x17GUEST_JOB_STATE_RUNNING\x10\x02\x12\x1a\n" +
 	"\x16GUEST_JOB_STATE_EXITED\x10\x03\x12\x18\n" +
-	"\x14GUEST_JOB_STATE_LOST\x10\x042\x99\v\n" +
+	"\x14GUEST_JOB_STATE_LOST\x10\x042\xfa\v\n" +
 	"\vNodeService\x12\\\n" +
 	"\vGetCapacity\x12%.homecloud.node.v1.GetCapacityRequest\x1a&.homecloud.node.v1.GetCapacityResponse\x12b\n" +
 	"\rRegisterImage\x12'.homecloud.node.v1.RegisterImageRequest\x1a(.homecloud.node.v1.RegisterImageResponse\x12\\\n" +
@@ -2060,7 +2438,8 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\aPollJob\x12!.homecloud.node.v1.PollJobRequest\x1a\".homecloud.node.v1.PollJobResponse\x12V\n" +
 	"\tCancelJob\x12#.homecloud.node.v1.CancelJobRequest\x1a$.homecloud.node.v1.CancelJobResponse\x12P\n" +
 	"\aPutFile\x12!.homecloud.node.v1.PutFileRequest\x1a\".homecloud.node.v1.PutFileResponse\x12P\n" +
-	"\aGetFile\x12!.homecloud.node.v1.GetFileRequest\x1a\".homecloud.node.v1.GetFileResponseB4Z2example.com/homecloud/gen/homecloud/node/v1;nodev1b\x06proto3"
+	"\aGetFile\x12!.homecloud.node.v1.GetFileRequest\x1a\".homecloud.node.v1.GetFileResponse\x12_\n" +
+	"\fGetVMMetrics\x12&.homecloud.node.v1.GetVMMetricsRequest\x1a'.homecloud.node.v1.GetVMMetricsResponseB4Z2example.com/homecloud/gen/homecloud/node/v1;nodev1b\x06proto3"
 
 var (
 	file_homecloud_node_v1_node_proto_rawDescOnce sync.Once
@@ -2075,7 +2454,7 @@ func file_homecloud_node_v1_node_proto_rawDescGZIP() []byte {
 }
 
 var file_homecloud_node_v1_node_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_homecloud_node_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_homecloud_node_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_homecloud_node_v1_node_proto_goTypes = []any{
 	(RuntimeState)(0),             // 0: homecloud.node.v1.RuntimeState
 	(GuestJobState)(0),            // 1: homecloud.node.v1.GuestJobState
@@ -2114,6 +2493,10 @@ var file_homecloud_node_v1_node_proto_goTypes = []any{
 	(*PutFileResponse)(nil),       // 34: homecloud.node.v1.PutFileResponse
 	(*GetFileRequest)(nil),        // 35: homecloud.node.v1.GetFileRequest
 	(*GetFileResponse)(nil),       // 36: homecloud.node.v1.GetFileResponse
+	(*GuestFilesystem)(nil),       // 37: homecloud.node.v1.GuestFilesystem
+	(*DiskAllocation)(nil),        // 38: homecloud.node.v1.DiskAllocation
+	(*GetVMMetricsRequest)(nil),   // 39: homecloud.node.v1.GetVMMetricsRequest
+	(*GetVMMetricsResponse)(nil),  // 40: homecloud.node.v1.GetVMMetricsResponse
 }
 var file_homecloud_node_v1_node_proto_depIdxs = []int32{
 	2,  // 0: homecloud.node.v1.GetCapacityResponse.capacity:type_name -> homecloud.node.v1.Capacity
@@ -2122,43 +2505,47 @@ var file_homecloud_node_v1_node_proto_depIdxs = []int32{
 	17, // 3: homecloud.node.v1.GetVMRuntimeResponse.runtime:type_name -> homecloud.node.v1.Runtime
 	26, // 4: homecloud.node.v1.StartJobRequest.spec:type_name -> homecloud.node.v1.JobSpec
 	1,  // 5: homecloud.node.v1.PollJobResponse.state:type_name -> homecloud.node.v1.GuestJobState
-	3,  // 6: homecloud.node.v1.NodeService.GetCapacity:input_type -> homecloud.node.v1.GetCapacityRequest
-	5,  // 7: homecloud.node.v1.NodeService.RegisterImage:input_type -> homecloud.node.v1.RegisterImageRequest
-	7,  // 8: homecloud.node.v1.NodeService.DeleteImage:input_type -> homecloud.node.v1.DeleteImageRequest
-	9,  // 9: homecloud.node.v1.NodeService.CreateDisk:input_type -> homecloud.node.v1.CreateDiskRequest
-	11, // 10: homecloud.node.v1.NodeService.ResizeDisk:input_type -> homecloud.node.v1.ResizeDiskRequest
-	13, // 11: homecloud.node.v1.NodeService.DeleteDisk:input_type -> homecloud.node.v1.DeleteDiskRequest
-	15, // 12: homecloud.node.v1.NodeService.SnapshotDisk:input_type -> homecloud.node.v1.SnapshotDiskRequest
-	18, // 13: homecloud.node.v1.NodeService.StartVM:input_type -> homecloud.node.v1.StartVMRequest
-	20, // 14: homecloud.node.v1.NodeService.StopVM:input_type -> homecloud.node.v1.StopVMRequest
-	22, // 15: homecloud.node.v1.NodeService.GetVMRuntime:input_type -> homecloud.node.v1.GetVMRuntimeRequest
-	24, // 16: homecloud.node.v1.NodeService.ForgetVM:input_type -> homecloud.node.v1.ForgetVMRequest
-	27, // 17: homecloud.node.v1.NodeService.StartJob:input_type -> homecloud.node.v1.StartJobRequest
-	29, // 18: homecloud.node.v1.NodeService.PollJob:input_type -> homecloud.node.v1.PollJobRequest
-	31, // 19: homecloud.node.v1.NodeService.CancelJob:input_type -> homecloud.node.v1.CancelJobRequest
-	33, // 20: homecloud.node.v1.NodeService.PutFile:input_type -> homecloud.node.v1.PutFileRequest
-	35, // 21: homecloud.node.v1.NodeService.GetFile:input_type -> homecloud.node.v1.GetFileRequest
-	4,  // 22: homecloud.node.v1.NodeService.GetCapacity:output_type -> homecloud.node.v1.GetCapacityResponse
-	6,  // 23: homecloud.node.v1.NodeService.RegisterImage:output_type -> homecloud.node.v1.RegisterImageResponse
-	8,  // 24: homecloud.node.v1.NodeService.DeleteImage:output_type -> homecloud.node.v1.DeleteImageResponse
-	10, // 25: homecloud.node.v1.NodeService.CreateDisk:output_type -> homecloud.node.v1.CreateDiskResponse
-	12, // 26: homecloud.node.v1.NodeService.ResizeDisk:output_type -> homecloud.node.v1.ResizeDiskResponse
-	14, // 27: homecloud.node.v1.NodeService.DeleteDisk:output_type -> homecloud.node.v1.DeleteDiskResponse
-	16, // 28: homecloud.node.v1.NodeService.SnapshotDisk:output_type -> homecloud.node.v1.SnapshotDiskResponse
-	19, // 29: homecloud.node.v1.NodeService.StartVM:output_type -> homecloud.node.v1.StartVMResponse
-	21, // 30: homecloud.node.v1.NodeService.StopVM:output_type -> homecloud.node.v1.StopVMResponse
-	23, // 31: homecloud.node.v1.NodeService.GetVMRuntime:output_type -> homecloud.node.v1.GetVMRuntimeResponse
-	25, // 32: homecloud.node.v1.NodeService.ForgetVM:output_type -> homecloud.node.v1.ForgetVMResponse
-	28, // 33: homecloud.node.v1.NodeService.StartJob:output_type -> homecloud.node.v1.StartJobResponse
-	30, // 34: homecloud.node.v1.NodeService.PollJob:output_type -> homecloud.node.v1.PollJobResponse
-	32, // 35: homecloud.node.v1.NodeService.CancelJob:output_type -> homecloud.node.v1.CancelJobResponse
-	34, // 36: homecloud.node.v1.NodeService.PutFile:output_type -> homecloud.node.v1.PutFileResponse
-	36, // 37: homecloud.node.v1.NodeService.GetFile:output_type -> homecloud.node.v1.GetFileResponse
-	22, // [22:38] is the sub-list for method output_type
-	6,  // [6:22] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	37, // 6: homecloud.node.v1.GetVMMetricsResponse.filesystems:type_name -> homecloud.node.v1.GuestFilesystem
+	38, // 7: homecloud.node.v1.GetVMMetricsResponse.disks:type_name -> homecloud.node.v1.DiskAllocation
+	3,  // 8: homecloud.node.v1.NodeService.GetCapacity:input_type -> homecloud.node.v1.GetCapacityRequest
+	5,  // 9: homecloud.node.v1.NodeService.RegisterImage:input_type -> homecloud.node.v1.RegisterImageRequest
+	7,  // 10: homecloud.node.v1.NodeService.DeleteImage:input_type -> homecloud.node.v1.DeleteImageRequest
+	9,  // 11: homecloud.node.v1.NodeService.CreateDisk:input_type -> homecloud.node.v1.CreateDiskRequest
+	11, // 12: homecloud.node.v1.NodeService.ResizeDisk:input_type -> homecloud.node.v1.ResizeDiskRequest
+	13, // 13: homecloud.node.v1.NodeService.DeleteDisk:input_type -> homecloud.node.v1.DeleteDiskRequest
+	15, // 14: homecloud.node.v1.NodeService.SnapshotDisk:input_type -> homecloud.node.v1.SnapshotDiskRequest
+	18, // 15: homecloud.node.v1.NodeService.StartVM:input_type -> homecloud.node.v1.StartVMRequest
+	20, // 16: homecloud.node.v1.NodeService.StopVM:input_type -> homecloud.node.v1.StopVMRequest
+	22, // 17: homecloud.node.v1.NodeService.GetVMRuntime:input_type -> homecloud.node.v1.GetVMRuntimeRequest
+	24, // 18: homecloud.node.v1.NodeService.ForgetVM:input_type -> homecloud.node.v1.ForgetVMRequest
+	27, // 19: homecloud.node.v1.NodeService.StartJob:input_type -> homecloud.node.v1.StartJobRequest
+	29, // 20: homecloud.node.v1.NodeService.PollJob:input_type -> homecloud.node.v1.PollJobRequest
+	31, // 21: homecloud.node.v1.NodeService.CancelJob:input_type -> homecloud.node.v1.CancelJobRequest
+	33, // 22: homecloud.node.v1.NodeService.PutFile:input_type -> homecloud.node.v1.PutFileRequest
+	35, // 23: homecloud.node.v1.NodeService.GetFile:input_type -> homecloud.node.v1.GetFileRequest
+	39, // 24: homecloud.node.v1.NodeService.GetVMMetrics:input_type -> homecloud.node.v1.GetVMMetricsRequest
+	4,  // 25: homecloud.node.v1.NodeService.GetCapacity:output_type -> homecloud.node.v1.GetCapacityResponse
+	6,  // 26: homecloud.node.v1.NodeService.RegisterImage:output_type -> homecloud.node.v1.RegisterImageResponse
+	8,  // 27: homecloud.node.v1.NodeService.DeleteImage:output_type -> homecloud.node.v1.DeleteImageResponse
+	10, // 28: homecloud.node.v1.NodeService.CreateDisk:output_type -> homecloud.node.v1.CreateDiskResponse
+	12, // 29: homecloud.node.v1.NodeService.ResizeDisk:output_type -> homecloud.node.v1.ResizeDiskResponse
+	14, // 30: homecloud.node.v1.NodeService.DeleteDisk:output_type -> homecloud.node.v1.DeleteDiskResponse
+	16, // 31: homecloud.node.v1.NodeService.SnapshotDisk:output_type -> homecloud.node.v1.SnapshotDiskResponse
+	19, // 32: homecloud.node.v1.NodeService.StartVM:output_type -> homecloud.node.v1.StartVMResponse
+	21, // 33: homecloud.node.v1.NodeService.StopVM:output_type -> homecloud.node.v1.StopVMResponse
+	23, // 34: homecloud.node.v1.NodeService.GetVMRuntime:output_type -> homecloud.node.v1.GetVMRuntimeResponse
+	25, // 35: homecloud.node.v1.NodeService.ForgetVM:output_type -> homecloud.node.v1.ForgetVMResponse
+	28, // 36: homecloud.node.v1.NodeService.StartJob:output_type -> homecloud.node.v1.StartJobResponse
+	30, // 37: homecloud.node.v1.NodeService.PollJob:output_type -> homecloud.node.v1.PollJobResponse
+	32, // 38: homecloud.node.v1.NodeService.CancelJob:output_type -> homecloud.node.v1.CancelJobResponse
+	34, // 39: homecloud.node.v1.NodeService.PutFile:output_type -> homecloud.node.v1.PutFileResponse
+	36, // 40: homecloud.node.v1.NodeService.GetFile:output_type -> homecloud.node.v1.GetFileResponse
+	40, // 41: homecloud.node.v1.NodeService.GetVMMetrics:output_type -> homecloud.node.v1.GetVMMetricsResponse
+	25, // [25:42] is the sub-list for method output_type
+	8,  // [8:25] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_homecloud_node_v1_node_proto_init() }
@@ -2173,7 +2560,7 @@ func file_homecloud_node_v1_node_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_homecloud_node_v1_node_proto_rawDesc), len(file_homecloud_node_v1_node_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   35,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

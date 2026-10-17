@@ -47,20 +47,24 @@ const (
 	TaskCancel  Permission = "task.cancel"
 	ModelList   Permission = "model.list"
 
+	VMMetrics   Permission = "vm.metrics"   // per-VM CPU/RAM/disk usage
+	CapacityGet Permission = "capacity.get" // cluster-wide capacity; operators only (global scope)
+
 	NodeManage Permission = "node.manage" // the node API; only the vmd control plane holds it
 )
 
 type Role string
 
 const (
-	RoleViewer  Role = "viewer"
-	RoleEditor  Role = "editor"
-	RoleAdmin   Role = "admin"
-	RoleService Role = "service" // agentd -> vmd: run commands and place holds, nothing destructive
-	RoleNode    Role = "node"    // vmd control plane -> node daemon
+	RoleViewer   Role = "viewer"
+	RoleEditor   Role = "editor"
+	RoleAdmin    Role = "admin"
+	RoleService  Role = "service"  // agentd -> vmd: run commands and place holds, nothing destructive
+	RoleNode     Role = "node"     // vmd control plane -> node daemon
+	RoleOperator Role = "operator" // global: cluster capacity and nothing inside projects
 )
 
-var viewer = []Permission{VMGet, VMList, DiskGet, DiskList, ImageGet, ImageList, ExecGet, ExecList,
+var viewer = []Permission{VMGet, VMList, VMMetrics, DiskGet, DiskList, ImageGet, ImageList, ExecGet, ExecList,
 	AgentGet, AgentList, TaskGet, TaskList, ModelList}
 
 var editor = append(append([]Permission{}, viewer...),
@@ -72,9 +76,10 @@ var rolePerms = map[Role]map[Permission]bool{
 	RoleViewer: set(viewer),
 	RoleEditor: set(editor),
 	RoleAdmin:  set(append(append([]Permission{}, editor...), VMHold, ImageRegister, ImageDelete)),
-	RoleService: set([]Permission{VMGet, VMList, VMHold, ExecRun, ExecGet, ExecCancel, ExecList,
+	RoleService: set([]Permission{VMGet, VMList, VMMetrics, VMHold, ExecRun, ExecGet, ExecCancel, ExecList,
 		FileRead, FileWrite, ModelList}),
-	RoleNode: set([]Permission{NodeManage}),
+	RoleNode:     set([]Permission{NodeManage}),
+	RoleOperator: set([]Permission{CapacityGet}),
 }
 
 func set(p []Permission) map[Permission]bool {

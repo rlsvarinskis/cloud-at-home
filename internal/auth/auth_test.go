@@ -276,3 +276,26 @@ func TestServiceTokensAreCached(t *testing.T) {
 		t.Fatal("token should be renewed before it expires")
 	}
 }
+
+func TestOperatorAndMetricsPermissions(t *testing.T) {
+	if !auth.RoleOperator.Grants(auth.CapacityGet) || auth.RoleOperator.Grants(auth.VMGet) {
+		t.Fatal("operators see capacity only, nothing inside projects")
+	}
+	for _, r := range []auth.Role{auth.RoleViewer, auth.RoleEditor, auth.RoleAdmin, auth.RoleService} {
+		if !r.Grants(auth.VMMetrics) {
+			t.Errorf("%s should read VM metrics", r)
+		}
+		if r.Grants(auth.CapacityGet) {
+			t.Errorf("%s must not read cluster capacity", r)
+		}
+	}
+	// capacity is global: a project-scoped operator binding must not satisfy it
+	p := auth.Principal{Bindings: []auth.Binding{{Project: "p1", Role: auth.RoleOperator}}}
+	if p.Can(auth.CapacityGet, "") {
+		t.Fatal("capacity.get needs a '*' binding")
+	}
+	g := auth.Principal{Bindings: []auth.Binding{{Project: auth.AnyProject, Role: auth.RoleOperator}}}
+	if !g.Can(auth.CapacityGet, "") {
+		t.Fatal("'*' operator should see capacity")
+	}
+}

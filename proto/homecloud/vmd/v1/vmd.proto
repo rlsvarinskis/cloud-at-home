@@ -304,3 +304,69 @@ service ExecService {
   rpc PutFile(PutFileRequest) returns (PutFileResponse);
   rpc GetFile(GetFileRequest) returns (GetFileResponse);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Metrics
+// ---------------------------------------------------------------------------------------------
+
+// One filesystem inside the guest, attributed to the VM disk it lives on.
+message GuestFilesystem {
+  string disk_id = 1;          // which VM disk holds it ("" if it cannot be attributed)
+  string device = 2;           // e.g. /dev/vda1
+  string mount_point = 3;
+  int64 size_bytes = 4;
+  int64 used_bytes = 5;
+}
+// Host-side view of a disk image: thin-provisioned, so allocation differs from size.
+message DiskAllocation {
+  string disk_id = 1;
+  int64 virtual_size_bytes = 2;
+  int64 allocated_bytes = 3;   // what the qcow2 file really occupies on the host
+}
+message VMMetrics {
+  string vm_id = 1;
+  google.protobuf.Timestamp sampled_at = 2;
+  // Measured inside the guest.
+  double cpu_percent = 3;      // utilisation across all vCPUs, 0..100
+  int32 cpu_cores = 4;
+  double load1 = 5;
+  double load5 = 6;
+  double load15 = 7;
+  int64 mem_total_bytes = 8;
+  int64 mem_used_bytes = 9;
+  int64 mem_available_bytes = 10;
+  int64 swap_total_bytes = 11;
+  int64 swap_used_bytes = 12;
+  int64 uptime_seconds = 13;
+  repeated GuestFilesystem filesystems = 14;
+  repeated DiskAllocation disks = 15;
+}
+message GetVMMetricsRequest { string vm_id = 1; }
+
+message NodeCapacity {
+  string node_id = 1;
+  string state = 2;            // ready / draining / down
+  int32 cpus_total = 3;
+  int32 cpus_allocated = 4;    // vCPUs of VMs that should be running
+  int32 cpus_available = 5;    // after the overcommit factor
+  int64 memory_mb_total = 6;
+  int64 memory_mb_allocated = 7;
+  int64 memory_mb_available = 8;
+  int64 disk_bytes_total = 9;
+  int64 disk_bytes_free = 10;
+  int32 vms_total = 11;
+  int32 vms_running = 12;
+  google.protobuf.Timestamp last_heartbeat = 13;
+}
+message GetCapacityRequest {}
+message GetCapacityResponse {
+  repeated NodeCapacity nodes = 1;
+  NodeCapacity total = 2;      // sums over ready nodes (node_id "*")
+}
+
+service MetricsService {
+  // Per-VM metrics: needs the VM to be running.
+  rpc GetVMMetrics(GetVMMetricsRequest) returns (VMMetrics);
+  // Cluster capacity for operators: global (not project-scoped).
+  rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+}

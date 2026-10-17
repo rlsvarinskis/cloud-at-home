@@ -31,6 +31,8 @@ const (
 	DiskServiceName = "homecloud.vmd.v1.DiskService"
 	// ExecServiceName is the fully-qualified name of the ExecService service.
 	ExecServiceName = "homecloud.vmd.v1.ExecService"
+	// MetricsServiceName is the fully-qualified name of the MetricsService service.
+	MetricsServiceName = "homecloud.vmd.v1.MetricsService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -94,6 +96,12 @@ const (
 	ExecServicePutFileProcedure = "/homecloud.vmd.v1.ExecService/PutFile"
 	// ExecServiceGetFileProcedure is the fully-qualified name of the ExecService's GetFile RPC.
 	ExecServiceGetFileProcedure = "/homecloud.vmd.v1.ExecService/GetFile"
+	// MetricsServiceGetVMMetricsProcedure is the fully-qualified name of the MetricsService's
+	// GetVMMetrics RPC.
+	MetricsServiceGetVMMetricsProcedure = "/homecloud.vmd.v1.MetricsService/GetVMMetrics"
+	// MetricsServiceGetCapacityProcedure is the fully-qualified name of the MetricsService's
+	// GetCapacity RPC.
+	MetricsServiceGetCapacityProcedure = "/homecloud.vmd.v1.MetricsService/GetCapacity"
 )
 
 // VMServiceClient is a client for the homecloud.vmd.v1.VMService service.
@@ -920,4 +928,104 @@ func (UnimplementedExecServiceHandler) PutFile(context.Context, *connect.Request
 
 func (UnimplementedExecServiceHandler) GetFile(context.Context, *connect.Request[v1.GetFileRequest]) (*connect.Response[v1.GetFileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("homecloud.vmd.v1.ExecService.GetFile is not implemented"))
+}
+
+// MetricsServiceClient is a client for the homecloud.vmd.v1.MetricsService service.
+type MetricsServiceClient interface {
+	// Per-VM metrics: needs the VM to be running.
+	GetVMMetrics(context.Context, *connect.Request[v1.GetVMMetricsRequest]) (*connect.Response[v1.VMMetrics], error)
+	// Cluster capacity for operators: global (not project-scoped).
+	GetCapacity(context.Context, *connect.Request[v1.GetCapacityRequest]) (*connect.Response[v1.GetCapacityResponse], error)
+}
+
+// NewMetricsServiceClient constructs a client for the homecloud.vmd.v1.MetricsService service. By
+// default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses,
+// and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
+// connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewMetricsServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) MetricsServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	metricsServiceMethods := v1.File_homecloud_vmd_v1_vmd_proto.Services().ByName("MetricsService").Methods()
+	return &metricsServiceClient{
+		getVMMetrics: connect.NewClient[v1.GetVMMetricsRequest, v1.VMMetrics](
+			httpClient,
+			baseURL+MetricsServiceGetVMMetricsProcedure,
+			connect.WithSchema(metricsServiceMethods.ByName("GetVMMetrics")),
+			connect.WithClientOptions(opts...),
+		),
+		getCapacity: connect.NewClient[v1.GetCapacityRequest, v1.GetCapacityResponse](
+			httpClient,
+			baseURL+MetricsServiceGetCapacityProcedure,
+			connect.WithSchema(metricsServiceMethods.ByName("GetCapacity")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// metricsServiceClient implements MetricsServiceClient.
+type metricsServiceClient struct {
+	getVMMetrics *connect.Client[v1.GetVMMetricsRequest, v1.VMMetrics]
+	getCapacity  *connect.Client[v1.GetCapacityRequest, v1.GetCapacityResponse]
+}
+
+// GetVMMetrics calls homecloud.vmd.v1.MetricsService.GetVMMetrics.
+func (c *metricsServiceClient) GetVMMetrics(ctx context.Context, req *connect.Request[v1.GetVMMetricsRequest]) (*connect.Response[v1.VMMetrics], error) {
+	return c.getVMMetrics.CallUnary(ctx, req)
+}
+
+// GetCapacity calls homecloud.vmd.v1.MetricsService.GetCapacity.
+func (c *metricsServiceClient) GetCapacity(ctx context.Context, req *connect.Request[v1.GetCapacityRequest]) (*connect.Response[v1.GetCapacityResponse], error) {
+	return c.getCapacity.CallUnary(ctx, req)
+}
+
+// MetricsServiceHandler is an implementation of the homecloud.vmd.v1.MetricsService service.
+type MetricsServiceHandler interface {
+	// Per-VM metrics: needs the VM to be running.
+	GetVMMetrics(context.Context, *connect.Request[v1.GetVMMetricsRequest]) (*connect.Response[v1.VMMetrics], error)
+	// Cluster capacity for operators: global (not project-scoped).
+	GetCapacity(context.Context, *connect.Request[v1.GetCapacityRequest]) (*connect.Response[v1.GetCapacityResponse], error)
+}
+
+// NewMetricsServiceHandler builds an HTTP handler from the service implementation. It returns the
+// path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewMetricsServiceHandler(svc MetricsServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	metricsServiceMethods := v1.File_homecloud_vmd_v1_vmd_proto.Services().ByName("MetricsService").Methods()
+	metricsServiceGetVMMetricsHandler := connect.NewUnaryHandler(
+		MetricsServiceGetVMMetricsProcedure,
+		svc.GetVMMetrics,
+		connect.WithSchema(metricsServiceMethods.ByName("GetVMMetrics")),
+		connect.WithHandlerOptions(opts...),
+	)
+	metricsServiceGetCapacityHandler := connect.NewUnaryHandler(
+		MetricsServiceGetCapacityProcedure,
+		svc.GetCapacity,
+		connect.WithSchema(metricsServiceMethods.ByName("GetCapacity")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/homecloud.vmd.v1.MetricsService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case MetricsServiceGetVMMetricsProcedure:
+			metricsServiceGetVMMetricsHandler.ServeHTTP(w, r)
+		case MetricsServiceGetCapacityProcedure:
+			metricsServiceGetCapacityHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedMetricsServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedMetricsServiceHandler struct{}
+
+func (UnimplementedMetricsServiceHandler) GetVMMetrics(context.Context, *connect.Request[v1.GetVMMetricsRequest]) (*connect.Response[v1.VMMetrics], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("homecloud.vmd.v1.MetricsService.GetVMMetrics is not implemented"))
+}
+
+func (UnimplementedMetricsServiceHandler) GetCapacity(context.Context, *connect.Request[v1.GetCapacityRequest]) (*connect.Response[v1.GetCapacityResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("homecloud.vmd.v1.MetricsService.GetCapacity is not implemented"))
 }
