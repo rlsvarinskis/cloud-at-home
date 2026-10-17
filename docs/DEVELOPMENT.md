@@ -22,30 +22,33 @@ to add an RPC, a permission or a store method, the coding conventions, and the k
 | --- | --- |
 | `proto/homecloud/{vmd,agentd,node}/v1/*.proto` | The API definitions. The source of truth for the wire format. |
 | `gen/` | Generated Go code for `proto/`. Committed. Never edit by hand. |
-| `cmd/vmd` | The vmd binary: flags, wiring of stores, drivers, the reconciler and the HTTP server. |
+| `cmd/vmd` | The vmd binary: flags, wiring of stores (one or several Postgres databases), drivers, the reconciler and the HTTP server. |
 | `cmd/agentd` | The agentd binary: flags, Postgres or memory store, service tokens, runner and HTTP server. |
 | `cmd/hcctl` | The admin CLI: keys, tokens, roles. |
-| `internal/auth` | Tokens (`token.go`), keys, principals, RBAC (`rbac.go`), Connect interceptors (`connect.go`). |
-| `internal/errs` | Error sentinels and the mapping to Connect codes. |
-| `internal/daemon` | Trusted-key flags, logger, HTTP server with graceful shutdown. |
+| `internal/auth` | Tokens (`token.go`), keys, principals, RBAC (`rbac.go`), revocation list (`revocations.go`), Connect interceptors (`connect.go`). |
+| `internal/errs` | Error sentinels and the mapping to Connect codes. `Sanitize` turns downstream failures into `unavailable` without addresses. |
+| `internal/daemon` | Trusted-key and revocation flags, logger, HTTP server with graceful shutdown. |
 | `internal/obs` | RPC metrics, `/metrics`, health checks, error interceptor. |
-| `internal/ids` | Prefixed ULID IDs. |
-| `internal/pg` | Postgres pool, migration runner, `pgtest` for tests. |
+| `internal/ids` | Prefixed ULID IDs, and shard-suffixed IDs (`sharded.go`). |
+| `internal/pg` | Postgres pool, migration runner (advisory lock), `pgtest` for tests. |
 | `internal/vmd/domain` | vmd's model, separate from the wire types. |
-| `internal/vmd/store` | `store.go` (interface), `memory.go`, `postgres/`, `shard/`, `storetest/` (conformance suite), `mock/`. |
-| `internal/vmd/service` | Connect handlers (`vm.go`, `disk.go`, `image.go`, `exec.go`, `metrics.go`), the reconciler, the node registry. |
-| `internal/vmd/scheduler` | Pure capacity arithmetic. |
+| `internal/vmd/store` | `store.go` (interface), `memory.go`, `postgres/` (with `migrations/`), `shard/`, `storetest/` (conformance suite), `mock/`. |
+| `internal/vmd/service` | Connect handlers (`vm.go`, `disk.go`, `image.go`, `exec.go`, `metrics.go`, `cluster.go`, `server.go`), the reconciler, the node registry. |
+| `internal/vmd/scheduler` | Pure capacity arithmetic (`Fits`, `Avail`, `Pick`). |
 | `internal/vmd/node` | `driver.go` (the node interface), `qemudriver/`, `qemu/`, `guestexec/`, `guestmetrics/`, `sshrunner/`, `remote/`, `nodeserver/`, `fake/`, `mock/`. |
 | `internal/vmd/promcollect` | Prometheus collector for vmd state: capacity, VM counts, guest samples, reconciler counters. |
 | `internal/agentd/metrics` | agentd's task and step counters and task-duration histogram. |
 | `internal/e2e` | End-to-end tests: vmd and agentd in one process, talking over real HTTP. |
 | `internal/agentd/domain` | agentd's model. |
-| `internal/agentd/store` | Store interface, `memory.go`, `postgres/`, `storetest/`, `mock/`. |
+| `internal/agentd/store` | Store interface, `memory.go`, `postgres/` (with `migrations/`), `storetest/`, `mock/`. |
 | `internal/agentd/llm` | The model client interface, the Ollama client, and `fake.go` for tests. |
 | `internal/agentd/vmclient` | The only way agentd calls vmd. |
 | `internal/agentd/runner` | Task workers: leases, the conversation loop, commands, sanitising. |
 | `internal/agentd/service` | agentd's Connect handlers. |
 | `deploy/` | Dockerfiles for vmd, agentd and node; docker-compose stack. |
+
+Migrations live with their store: `internal/vmd/store/postgres/migrations/` and
+`internal/agentd/store/postgres/migrations/`. Never edit a migration that has shipped.
 
 ## Generated code
 
@@ -59,9 +62,9 @@ The target deletes `gen/` and regenerates it with `protoc -I proto -I /usr/inclu
 `protoc-gen-go` and `protoc-gen-connect-go`, writing next to the sources (`paths=source_relative`).
 
 Versions. CI installs `protoc` 33.5 (the generated headers record `protoc v6.33.5`), `protoc-gen-go` v1.36.11 and
-`protoc-gen-connect-go` v1.21.1. The runtime library
-versions in `go.mod` are `google.golang.org/protobuf` v1.36.12 and `connectrpc.com/connect` v1.21.1. Install the
-same tool versions locally, or the regenerated code will differ from what CI expects.
+`protoc-gen-connect-go` v1.21.1. The runtime library versions in `go.mod` are `google.golang.org/protobuf` v1.36.12
+and `connectrpc.com/connect` v1.21.1. Install the same tool versions locally, or the regenerated code will differ
+from what CI expects.
 
 The CI job `protobuf generated code is up to date` runs `make proto` and fails if the working tree changes.
 Commit the regenerated `gen/` with every `.proto` change.
@@ -96,6 +99,8 @@ with these arguments"). State-based tests use the hand-written fakes instead.
 | `make cover` | Coverage for all packages, with a summary line. |
 | `make tidy` | `go mod tidy`. |
 
+To build binaries, pass an output directory: `go build -o bin/ ./cmd/...`.
+
 CI runs `go build`, `go vet`, `gofmt -l` (fails on unformatted files), `go test -race -count=1 ./...`, the
 protobuf check, and a Docker build of the `vmd`, `agentd` and `node` images. Run `gofmt -l .` before committing.
 
@@ -105,13 +110,16 @@ Tests are layered by what they need. Each layer runs fast, and none sleeps for r
 
 **Pure logic.** Unit tests for the scheduler (`scheduler_test.go`), the qemu argument builder (`qemu/args_test.go`),
 the guest job scripts (`guestexec_test.go`), the firewall rules (`firewall_test.go`), the RBAC matrix and tokens
-(`auth_test.go`), the LLM clients (`llm/*_test.go`).
+(`auth_test.go`, including `TestRolePermissionMatrix` and `TestRolePermissionsAreListed`), the LLM clients
+(`llm/*_test.go`).
 
 **Store conformance.** One suite, `storetest.Run(t, newStore)`, runs against every implementation:
 
-- vmd: `internal/vmd/store/storetest/storetest.go`, run by `TestMemory` (`store/memory_test.go`) and
-  `TestPostgres` (`store/postgres/postgres_test.go`). It also checks that the store never shares memory with its
-  callers, and that concurrent writers on one version lead to exactly one winner.
+- vmd: `internal/vmd/store/storetest/storetest.go`, run by `TestMemory` (`store/memory_test.go`),
+  `TestPostgres` (`store/postgres/postgres_test.go`) and the shard router: `TestConformanceOneShard` and
+  `TestConformanceThreeShards` (`store/shard/shard_test.go`). The suite also checks that the store never shares
+  memory with its callers, that concurrent writers on one version lead to exactly one winner, and that the
+  operator's drain decision survives health updates.
 - agentd: `internal/agentd/store/storetest/storetest.go`, run by the memory and Postgres tests.
 
 Postgres tests use `internal/pg/pgtest`, which gives each test a fresh database. Without configuration a real
@@ -122,7 +130,7 @@ cached. Set `HOMECLOUD_TEST_POSTGRES` to an admin DSN to use an existing server,
 
 - the real token verifier and real signed tokens, one per role (`e.admin()`, `e.editor()`, `e.viewer()`,
   `e.otherTenant()`, `e.root()`, `e.operator()`, `e.service()`);
-- the in-memory store, or the sharded store in some tests;
+- the in-memory store, or the sharded store;
 - the fake node driver (`internal/vmd/node/fake`), which holds images, disks, VMs and guest files in memory and
   scripts failures with `Crash`, `SetDown`, `FailNext` and `SetMetrics`, and records calls (`Calls`);
 - a manual clock shared by the service, the reconciler and the fake node (`clock.Advance`). Tests advance time
@@ -130,19 +138,29 @@ cached. Set `HOMECLOUD_TEST_POSTGRES` to an admin DSN to use an existing server,
 
 The reconciler is driven one tick at a time with `e.tick(n)`. `e.until(max, what, cond)` ticks until a condition
 holds or fails the test. Tests cover the authorization matrix (not-found versus permission-denied), validation,
-the reconciler's backoff and crash loops, idempotency, and the job lifecycle.
+the reconciler's backoff and crash loops, drains (`drain_test.go`), idempotency, and the job lifecycle.
+
+To run the whole vmd service suite on a sharded store, set `HOMECLOUD_TEST_SHARDS`:
+
+```
+HOMECLOUD_TEST_SHARDS=3 go test ./internal/vmd/service
+```
 
 **End to end.** `internal/e2e` runs vmd and agentd in one process and lets them talk over their real HTTP APIs. It
-uses the fake node driver and the scripted LLM, on both the memory and Postgres stores. `TestShardedVMD` runs the same
-golden path on a project-sharded vmd store. The scenarios cover authorization across the two services, holds, cancel,
-idempotency, failure handling, metrics, and several agents sharing one VM.
+uses the fake node driver and the scripted LLM, on both the memory and Postgres stores. `TestShardedVMD` runs the
+golden path on a project-sharded vmd store. The scenarios cover authorization across the two services, holds,
+cancel, idempotency, failure handling, metrics, and several agents sharing one VM.
+
+**Daemon tests.** `cmd/vmd` and `cmd/agentd` have tests that start the real daemon (its `run` function) against
+Postgres. They cover the all-in-one role, refusal of bad configuration, several databases with project sharding,
+the quota flags, and `-revoked-tokens` (a token stops working once its id is added to the file).
 
 **Driver tests.** `qemudriver/driver_test.go` and `fakes_test.go` run the QEMU driver against fake commanders,
 process tables and filesystems (`FS`, `Procs`, `Cmd` in the driver config), without starting QEMU.
 
 **agentd runner and service tests.** `internal/agentd/service/testenv_test.go` runs agentd's handlers with a fake
-vmd client and the scripted fake LLM (`llm.Fake`: `Say` for a plain reply, `CallTool` for a tool call, `Script`
-for a sequence). The runner tests use the same fakes.
+vmd client and the scripted fake LLM (`llm.Fake`: `Say` and `CallTool` build replies, and `Script` holds the
+replies `Chat` hands out in order). The runner tests use the same fakes.
 
 ### Running one package
 
@@ -151,17 +169,23 @@ go test -race -count=1 -run TestRolePermissionMatrix ./internal/auth/
 HOMECLOUD_TEST_POSTGRES=skip go test -count=1 ./internal/vmd/service/
 ```
 
+### Checking that tests catch a broken rule
+
+A passing test shows that the code does what the test says, not that the test would notice a change. When you change
+a rule (a permission, a state transition, a limit), break the rule on purpose once and check that a test fails. This
+is a habit to keep, not a CI step.
+
 ## Adding an RPC
 
 1. **Define it.** Add the message types and the `rpc` line to the service in `proto/homecloud/<svc>/v1/*.proto`.
    Put the limits and waiting rules in the comments, as the existing messages do. Each request names its project
-   (`project_id`) or resource (`id`).
+   (`project_id`) or resource (`id`), or it is global (as `ClusterService` is).
 2. **Regenerate.** `make proto`. Commit `gen/`.
 3. **Permission.** Use an existing permission if one fits. Otherwise add a constant to
    `internal/auth/rbac.go` and grant it in the role sets (see
    [Adding a permission or a role](#adding-a-permission-or-a-role)).
-4. **Handler.** Add a method on the service's server type (`VMServer`, `DiskServer`, ...). Follow the order used by
-   the existing handlers:
+4. **Handler.** Add a method on the service's server type (`VMServer`, `DiskServer`, `ClusterServer`, ...). Follow the
+   order used by the existing handlers:
    1. validate the request shape (`validProject`, `validName`, size and range checks);
    2. authorize: `auth.Require(ctx, perm, project)` when the request names a project, or
       `auth.RequireResource(ctx, perm, resource.ProjectID, kind, id)` after loading the resource by ID;
@@ -209,8 +233,8 @@ The steps below are for vmd. agentd is the same shape.
    method (`var _ store.Store = (*Store)(nil)` enforces this at compile time). Choose the routing: by project
    (`ForProject`), by ID (`find`, `mutate`), or fan out and merge across shards (`fanOut`, `mergeByID`) for lists that
    span projects.
-5. **Conformance.** Add cases to `internal/vmd/store/storetest/storetest.go`. They run against the memory and
-   Postgres stores. Add shard-specific cases in `shard_test.go` where routing matters.
+5. **Conformance.** Add cases to `internal/vmd/store/storetest/storetest.go`. They run against the memory, Postgres and
+   shard stores. Add shard-specific cases in `shard_test.go` where routing matters.
 6. **Mocks.** `make mocks`, since the mock of `store.Store` changes.
 7. **Run.** `go test -race -count=1 ./internal/vmd/store/... ./internal/vmd/service/`.
 
@@ -222,9 +246,10 @@ These are visible in the code and are relied on by the tests.
   `errs.Precondition`, `errs.Exists`, `errs.Exhausted`, `errs.Unavailable`, `errs.ErrConflict`), wrapped with context.
   `errs.ToConnect` maps them to Connect codes at the edge (`obs.ErrorInterceptor`). Any other error becomes `internal`,
   with its text hidden from the client and logged with the caller and procedure. Callers of other services use
-  `errs.FromConnect` to get the sentinels back.
+  `errs.FromConnect` to get the sentinels back. Errors from nodes and other services go through `errs.Sanitize`, so
+  that clients never see an address.
 - **Transport types stay in handlers.** The Connect handler methods (the `*Server` types, in `vm.go`, `disk.go`,
-  `image.go`, `exec.go`, `metrics.go`, `server.go`) are the only vmd files that import `connectrpc.com/connect`.
+  `image.go`, `exec.go`, `metrics.go`, `cluster.go`, `server.go`) are the only vmd files that import `connectrpc.com/connect`.
   `reconciler.go`, `nodes.go`, the stores, the scheduler and the domain do not. The same holds in agentd's
   `service` package for its handlers. The runner does not use transport types either.
 - **Compare-and-swap everywhere.** Every row has a `Version` that the store checks on update. Read-modify-write
@@ -237,7 +262,7 @@ These are visible in the code and are relied on by the tests.
 - **Leases, not leaders.** Background work is claimed with a lease (`ClaimVMs`, `ClaimTasks`). Anything a lease owner
   does must be safe if another worker repeats it.
 - **IDs.** `ids.New(prefix)` gives a lowercase ULID with a resource prefix (`vm_`, `disk_`, `img_`, `job_`, `agent_`,
-  `task_`, `tok_`). IDs sort by creation time. Shard-aware IDs (`ids.NewSharded`) carry their shard.
+  `task_`, `tok_`). IDs sort by creation time. Shard-aware IDs (`ids.NewSharded`) carry their shard as a `-sNN` suffix.
 - **Names and paths.** Resource names match `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`. Paths sent to nodes are absolute and
   clean. IDs used as file names on nodes match `^[a-zA-Z0-9_-]{1,64}$` (`qemudriver.checkID`).
 - **NUL bytes.** Rejected in commands, paths and prompts. Output from guests is cleaned before it is stored
@@ -249,7 +274,8 @@ These are visible in the code and are relied on by the tests.
 
 ## Known limitations
 
-These follow from the code as it is written. Each is a candidate for future work.
+These follow from the code as it is written. Each is a candidate for future work. The design-level limitations are
+listed in [ARCHITECTURE.md](ARCHITECTURE.md#known-limitations).
 
 - **No live resize.** `UpdateVM` changes CPUs and memory only while the VM is stopped and its desired state is
   stopped. A disk can grow only, and only while detached or its VM is stopped.
@@ -257,31 +283,22 @@ These follow from the code as it is written. Each is a candidate for future work
   `DELETING` in a separate write. `CreateDisk` checks that the image is `READY` in a separate step as well. A disk
   created between those steps can refer to an image that is then deleted. The reconciler removes the image file
   without checking again.
-- **Quotas are not configured by `cmd/vmd`.** The service supports per-project quotas, but the binary sets none, and
-  has no flags for them.
+- **Quotas are not checked on VM resize.** `UpdateVM` does not call the quota check; `StartVM` does.
 - **Placement is by image or disk, not by the scheduler.** `scheduler.Pick` exists but is not called. Capacity is
   checked when a VM starts (`fits`), not when it is created.
-- **No way to drain a node.** The `draining` state is honoured by the code, but no API or flag sets it.
-- **Revocation is not wired.** The verifier has a revocation hook, which `cmd/vmd` does not set. Tokens can only
-  be stopped by rotating their key.
+- **Shard layout depends on order.** The rendezvous weight uses each database's position in the `--postgres-dsn`
+  list. Reordering the flags re-routes projects. There is no migration tool.
 - **Crash loops are not logged at `ERROR`.** A VM in a crash loop becomes `ERROR` with a reason and is retried with
   backoff. The reconciler writes no `ERROR` log line for it. Alert on the state.
 - **Database errors are `internal`.** Postgres failures reach clients as `internal`, not `unavailable`, so retry
   logic cannot tell them apart from bugs.
 - **Node-unreachable prefix is broad.** Any error classed as unavailable, including a missing host tool such as
-  `genisoimage`, is reported in `state_reason` as `node unreachable: ...`.
-- **Running jobs are marked `LOST` lazily.** Nothing sweeps them when a VM stops. The mark happens when a job call
-  reads them. `Store.ListRunningJobs` exists but is not used.
+  `genisoimage`, is reported in `state_reason` as `node unreachable: <node id>`. The tool's error is only in the log.
+- **Running jobs are marked `LOST` lazily.** Nothing sweeps them when a VM stops. The mark happens when `PollJob` or
+  `CancelJob` reads them. `Store.ListRunningJobs` exists but no service calls it.
 - **Job output is guest-side.** vmd keeps no output. Output is readable only while the guest keeps the job directory
-  (the 50 most recent jobs). Agents store excerpts of output (the first and last 2000 bytes of each step, and results
-  up to 32 KiB).
-- **Sharding is not wired.** `store/shard` is tested but `cmd/vmd` has no flag to use it.
-- **`deploy/docker-compose.yml` starts vmd with `--role=all` and no `--ssh-key`.** By the code, that fails at start-up.
-- **Some tests were failing when this was written.** With embedded Postgres, `go test -race ./...` failed in
-  `internal/e2e` for `TestCancel/*/while_a_long_command_runs` (the job was still `RUNNING` after the cancel),
-  `TestFailureHandling/*/node_goes_down_mid-task` (the command after recovery did not run), and in
-  `internal/vmd/service` for `TestGMDrainingSurvivesOutage`. The cancel and node-outage behaviour described here follows
-  the code and the intent of those tests. Check the current test status before relying on it.
+  (the 50 most recent finished jobs). Agents store excerpts of output (the first and last 2000 bytes of each step, and
+  results up to 32 KiB).
 - **Single node per VM, no migration.** A VM and its disks live on one node. Nothing moves them.
 - **Guest-side scripts assume a Linux guest with the listed tools.** See the guest requirements in
   [OPERATIONS.md](OPERATIONS.md#guest-image).

@@ -1,20 +1,19 @@
 # API reference
 
-This document describes the public APIs of vmd and agentd. The wire definitions are in
-[`proto/homecloud/`](../proto/homecloud/) (the source of truth); the Go types are generated into
-[`gen/`](../gen/). Behaviour, permissions, errors and limits below were read from the handlers in
-`internal/vmd/service` and `internal/agentd/service`.
+This document describes the public APIs of vmd and agentd: what each RPC does, which permission it needs, the errors
+it returns and the limits it enforces. The wire definitions are in [`proto/homecloud/`](../proto/homecloud/) (the
+source of truth); the Go types are generated into [`gen/`](../gen/). Behaviour below was read from the handlers in
+`internal/vmd/service` and `internal/agentd/service`, and the examples were run against a development vmd.
 
-The agentd sections were checked against `internal/agentd` (service, runner, store, metrics) and `cmd/agentd`.
-The workflows they describe are the ones the `internal/e2e` tests exercise. Flags and deployment are in
-[OPERATIONS.md](OPERATIONS.md#running-agentd).
+The system design (placement, reconciler, failure model) is in [ARCHITECTURE.md](ARCHITECTURE.md). Flags and
+deployment are in [OPERATIONS.md](OPERATIONS.md). Roles and tokens are in [AUTH.md](AUTH.md).
 
 ## Contents
 
 - [Conventions](#conventions)
 - [Limits](#limits)
-- [vmd services](#vmd-services): VMService, DiskService, ImageService, ExecService, MetricsService
-- [agentd services](#agentd-services-status-see-repository): AgentService, TaskService, ModelService
+- [vmd services](#vmd-services): VMService, DiskService, ImageService, ExecService, MetricsService, ClusterService
+- [agentd services](#agentd-services): AgentService, TaskService, ModelService
 - [Calling the API](#calling-the-api): curl, grpcurl, Go client
 - [Workflows](#workflows)
 
@@ -53,8 +52,8 @@ decide which error a caller sees:
 - **Requests that name a project** (create, list): a caller with no binding on that project gets
   `permission_denied`.
 - **Requests that address a resource by ID** (get, update, delete, jobs, disks, images): a caller with no
-  binding on the resource's project gets `not_found`, the same answer as for a missing ID. A caller who can
-  see the project but lacks the permission gets `permission_denied`.
+  binding on the resource's project gets `not_found`, the same answer as for a missing ID. A caller who has
+  some role on the project but lacks the permission gets `permission_denied`.
 
 Shared images (empty `project_id`) are readable by any caller with `image.get` in some project. Changing them
 needs a binding on project `*`.
@@ -66,13 +65,14 @@ Errors are JSON objects `{"code": "...", "message": "..."}` with the Connect cod
 | Code | When (vmd and agentd) |
 | --- | --- |
 | `unauthenticated` | Missing, invalid, expired, revoked or untrusted token; a token whose lifetime exceeds the server's maximum. |
-| `permission_denied` | The caller may see the project but lacks the permission, or a global permission (`capacity.get`, `image.register` with an empty project) is missing. |
+| `permission_denied` | The caller lacks the permission on the project named in the request or on the resource's project. Global permissions (`capacity.get`, `node.drain`, `image.register` with an empty project) need a `*` binding. |
 | `not_found` | Unknown ID, or the caller has no binding on the resource's project. |
-| `invalid_argument` | Validation failed: bad name, out-of-range number, wrong path, unknown model, reused idempotency key for a different request, and so on. |
+| `invalid_argument` | Validation failed: bad name, out-of-range number, wrong path, unknown model, idempotency key reused for a different request, and so on. |
 | `failed_precondition` | The state does not allow the operation: VM not running for an exec call, VM not stopped for a resize, disk still attached, image still used by a disk, VM held without `force`, node not registered. |
-| `resource_exhausted` | Quota exceeded (quotas are only active if configured in code, see [OPERATIONS.md](OPERATIONS.md#capacity-planning)), or no ready node has enough free disk for a new disk. |
+| `already_exists` | A task's idempotency key was already used for another agent's task. |
+| `resource_exhausted` | A project quota would be exceeded (quotas are set with `--quota-*` flags and are unlimited by default; see [OPERATIONS.md](OPERATIONS.md#quotas)), or no ready node has enough free disk for a disk created without an image. |
 | `aborted` | Optimistic concurrency failed after retries, or `expected_generation` did not match. |
-| `unavailable` | The node or the LLM backend could not be reached. Retry later. |
+| `unavailable` | The node, vmd (as seen from agentd) or the LLM backend could not be reached. The message names the component, never its address, for example `unavailable: node n1 is unavailable`. Retry later. |
 | `internal` | Anything unexpected, including database errors. The text is hidden from the client and logged by the server. |
 
 Connect maps these codes to HTTP statuses (for example `unauthenticated` to 401, `not_found` to 404,
@@ -99,13 +99,13 @@ page; pass it back as `page_token`. Tokens are opaque IDs. Lists are ordered by 
 
 ### Idempotency keys
 
-Some creates accept `idempotency_key`. A retry with the same key within the same project returns the
-resource created by the first call instead of creating a second one.
+Some creates accept `idempotency_key`. The key identifies one request. Retrying the same request with the same key
+returns the result of the first call instead of doing the work again. Keys are scoped to the project.
 
-| RPC | Scope and effect |
+| RPC | Effect of a retry with the same key |
 | --- | --- |
-| `VMService.CreateVM` | Returns the existing VM. The new request's other fields are ignored. |
-| `ExecService.StartJob` | Returns the existing job. If the key was used for a different VM, command or workdir, `invalid_argument`. |
+| `VMService.CreateVM` | Returns the existing VM. The other fields of the retry are ignored. |
+| `ExecService.StartJob` | If the VM, command and workdir match, returns the existing job. If any of them differ, `invalid_argument`. If the first attempt never reached the guest (the node could not be reached), the retry starts the same job again. |
 | `AgentService.CreateAgent` | Returns the existing agent. |
 | `TaskService.CreateTask` | Returns the existing task. A key reused for another agent's task gives `already_exists`. |
 
@@ -122,17 +122,14 @@ Keys are not accepted by the other creates (disks, images, snapshots).
 | Job output per call (`max_output`) | default 8 KiB, max 64 KiB, per stream | vmd |
 | File content (`PutFile`) | 8 MiB | vmd |
 | File read (`GetFile.max_bytes`) | default and max 8 MiB | vmd |
-| VM vCPUs | 1 to 64 | vmd (config default, not settable by flag) |
-| VM memory | 256 MB to 1 TiB | vmd (config default) |
-| Disk size | 1 to 4096 GB; default boot disk 20 GB | vmd (config default) |
+| VM vCPUs | 1 to 64 | vmd (service default, not settable by flag) |
+| VM memory | 256 MB to 1 TiB | vmd (service default, not settable by flag) |
+| Disk size | 1 to 4096 GB; default boot disk 20 GB | vmd (service default, not settable by flag) |
 | Agent system prompt | 8 KiB | agentd |
 | Task prompt | 64 KiB, not blank | agentd |
 | Task `check_command` | 16 KiB | agentd |
 | Task `max_steps` | default 40, max 200 | agentd |
 | Steps per `ListSteps` call | default 100, max 500 | agentd |
-
-The vmd limits marked "config default" are defaults of the service configuration in code. `cmd/vmd` does not
-expose flags for them.
 
 Resource names (VMs, disks, images, agents) must match `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`.
 
@@ -144,7 +141,7 @@ Resource names (VMs, disks, images, agents) must match `^[a-z]([a-z0-9-]{0,61}[a
 
 Virtual machines. A VM has a desired power state (`desired_state`) and an observed state (`state`). Calls
 change the desired state; the reconciler moves the VM towards it. `state_reason` explains the last failure
-or stop.
+or stop. The reconciler's steps are described in [OPERATIONS.md](OPERATIONS.md#vm-lifecycle-and-the-reconciler).
 
 VM states: `VM_STATE_PENDING` (waiting for its disks, or for capacity), `VM_STATE_STOPPED`,
 `VM_STATE_STARTING`, `VM_STATE_RUNNING`, `VM_STATE_STOPPING`, `VM_STATE_ERROR` (see `state_reason`; the
@@ -154,15 +151,15 @@ A VM's node is the node that holds its boot disk. A VM is never moved between no
 
 | RPC | Purpose | Key request fields | Permission | Notes and errors |
 | --- | --- | --- | --- | --- |
-| `CreateVM` | Create a VM. Optionally start it. | `project_id`, `name`, `cpus`, `memory_mb`, one of `image_id` (creates a boot disk of `disk_size_gb`) or `disk_id` (uses a detached disk), `start`, `labels`, `idempotency_key` | `vm.create` | The image must be `READY`, or `failed_precondition`. A disk must be detached and not in error or deleting. The node is checked for registration only; capacity is checked when the VM starts. With `start`, the project quota is checked now. |
+| `CreateVM` | Create a VM. Optionally start it. | `project_id`, `name`, `cpus`, `memory_mb`, one of `image_id` (creates a boot disk of `disk_size_gb`) or `disk_id` (uses a detached disk), `start`, `labels`, `idempotency_key` | `vm.create` | The image must be `READY`, or `failed_precondition`. A disk must be detached and not in error or deleting. The node must be registered (`failed_precondition` otherwise); CPU and memory are checked when the VM starts, not here. Quotas are checked: the VM count and, for a new boot disk, the disk GB; running vCPUs and memory only when `start` is true. |
 | `GetVM` | Read a VM, optionally waiting for a state. | `id`, `wait_for_state`, `wait_seconds` | `vm.get` | `not_found` for unknown or other-project VMs. |
-| `ListVMs` | List a project's VMs. | `project_id`, `page_size`, `page_token`, `label_selector` | `vm.list` | Label selector: every given key must match exactly. |
-| `UpdateVM` | Change CPUs, memory or labels. | `id`, `cpus`, `memory_mb`, `labels`, `replace_labels`, `expected_generation` | `vm.update` | Resizing needs the VM stopped and desired stopped, else `failed_precondition`. `expected_generation` (non-zero) must equal the current generation, else `aborted`. Each spec change bumps `generation`. Setting labels merges unless `replace_labels` is true. |
-| `StartVM` | Set desired state to running. | `id` | `vm.start` | Quota is checked. A VM in `VM_STATE_ERROR` is retried immediately and its crash count is reset. Deleting VMs get `failed_precondition`. |
+| `ListVMs` | List a project's VMs. | `project_id`, `page_size`, `page_token`, `label_selector` | `vm.list` | Label selector: every given key must match exactly. There is no node filter; `node_id` is in each VM. |
+| `UpdateVM` | Change CPUs, memory or labels. | `id`, `cpus`, `memory_mb`, `labels`, `replace_labels`, `expected_generation` | `vm.update` | Resizing needs the VM `VM_STATE_STOPPED` with desired stopped, else `failed_precondition`. Resizing does not check quotas. `expected_generation` (non-zero) must equal the current generation, else `aborted`. Each spec change bumps `generation`. Labels merge unless `replace_labels` is true. If nothing changes (identical values, including labels), the current VM is returned and nothing is written. |
+| `StartVM` | Set desired state to running. | `id` | `vm.start` | The project's running vCPUs and memory are checked against its quota. A VM in `VM_STATE_ERROR` is retried immediately, and its crash and failure counts are reset. Deleting VMs get `failed_precondition`. |
 | `StopVM` | Set desired state to stopped. | `id`, `force` | `vm.stop` | Without `force` the guest is powered off gracefully, and killed after 60 s if it does not stop. `force` kills at once. |
 | `DeleteVM` | Delete a VM. | `id`, `force`, `delete_disks` | `vm.delete` | A held VM needs `force` (else `failed_precondition`). The VM stops, then its row is removed. Disks are detached; with `delete_disks` they are deleted too. |
-| `AddHold` | Prevent deletion on behalf of another service. | `id`, `holder` | `vm.hold` | `holder` is required. Idempotent. Refused for deleting VMs. |
-| `RemoveHold` | Release a hold. | `id`, `holder` | `vm.hold` | Idempotent. |
+| `AddHold` | Prevent deletion on behalf of another service. | `id`, `holder` | `vm.hold` | `holder` is required (`invalid_argument` if empty). Idempotent. Refused for deleting VMs. |
+| `RemoveHold` | Release a hold. | `id`, `holder` | `vm.hold` | `holder` is required. Idempotent. |
 
 `holds` on the VM lists the holders. `DeleteVM` with `force` ignores holds.
 
@@ -172,15 +169,15 @@ Disks are qcow2 files on one node. A disk created from an image is a copy-on-wri
 
 | RPC | Purpose | Key request fields | Permission | Notes and errors |
 | --- | --- | --- | --- | --- |
-| `CreateDisk` | Create an empty disk or an overlay of an image. | `project_id`, `name`, `size_gb`, `image_id` (optional), `node_id` (optional placement hint) | `disk.create` | With an image, the disk goes on the image's node; a different `node_id` is `invalid_argument`. Without an image and without `node_id`, the ready node with the most free space that has `size_gb` free is chosen, else `resource_exhausted`. The disk is `DISK_STATE_CREATING` until the reconciler creates the file. |
+| `CreateDisk` | Create an empty disk or an overlay of an image. | `project_id`, `name`, `size_gb`, `image_id` (optional), `node_id` (optional placement hint) | `disk.create` | With an image, the disk goes on the image's node; a different `node_id` is `invalid_argument`. A `node_id` that is not registered is `failed_precondition`. Without an image and without `node_id`, the ready node with the most free space that has `size_gb` free is chosen, else `resource_exhausted`. The project's disk quota is checked. The disk is `DISK_STATE_CREATING` until the reconciler creates the file. |
 | `GetDisk` | Read a disk. | `id` | `disk.get` | |
 | `ListDisks` | List a project's disks. | `project_id`, `page_size`, `page_token` | `disk.list` | |
-| `ResizeDisk` | Grow a disk. | `id`, `size_gb` | `disk.update` | Grow only: a smaller or equal size is `invalid_argument`. The disk must be `READY`, and if attached its VM must be stopped (`failed_precondition`). The project quota is checked for the added GB. |
+| `ResizeDisk` | Grow a disk. | `id`, `size_gb` | `disk.update` | Grow only: a smaller or equal size is `invalid_argument`. The disk must be `READY`, and if attached its VM must be stopped (`failed_precondition`). The project's disk quota is checked for the added GB. |
 | `DeleteDisk` | Delete a disk. | `id` | `disk.delete` | Must be detached (`failed_precondition`). State becomes `DISK_STATE_DELETING`, and the reconciler removes the file. |
 | `SnapshotDisk` | Create an image from a disk. | `id`, `image_name` | `disk.snapshot` | The disk must be `READY` and detached, or attached to a stopped VM. Returns the new image in `IMAGE_STATE_CREATING`; it becomes `READY` once the flattened copy exists. The image belongs to the disk's project. |
 
-Disk states: `CREATING`, `READY`, `ERROR` (see `state_reason`, which is not in the API response; check the
-reconciler's logs), `DELETING`.
+Disk states: `CREATING`, `READY`, `ERROR`, `DELETING`. The disk response has no reason field. A disk in `ERROR`
+makes the VM that uses it `ERROR`, and the reason appears in that VM's `state_reason`.
 
 ### ImageService
 
@@ -189,12 +186,13 @@ empty `project_id`.
 
 | RPC | Purpose | Key request fields | Permission | Notes and errors |
 | --- | --- | --- | --- | --- |
-| `RegisterImage` | Adopt an existing qcow2 file on a node as an image. | `project_id` (empty for shared), `name`, `node_id`, `path` | `image.register` (admin only) | `path` must be an absolute, clean path on the node. The node must be registered, else `failed_precondition`. An empty `project_id` needs a binding on project `*`. `project_id` `*` is `invalid_argument`. The image is `IMAGE_STATE_CREATING` until the node has registered it; a missing or unreadable file ends in `IMAGE_STATE_ERROR`. The file is symlinked, not copied. |
+| `RegisterImage` | Adopt an existing qcow2 file on a node as an image. | `project_id` (empty for shared), `name`, `node_id`, `path` | `image.register` (admin only) | `path` must be an absolute, clean path on the node. The node must be registered, else `failed_precondition`. An empty `project_id` needs a binding on project `*`. `project_id` `*` is `invalid_argument`. The image is `IMAGE_STATE_CREATING` until the node has adopted it. The file is symlinked, not copied. A missing file, or a file that is not qcow2, ends in `IMAGE_STATE_ERROR`. |
 | `GetImage` | Read an image. | `id` | `image.get` | Shared images need `image.get` in some project. Other projects' images are `not_found`. |
 | `ListImages` | List a project's images plus shared ones. | `project_id`, `page_size`, `page_token` | `image.list` | |
 | `DeleteImage` | Delete an image. | `id` | `image.delete` (admin only) | Refused with `failed_precondition` while any disk was created from it. Deleting a shared image needs a binding on `*`. The image goes to `IMAGE_STATE_DELETING`, and the node removes the file. |
 
-Image states: `CREATING`, `READY`, `ERROR`, `DELETING`. `size_bytes` is set when the image is ready.
+Image states: `CREATING`, `READY`, `ERROR`, `DELETING`. `size_bytes` is set when the image is ready. The image
+response has no reason field; check the node's log for the cause of `ERROR`.
 
 ### ExecService
 
@@ -202,7 +200,7 @@ Commands run inside the VM as **jobs**. A job is started with `bash -lc <command
 the guest. Its state and output live in the guest (under `/var/tmp/mcp-jobs/<id>/`), not in the control
 plane. Job metadata (command, state, exit code) is kept by vmd. No call waits more than 30 seconds.
 
-Jobs survive restarts of vmd and of the node daemon. The guest keeps the 50 most recent job directories:
+Jobs survive restarts of vmd and of the node daemon. The guest keeps the 50 most recent finished job directories:
 when a new job starts, finished jobs older than those 50 are deleted.
 
 A job's `state` is one of:
@@ -211,22 +209,22 @@ A job's `state` is one of:
 | --- | --- |
 | `JOB_STATE_RUNNING` | Still running. |
 | `JOB_STATE_SUCCEEDED` | Exit code 0. |
-| `JOB_STATE_FAILED` | Non-zero exit code. |
+| `JOB_STATE_FAILED` | Non-zero exit code, or the command could not be started (`killed_reason` starts with `could not start:`). |
 | `JOB_STATE_CANCELLED` | Stopped by `CancelJob`; `killed_reason` is `cancelled`. |
-| `JOB_STATE_TIMED_OUT` | Killed by the job timeout (exit code 124); `killed_reason` says so. |
+| `JOB_STATE_TIMED_OUT` | Killed by the job timeout (exit code 124); `killed_reason` is `timed out and was killed`. |
 | `JOB_STATE_LOST` | The VM stopped or rebooted while the job ran, or the job's files disappeared. `killed_reason` gives the cause. |
 
-A job whose VM is no longer running is marked `LOST` the next time one of its job calls is made. No background
-task does this.
+A job whose VM is no longer running is marked `LOST` the next time `PollJob` or `CancelJob` reads it. `ListJobs`
+does not change state, and no background task marks jobs.
 
 | RPC | Purpose | Key request fields | Permission | Notes and errors |
 | --- | --- | --- | --- | --- |
-| `StartJob` | Start a command and wait up to `wait_seconds`. | `vm_id`, `command`, `workdir`, `timeout_seconds`, `wait_seconds`, `max_output`, `idempotency_key` | `exec.run` | The VM must be `VM_STATE_RUNNING` (`failed_precondition` otherwise). Empty `workdir` is the agent user's home directory; a missing directory is created. Returns a `JobOutput` with the **tail** of the output (last `max_output` bytes per stream). |
+| `StartJob` | Start a command and wait up to `wait_seconds`. | `vm_id`, `command`, `workdir`, `timeout_seconds`, `wait_seconds`, `max_output`, `idempotency_key` | `exec.run` | The VM must be `VM_STATE_RUNNING` (`failed_precondition` otherwise). An empty `workdir` is the home directory of the guest user the job runs as; a missing directory is created. Returns a `JobOutput` with the **tail** of the output (last `max_output` bytes per stream). Idempotency is described [above](#idempotency-keys). |
 | `PollJob` | Read a job's state and new output. | `job_id`, `wait_seconds`, `stdout_offset`, `stderr_offset`, `max_output`, `tail` | `exec.get` | Offset mode (default) returns output from the given offsets. `tail` returns the last `max_output` bytes instead. The response's `stdout_offset` and `stderr_offset` are where the next poll starts. `more` is true when output remains. `truncated` is true when earlier output was omitted. For a job whose VM is not running, the call returns the record with no output. |
 | `CancelJob` | Stop a running job. | `job_id` | `exec.cancel` | Sends the cancel to the guest and waits up to 3 seconds for the job to end. A finished job is returned unchanged. |
 | `ListJobs` | List a VM's jobs, in creation order. | `vm_id`, `page_size`, `page_token` | `exec.list` | |
-| `PutFile` | Write a file into a running VM. | `vm_id`, `path`, `content` (up to 8 MiB), `mode` (default `0644`) | `file.write` | The VM must be running. `path` must not contain NUL bytes. `mode` must be a permission mask up to `07777`. |
-| `GetFile` | Read a file from a running VM. | `vm_id`, `path`, `max_bytes` | `file.read` | `max_bytes` defaults to and is capped at 8 MiB; `truncated` says whether the file was longer. |
+| `PutFile` | Write a file into a running VM. | `vm_id`, `path`, `content` (up to 8 MiB), `mode` (default `0644`, which is `420` in JSON) | `file.write` | The VM must be running. `path` must not contain NUL bytes. `mode` must be a permission mask up to `07777`; `0` means `0644`. |
+| `GetFile` | Read a file from a running VM. | `vm_id`, `path`, `max_bytes` | `file.read` | The VM must be running. `max_bytes` defaults to and is capped at 8 MiB; `truncated` says whether the file was longer. |
 
 ### MetricsService
 
@@ -235,8 +233,25 @@ task does this.
 | `GetVMMetrics` | Sample a running VM now. | `vm_id` | `vm.metrics` | The VM must be running (`failed_precondition` otherwise). The sample is taken live from the node. Units and meanings are in [OPERATIONS.md](OPERATIONS.md#metric-catalogue). `cpu_percent` is like `top`: 100 per busy vCPU, so an 8-vCPU guest can show 800. |
 | `GetCapacity` | Cluster capacity for operators. | none | `capacity.get` (operator role, global) | Per node and in total. `total` covers ready nodes only. `cpus_available` and `memory_mb_available` are what the scheduler would still allocate, after overcommit and the memory reserve. |
 
-`GetCapacity` node `state` is `ready`, `draining` or `down`. No API sets `draining`; see
-[OPERATIONS.md](OPERATIONS.md#node-lifecycle).
+`GetCapacity` node `state` is `ready`, `draining` or `down`. `draining` is set with `ClusterService.SetNodeDraining`.
+When a node is both down and draining, `state` is `down`.
+
+### ClusterService
+
+Operator actions on the fleet. The RPC is global: it is not scoped to a project.
+
+| RPC | Purpose | Key request fields | Permission | Notes and errors |
+| --- | --- | --- | --- | --- |
+| `SetNodeDraining` | Stop (`draining: true`) or resume (`draining: false`) placing VM starts on a node. Returns the node's `NodeCapacity`. | `node_id`, `draining` | `node.drain` (operator role, global) | An empty `node_id` is `invalid_argument`; an unknown node is `not_found`. The decision is stored apart from node health: it survives an outage and a restart of vmd. Semantics are in [OPERATIONS.md](OPERATIONS.md#draining-a-node). |
+
+```
+curl -sS -X POST http://127.0.0.1:8080/homecloud.vmd.v1.ClusterService/SetNodeDraining \
+  -H "Authorization: Bearer $OPS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"nodeId":"node-1","draining":true}'
+```
+
+The response has the same fields as a `GetCapacity` node entry, with `"state":"draining"`.
 
 ---
 
@@ -254,7 +269,7 @@ named `agentd/<agent id>`, so the VM cannot be deleted from under the agent. Age
 
 | RPC | Purpose | Key request fields | Permission | Notes and errors |
 | --- | --- | --- | --- | --- |
-| `CreateAgent` | Create an agent on a VM and place its hold. | `project_id`, `name`, `vm_id`, `model`, `system_prompt`, `workdir`, `labels`, `idempotency_key` | `agent.create` | `model` and `vm_id` are required. The VM must exist in the same project (`not_found` otherwise) and must not be deleting. The model must be installed on the LLM backend (`invalid_argument` lists the installed models). If the backend cannot be reached the model check is skipped. `workdir` must be an absolute, clean path. If the hold cannot be placed the agent is removed again. |
+| `CreateAgent` | Create an agent on a VM and place its hold. | `project_id`, `name`, `vm_id`, `model`, `system_prompt`, `workdir`, `labels`, `idempotency_key` | `agent.create` | `model` and `vm_id` are required. The VM must exist in the same project (`not_found` otherwise) and must not be deleting. The model must be installed on the LLM backend (`invalid_argument` names the installed models). If the backend cannot be reached the model check is skipped. `workdir` must be an absolute, clean path. If the hold cannot be placed the agent is removed again. |
 | `GetAgent` | Read an agent. | `id` | `agent.get` | |
 | `ListAgents` | List a project's agents, optionally one VM's. | `project_id`, `vm_id`, `page_size`, `page_token` | `agent.list` | |
 | `UpdateAgent` | Change the model and/or system prompt. | `id`, `model`, `system_prompt` | `agent.update` | Unset fields are left alone. The VM and workdir cannot be changed. |
@@ -269,8 +284,8 @@ A task is one prompt given to an agent. Workers claim queued tasks under a lease
 | `CreateTask` | Queue a task for an agent. | `agent_id`, `prompt`, `check_command`, `max_steps`, `idempotency_key` | `task.create` | The agent must be `ACTIVE` (`failed_precondition` otherwise). Limits are in the table above. `check_command` is run in the VM after the model finishes, and its exit status decides the outcome (see below). |
 | `GetTask` | Read a task, optionally waiting. | `id`, `wait_for_not`, `wait_seconds` | `task.get` | Returns as soon as the state differs from `wait_for_not` (for example `TASK_STATE_QUEUED`), or after the wait. |
 | `ListTasks` | List an agent's tasks or a project's tasks. | exactly one of `agent_id` or `project_id`; `state`; `page_size`; `page_token` | `task.list` | Giving both or neither is `invalid_argument`. |
-| `CancelTask` | Stop a task. | `id` | `task.cancel` | A queued task becomes `TASK_STATE_CANCELLED` at once. A running task is flagged and its worker stops it within about a second. A finished task is returned unchanged. Cancelling twice is harmless. |
-| `ListSteps` | List the commands a task ran. | `task_id`, `after_seq`, `limit` | `task.get` | Steps are numbered from 1. Each has the command, an excerpt of its output (the first and last 2000 bytes) and its exit code. |
+| `CancelTask` | Stop a task. | `id` | `task.cancel` | A queued task becomes `TASK_STATE_CANCELLED` at once. A running task is flagged; within about a second its worker aborts the model call and cancels the command that is running in the VM. A finished task is returned unchanged. Cancelling twice is harmless. |
+| `ListSteps` | List the commands a task ran. | `task_id`, `after_seq`, `limit` | `task.get` | Steps are numbered from 1. Each has the command, an excerpt of its output (the first and last 2000 bytes) and its exit code. Output is cleaned before it is stored: NUL bytes are removed and invalid UTF-8 is replaced. |
 
 **Task states**
 
@@ -292,7 +307,7 @@ and count as an attempt.
 
 | RPC | Purpose | Permission | Notes |
 | --- | --- | --- | --- |
-| `ListModels` | List models installed on the LLM backend. | `model.list` (any project) | Returns `name` and `size_bytes`. Errors are `unavailable` when the backend cannot be reached. |
+| `ListModels` | List models installed on the LLM backend. | `model.list` (any project) | Returns `models`, each with `name` and `size_bytes`. Errors are `unavailable` when the backend cannot be reached. |
 
 ---
 
@@ -332,8 +347,8 @@ grpcurl -plaintext \
 ### Go client
 
 The generated Connect client takes an HTTP client, the base URL and options. `auth.ClientInterceptor` adds the
-bearer token to each call. The snippet below is in package `main` inside this module and was compiled and run
-against a development server (it lists VMs in project `p1`).
+bearer token to each call. The snippet below is in package `main` inside this module, compiles against the current
+code, and lists the VMs in project `p1` when run against a development server.
 
 ```go
 package main
@@ -368,7 +383,7 @@ func main() {
 ```
 
 `auth.StaticToken` suits a fixed token. For a service that mints its own tokens, use
-`auth.ServiceTokens` (see [AUTH.md](AUTH.md#service-to-service)). Errors returned by the client are
+`auth.ServiceTokens` (see [AUTH.md](AUTH.md#service-tokens-in-go)). Errors returned by the client are
 `*connect.Error`; `connect.CodeOf(err)` gives the code. `errs.FromConnect(err)` converts them to the
 `internal/errs` sentinels so that `errors.Is(err, errs.ErrNotFound)` works.
 
@@ -394,8 +409,8 @@ The response is `IMAGE_STATE_CREATING`. Poll until `IMAGE_STATE_READY`:
 call ImageService/GetImage '{"id":"img_..."}'
 ```
 
-`IMAGE_STATE_ERROR` means the node could not adopt the file; `stateReason` is not in the API response, so
-check the node log. The path must be an absolute qcow2 file on the node named by `nodeId`.
+`IMAGE_STATE_ERROR` means the node could not adopt the file. The response has no reason field, so check the node's
+log. The path must be an absolute qcow2 file on the node named by `nodeId`.
 
 ### 2. Create a VM and wait for RUNNING
 
@@ -527,6 +542,6 @@ call TaskService/GetTask '{"id":"task_...","waitForNot":"TASK_STATE_RUNNING","wa
 ```
 
 Repeat the second call until the state is final (`SUCCEEDED`, `FAILED`, `GAVE_UP`, `CANCELLED` or `ERROR`).
-Read the commands with `TaskService/ListSteps` and `after_seq` set to the last `seq` you have. To stop a task,
+Read the commands with `TaskService/ListSteps` and `afterSeq` set to the last `seq` you have. To stop a task,
 call `TaskService/CancelTask`. Its state becomes `TASK_STATE_CANCELLED` at once if it was queued, or within about
 a second if it was running.

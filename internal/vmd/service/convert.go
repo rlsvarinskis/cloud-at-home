@@ -69,7 +69,7 @@ func vmStateFromProto(s vmdv1.VMState) domain.VMState {
 func diskToProto(d *domain.Disk) *vmdv1.Disk {
 	return &vmdv1.Disk{
 		Id: d.ID, ProjectId: d.ProjectID, Name: d.Name, NodeId: d.NodeID, SizeGb: int32(d.SizeGB), ImageId: d.ImageID,
-		State: diskStateToProto(d.State), AttachedVmId: d.AttachedVMID, CreatedAt: tsp(d.CreatedAt),
+		State: diskStateToProto(d.State), AttachedVmId: d.AttachedVMID, CreatedAt: tsp(d.CreatedAt), StateReason: d.StateReason,
 	}
 }
 
@@ -90,7 +90,7 @@ func diskStateToProto(s domain.DiskState) vmdv1.DiskState {
 func imageToProto(i *domain.Image) *vmdv1.Image {
 	return &vmdv1.Image{
 		Id: i.ID, ProjectId: i.ProjectID, Name: i.Name, NodeId: i.NodeID, State: imageStateToProto(i.State),
-		SizeBytes: i.SizeBytes, SourceDiskId: i.SourceDiskID, CreatedAt: tsp(i.CreatedAt),
+		SizeBytes: i.SizeBytes, SourceDiskId: i.SourceDiskID, CreatedAt: tsp(i.CreatedAt), StateReason: i.StateReason,
 	}
 }
 

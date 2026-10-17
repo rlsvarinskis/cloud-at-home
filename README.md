@@ -11,10 +11,11 @@ Both servers speak the Connect protocol, which is gRPC, gRPC-Web and plain HTTP+
 All resources belong to projects. Every call is authenticated with an Ed25519-signed bearer token and
 authorized per project.
 
-Status of the code: vmd and agentd are both implemented, and their tests run in `make test`. The
-`internal/e2e` tests run both servers in one process over HTTP. Nothing in these docs was observed on real
-hardware: no guest was booted, because the development host had no `genisoimage`, so guest-level behaviour is
-described from the code only.
+Status: vmd and agentd are implemented, and `make test` passes. The `internal/e2e` tests run both servers in one
+process over HTTP, and `cmd/vmd` and `cmd/agentd` have tests that start the real daemons against Postgres. No guest
+has been booted in this repository's CI, and the development host used for these docs has no `genisoimage`, so the
+QEMU driver and the guest scripts are covered by unit tests with fakes. See
+[ARCHITECTURE.md](docs/ARCHITECTURE.md#known-limitations).
 
 ## Architecture
 
@@ -30,12 +31,12 @@ described from the code only.
            │                              │      │ node API (role "node")
       Postgres (agentd)             Postgres (vmd) ▼
       + Ollama (LLM)                       ┌───────────┐ ┌───────────┐
-                                           │ node host │ │ node host │  one daemon per host
+                                           │ node host │ │ node host │
                                            │ QEMU/KVM  │ │ QEMU/KVM  │
                                            └───────────┘ └───────────┘
 ```
 
-The full design, including the failure model and the reasons for the main decisions, is in
+The design, including placement, the reconciler, sharding and the failure model, is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The decisions themselves are recorded in
 [docs/adr/](docs/adr/).
 
@@ -50,12 +51,15 @@ vmd:
   Calls wait at most 30 seconds. Jobs survive restarts of the control plane and of the node daemon.
 - Small file transfer into and out of a running guest (up to 8 MiB per file).
 - Per-VM guest metrics (CPU, memory, swap, filesystems), per-disk host allocation, and cluster capacity.
+- Draining a node (`ClusterService.SetNodeDraining`): running VMs keep running, nothing new starts there.
+- Per-project quotas (`--quota-*`, unlimited by default).
 - Prometheus metrics on `/metrics` for operators.
 - Holds: another service can hold a VM so that it cannot be deleted from under it.
-- Ed25519 bearer tokens with per-key role restrictions, project-scoped RBAC, and not-found answers for
-  resources in projects the caller cannot see.
+- Ed25519 bearer tokens with per-key role restrictions, project-scoped RBAC, revocation of single tokens
+  (`--revoked-tokens`), and not-found answers for resources in projects the caller cannot see.
 - Postgres as the system of record, with leases and compare-and-swap so that several replicas can serve
-  and reconcile at the same time. An in-memory store is available for development.
+  and reconcile at the same time. Projects can be spread over several databases (`--postgres-dsn` repeated).
+  An in-memory store is available for development.
 
 agentd:
 
@@ -63,13 +67,13 @@ agentd:
 - Tasks queued in the database and run by worker replicas under leases. The conversation is stored after
   every message, so another worker can resume a task whose owner died.
 - Optional `check_command` that decides the final state, independent of the model's own verdict.
-- Long-poll task reads, cancellation, and a list of the commands a task ran.
+- Long-poll task reads, cancellation (which also stops the running command), and a list of the commands a task ran.
 
 ## Quick start (single machine, development)
 
 Prerequisites: Go 1.26 or later. To start real VMs you also need the host tools listed in
-[docs/OPERATIONS.md](docs/OPERATIONS.md#node-host-requirements). Without them the API works, but VMs
-stay in `STOPPED` with a reason explaining the missing tool.
+[docs/OPERATIONS.md](docs/OPERATIONS.md#node-host-requirements). Without them the API works, but starting a VM fails
+with a `state_reason` of `node unreachable: <node id>` and the VM stays `STOPPED`.
 
 1. Build the binaries into `bin/`:
 
@@ -77,7 +81,7 @@ stay in `STOPPED` with a reason explaining the missing tool.
    mkdir -p bin && go build -o bin/ ./cmd/...
    ```
 
-   `go build ./cmd/...` on its own only compiles the packages and writes nothing.
+   `go build ./cmd/...` on its own compiles the packages and writes nothing.
 
 2. Generate a signing key and mint an admin token. The key pair is written to `dev/keys/`; `hcctl` refuses
    to overwrite existing files.
@@ -113,6 +117,7 @@ stay in `STOPPED` with a reason explaining the missing tool.
      exist.
    - Without `--postgres-dsn` (or `HOMECLOUD_POSTGRES_DSN`) vmd uses the in-memory store and logs a warning.
      All state is lost on restart.
+   - `--revoked-tokens FILE` is optional. If given, the file must exist when vmd starts.
 
 4. Call the API:
 
@@ -136,14 +141,14 @@ gen/                   generated Go code for proto/ (committed; regenerate with 
 cmd/vmd/               vmd: control plane and node daemon (--role=all|control|node)
 cmd/agentd/            agentd: API server and task workers
 cmd/hcctl/             admin CLI: keys, tokens, roles
-internal/auth/         tokens, RBAC, Connect interceptors, service tokens
+internal/auth/         tokens, RBAC, revocation list, Connect interceptors, service tokens
 internal/errs/         shared error vocabulary, mapped to Connect codes at the edge
-internal/daemon/       trusted-key flags, logger, HTTP server with graceful shutdown
+internal/daemon/       trusted-key and revocation flags, logger, HTTP server with graceful shutdown
 internal/obs/          RPC metrics, /metrics, health checks, build info
-internal/ids/          ULID-based IDs with a resource prefix
+internal/ids/          ULID-based IDs with a resource prefix (and shard suffixes)
 internal/pg/           Postgres pool and the shared migration runner (advisory lock)
 internal/vmd/domain/   vmd's internal model (not the wire types)
-internal/vmd/store/    store interface; memory, postgres; shard (partitions by project, not wired into cmd/vmd)
+internal/vmd/store/    store interface; memory, postgres, and shard (projects spread over several databases)
 internal/vmd/service/  Connect handlers, reconciler, node registry
 internal/vmd/scheduler/ capacity arithmetic and placement helpers
 internal/vmd/node/     node driver interface; qemudriver (QEMU/KVM), remote, fake, nodeserver
@@ -172,16 +177,17 @@ Postgres server. Choose one of:
 - `HOMECLOUD_TEST_POSTGRES=skip`: skip the Postgres tests.
 
 Service tests run the real Connect handlers over `httptest` with a fake node driver and a fake LLM, using
-real signed tokens. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+real signed tokens. `HOMECLOUD_TEST_SHARDS=3 go test ./internal/vmd/service` runs the same suite on a store
+sharded over three databases. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): components, identity, distribution, failure model.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): components, placement, identity, distribution, failure model, known limitations.
 - [docs/adr/](docs/adr/): decisions on Connect RPC, Postgres with leases, and jobs living in the guest.
 - [docs/API.md](docs/API.md): every service, its RPCs, permissions, errors and limits, with examples.
-- [docs/AUTH.md](docs/AUTH.md): tokens, roles, projects, service-to-service auth, key rotation, hardening.
-- [docs/OPERATIONS.md](docs/OPERATIONS.md): deployment shapes, node host setup, reconciler behaviour,
-  failure handling, metrics and alerts, capacity, backups and upgrades.
+- [docs/AUTH.md](docs/AUTH.md): tokens, roles, projects, revocation, service-to-service auth, key rotation, hardening.
+- [docs/OPERATIONS.md](docs/OPERATIONS.md): deployment shapes, node host setup, reconciler behaviour, draining,
+  failure handling, metrics and alerts, quotas, capacity, backups and upgrades.
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): regenerating code, testing, adding RPCs, permissions and
   store methods, conventions and known limitations.
 - [deploy/README.md](deploy/README.md): container images and the docker-compose development stack.

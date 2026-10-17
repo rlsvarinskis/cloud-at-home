@@ -1,6 +1,7 @@
 # Deploying homecloud
 
-This directory holds the container images, the local development stack and the admin tooling notes.
+This directory holds the container images, the local development stack and the admin tooling notes. For running
+homecloud on real hosts, see [docs/OPERATIONS.md](../docs/OPERATIONS.md).
 
 ## How the pieces fit
 
@@ -25,7 +26,7 @@ key ID (`kid`), and can be restricted to certain roles:
 - `agentd` key: signs agentd's service tokens. vmd trusts it only for the `service` role, so
   agentd cannot mint admin tokens even if its key leaks into a token.
 
-Roles are listed with `go run ./cmd/hcctl roles`.
+Roles are listed with `go run ./cmd/hcctl roles -v`. See [docs/AUTH.md](../docs/AUTH.md).
 
 ## Dev stack
 
@@ -54,9 +55,25 @@ Prerequisites: Docker with Compose v2, and Go 1.26 for `hcctl`.
    - Postgres: `127.0.0.1:5432`
    - ollama (profile `llm`): `127.0.0.1:11434`
 
-Note: the `vmd` image has no qemu, so `--role=all` in compose can serve the API and database but
-cannot start guests. To run VMs locally, run the node on the host (`vmd --role=node`) or use
-`Dockerfile.node`, then point vmd at it with `--node id=URL`.
+The stack's vmd runs `--role=all` with these flags, each set in `docker-compose.yml`:
+
+- `--ssh-key=/var/lib/homecloud/node_ssh` (required for a node; created on first start).
+- `--no-firewall`, `--kvm=false`, `--run-as=`: the container has no `iptables` rights, no `/dev/kvm` and no
+  separate VM user.
+- `--trusted-key=admin=/keys/admin.pub` and `--trusted-key=agentd=/keys/agentd.pub:service`.
+
+What the stack can and cannot do:
+
+- **Works:** the vmd API (authentication, authorization, projects, images, disks, VM records) and the database
+  (vmd and agentd each have their own database; `postgres-init.sql` creates the `agentd` one). agentd accepts agents
+  and tasks through its API.
+- **Does not work:** booting guests. The vmd image has no QEMU, and the container cannot run the firewall or KVM. By
+  the code's path, a VM that is started stays `STOPPED` with a `state_reason` of `node unreachable: <node id>`, and
+  command and file calls to it fail with `failed_precondition`. A queued agent task cannot finish without a running VM.
+  Run a real node on a host (`vmd --role=node`, or `Dockerfile.node` with `--privileged` and `/dev/kvm`) and point
+  vmd at it with `--node id=URL` to run VMs.
+- The stack has not been run in this repository's environment (Docker is not installed on the development host);
+  the description above follows `docker-compose.yml` and the code.
 
 ## Generate keys
 
@@ -102,7 +119,8 @@ go run ./cmd/hcctl token inspect -pub deploy/keys/admin.pub -kid admin "$TOKEN"
 echo "$TOKEN" | go run ./cmd/hcctl token inspect -pub deploy/keys/admin.pub -kid admin -
 ```
 
-Inspect exits 1 and prints the reason on stderr if the signature, key ID or expiry is wrong.
+Inspect prints the `token-id` (needed for revocation, see [docs/AUTH.md](../docs/AUTH.md#revoking-a-token)). It exits
+1 and prints the reason on stderr if the signature, key ID or expiry is wrong.
 
 ## Call the API with curl
 
@@ -117,15 +135,17 @@ curl -sS -X POST http://127.0.0.1:8080/homecloud.vmd.v1.VMService/ListVMs \
 ```
 
 Request and response fields use the protobuf JSON names (camelCase). A token without a binding on
-`proj-a` gets an error, not data. Errors come back as JSON with a `code` field.
+`proj-a` gets an error, not data. Errors come back as JSON with a `code` field. The API is described in
+[docs/API.md](../docs/API.md).
 
 ## Files
 
 - `Dockerfile.vmd`: control-plane image on distroless (nonroot), no qemu.
 - `Dockerfile.agentd`: agentd image on distroless (nonroot).
-- `Dockerfile.node`: Debian slim with qemu, genisoimage and openssh-client, running `vmd --role=node`.
-  Nodes normally run on the bare host.
+- `Dockerfile.node`: Debian stable slim with qemu-system-x86, qemu-utils, genisoimage and openssh-client, running
+  `vmd --role=node`. Nodes normally run on the bare host.
 - `docker-compose.yml`: local dev stack (postgres, vmd, agentd, optional ollama).
+- `postgres-init.sql`: creates the `agentd` database on first start of the Postgres container.
 - `.gitignore`: ignores `keys/`.
 
 Build any image from the repository root, for example:

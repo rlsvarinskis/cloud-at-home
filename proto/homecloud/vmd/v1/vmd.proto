@@ -135,6 +135,7 @@ message Image {
   int64 size_bytes = 6;
   string source_disk_id = 7;   // set for snapshots
   google.protobuf.Timestamp created_at = 8;
+  string state_reason = 9;     // why the image is in ERROR
 }
 message RegisterImageRequest {
   string project_id = 1;       // empty requires the global admin role
@@ -179,6 +180,7 @@ message Disk {
   DiskState state = 7;
   string attached_vm_id = 8;
   google.protobuf.Timestamp created_at = 9;
+  string state_reason = 10;    // why the disk is in ERROR
 }
 message CreateDiskRequest {
   string project_id = 1;

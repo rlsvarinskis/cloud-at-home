@@ -1132,6 +1132,7 @@ type Image struct {
 	SizeBytes     int64                  `protobuf:"varint,6,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	SourceDiskId  string                 `protobuf:"bytes,7,opt,name=source_disk_id,json=sourceDiskId,proto3" json:"source_disk_id,omitempty"` // set for snapshots
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	StateReason   string                 `protobuf:"bytes,9,opt,name=state_reason,json=stateReason,proto3" json:"state_reason,omitempty"` // why the image is in ERROR
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1220,6 +1221,13 @@ func (x *Image) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *Image) GetStateReason() string {
+	if x != nil {
+		return x.StateReason
+	}
+	return ""
 }
 
 type RegisterImageRequest struct {
@@ -1537,6 +1545,7 @@ type Disk struct {
 	State         DiskState              `protobuf:"varint,7,opt,name=state,proto3,enum=homecloud.vmd.v1.DiskState" json:"state,omitempty"`
 	AttachedVmId  string                 `protobuf:"bytes,8,opt,name=attached_vm_id,json=attachedVmId,proto3" json:"attached_vm_id,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	StateReason   string                 `protobuf:"bytes,10,opt,name=state_reason,json=stateReason,proto3" json:"state_reason,omitempty"` // why the disk is in ERROR
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1632,6 +1641,13 @@ func (x *Disk) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *Disk) GetStateReason() string {
+	if x != nil {
+		return x.StateReason
+	}
+	return ""
 }
 
 type CreateDiskRequest struct {
@@ -3523,7 +3539,7 @@ const file_homecloud_vmd_v1_vmd_proto_rawDesc = "" +
 	"\x10DeleteVMResponse\"5\n" +
 	"\vHoldRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
-	"\x06holder\x18\x02 \x01(\tR\x06holder\"\x97\x02\n" +
+	"\x06holder\x18\x02 \x01(\tR\x06holder\"\xba\x02\n" +
 	"\x05Image\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -3535,7 +3551,8 @@ const file_homecloud_vmd_v1_vmd_proto_rawDesc = "" +
 	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\x12$\n" +
 	"\x0esource_disk_id\x18\a \x01(\tR\fsourceDiskId\x129\n" +
 	"\n" +
-	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"v\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12!\n" +
+	"\fstate_reason\x18\t \x01(\tR\vstateReason\"v\n" +
 	"\x14RegisterImageRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x12\n" +
@@ -3555,7 +3572,7 @@ const file_homecloud_vmd_v1_vmd_proto_rawDesc = "" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"$\n" +
 	"\x12DeleteImageRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x15\n" +
-	"\x13DeleteImageResponse\"\xaa\x02\n" +
+	"\x13DeleteImageResponse\"\xcd\x02\n" +
 	"\x04Disk\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -3567,7 +3584,9 @@ const file_homecloud_vmd_v1_vmd_proto_rawDesc = "" +
 	"\x05state\x18\a \x01(\x0e2\x1b.homecloud.vmd.v1.DiskStateR\x05state\x12$\n" +
 	"\x0eattached_vm_id\x18\b \x01(\tR\fattachedVmId\x129\n" +
 	"\n" +
-	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x93\x01\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12!\n" +
+	"\fstate_reason\x18\n" +
+	" \x01(\tR\vstateReason\"\x93\x01\n" +
 	"\x11CreateDiskRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x12\n" +

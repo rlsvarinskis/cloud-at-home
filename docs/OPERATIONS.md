@@ -1,8 +1,9 @@
 # Operations
 
-This document covers running homecloud: deployment shapes, the host setup a node needs, how the reconciler
-behaves, what happens when parts fail, metrics and alerts, capacity, backups and upgrades. Flags are those of
-`cmd/vmd` (`vmd -h`), `cmd/agentd` (`agentd -h`) and `cmd/hcctl`.
+This document covers running homecloud: deployment shapes, the host setup a node needs, the flags, how the
+reconciler behaves, draining nodes, what happens when parts fail, metrics and alerts, quotas and capacity, backups
+and upgrades. Flags are those of `cmd/vmd` (`vmd -h`), `cmd/agentd` (`agentd -h`) and `cmd/hcctl`. The design
+behind these behaviours is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Contents
 
@@ -18,6 +19,7 @@ behaves, what happens when parts fail, metrics and alerts, capacity, backups and
 - [Metric catalogue](#metric-catalogue)
 - [Example alert rules](#example-alert-rules)
 - [Capacity planning](#capacity-planning)
+- [Quotas](#quotas)
 - [Backups](#backups)
 - [Upgrades](#upgrades)
 
@@ -43,14 +45,13 @@ vmd --role=all --postgres-dsn=postgres://... \
   --data-dir=/var/lib/homecloud --run-as=qemu
 ```
 
-`--role=all` requires `--ssh-key` and, unless `--no-firewall` is given, root or `CAP_NET_ADMIN` for the
-network rules. Without `--postgres-dsn` (or `HOMECLOUD_POSTGRES_DSN`) state is kept in memory and lost on
-restart; vmd logs a warning.
+`--role=all` and `--role=node` require `--ssh-key`. Without `--no-firewall`, they also need root or
+`CAP_NET_ADMIN` for the network rules. Without `--postgres-dsn` (or `HOMECLOUD_POSTGRES_DSN`) state is kept in
+memory and lost on restart; vmd logs a warning.
 
-The repository's `deploy/docker-compose.yml` starts `vmd --role=all` without `--ssh-key`. By the code in
-`cmd/vmd`, that exits at start-up with `-ssh-key is required for a node`. Add `--ssh-key` (with a key file in
-the container) before using the compose stack to run guests. The compose file also expects an `agentd` image
-built from `cmd/agentd`.
+The repository's [`deploy/docker-compose.yml`](../deploy/docker-compose.yml) is a development stack, not a
+production shape. Its vmd container runs `--role=all` with `--no-firewall`, `--kvm=false` and `--run-as=`, so the
+API and the database work, but no guest can boot inside the container. See [deploy/README.md](../deploy/README.md).
 
 ### 2. Control plane and several nodes
 
@@ -84,13 +85,28 @@ Node daemons do not serve `/metrics`; the control plane collects everything oper
 
 ### 3. Postgres partitioned by project
 
-The package `internal/vmd/store/shard` implements a store that spreads projects over N databases with
-rendezvous hashing. Node rows, shared images and rows with an empty project live on shard 0. An ID created by
-the shard store carries its shard number, so ID lookups go straight to the right database. Operations that cannot
-name a project (for example `ClaimVMs`) fan out and merge.
+Pass `--postgres-dsn` more than once to spread projects over several databases:
 
-This package is covered by tests but is **not wired into `cmd/vmd`**: there is no flag for it. Today a
-deployment uses one Postgres database.
+```
+vmd --role=control \
+  --postgres-dsn=postgres://.../homecloud_a \
+  --postgres-dsn=postgres://.../homecloud_b \
+  --postgres-dsn=postgres://.../homecloud_c \
+  ...
+```
+
+- Every database is migrated at start-up.
+- Each project's rows live on one database, chosen by rendezvous hashing over the database's **position in the
+  list**. The first DSN is shard 0.
+- Node rows and shared images (empty project) live on shard 0.
+- Resource IDs embed their shard, for example `vm_<ulid>-s02`, so lookups go straight to the right database. A
+  transaction stays inside one project's database.
+- **The set and the order of the databases are part of the data layout.** Changing either re-routes projects,
+  and existing rows become unreachable. There is no rebalancing tool. Choose the list before the first write.
+- With one DSN, vmd uses a single database and no shard suffixes are added.
+
+A single database can also be given with the environment variable `HOMECLOUD_POSTGRES_DSN`, which is used only when
+no `--postgres-dsn` flag is given.
 
 ## Node host requirements
 
@@ -102,11 +118,11 @@ A node needs the following on the host. The names are the programs the node runs
 | `qemu-system-x86_64` | Runs the guests. | `qemu/args.go` |
 | `/dev/kvm` and `--kvm=true` (default) | Hardware acceleration. `--kvm=false` uses TCG emulation, which is much slower. | `cmd/vmd` flag `-kvm` |
 | `qemu-img` | Creates disks, reads image metadata, resizes, flattens snapshots. | `qemudriver/disks.go` |
-| `genisoimage` | Builds the cloud-init seed ISO at every VM start. Missing, starts fail with the message `build seed ISO: genisoimage ... not found`. | `qemudriver/vm.go` |
+| `genisoimage` | Builds the cloud-init seed ISO at every VM start. Missing, starts fail. The state reason is `node unreachable: <node id>`; the tool's error is in the vmd log (`reconcile failed`). | `qemudriver/vm.go` |
 | `iptables` and `ip6tables` | Guest network lockdown, unless `--no-firewall`. | `qemudriver/firewall.go` |
-| Root, or `CAP_NET_ADMIN` for the firewall and `CAP_CHOWN` for the `chown` of the shared folder when `--run-as` is set | Installs the firewall rules and hands `shared/` to the run-as user. | `qemudriver/driver.go`, `qemudriver/firewall.go` |
+| Root, or `CAP_NET_ADMIN` for the firewall; `chown` rights for the shared folder and VM directories when `--run-as` is set | Installs the firewall rules and hands `shared/` and the VM directories to the run-as user. | `qemudriver/driver.go`, `qemudriver/firewall.go` |
 | A user named by `--run-as` (default `qemu`) | QEMU processes run as this user, and the shared folder belongs to it. Use `--run-as=` (empty) to run as the current user, for development. | `cmd/vmd` flag `-run-as` |
-| `--data-dir` (default `/var/lib/homecloud`) writable by the node | All state (below). | `qemudriver/driver.go` |
+| `--data-dir` (default `/var/lib/homecloud`), an absolute path, writable by the node | All state (below). | `qemudriver/driver.go` |
 | An SSH key at `--ssh-key` | The control plane's guest access key. Created with mode 0600 if missing, and its public half is written to `<path>.pub`. The public key is injected into each guest for user `agent`. | `sshrunner/sshrunner.go` |
 
 ### Network lockdown
@@ -155,12 +171,18 @@ Flags that matter in production (see `vmd -h` for all):
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--listen` | `:8080` | Address for the API, `/healthz`, `/readyz` and `/metrics`. |
-| `--postgres-dsn` | `$HOMECLOUD_POSTGRES_DSN` | Postgres for the control plane. Empty means memory. |
+| `--role` | `all` | `all`, `control` or `node`. See [Deployment shapes](#deployment-shapes). |
+| `--postgres-dsn` | `$HOMECLOUD_POSTGRES_DSN` | Postgres for the control plane. Repeatable: several databases shard the projects (see above). Empty means memory. |
 | `--trusted-key` | none | `kid=path[:role,role]`, repeatable. At least one is required. |
 | `--max-token-ttl` | `24h` | Longest token lifetime accepted. |
+| `--revoked-tokens` | none | File of revoked token ids, reloaded when it changes. See [AUTH.md](AUTH.md#revoking-a-token). |
+| `--node` | none | `id=URL` of a node daemon (control plane). Repeatable. |
+| `--service-key`, `--service-key-id` | none, `vmd` | The key the control plane uses to call nodes. |
+| `--quota-vms`, `--quota-vcpus`, `--quota-memory-mb`, `--quota-disk-gb` | `0` (unlimited) | Per-project quotas. See [Quotas](#quotas). |
 | `--tls-cert`, `--tls-key` | none | Serve TLS. Without them, HTTP/1.1 and cleartext HTTP/2 are served. |
 | `--metrics` | `true` | Serve `/metrics` (needs an operator token). |
 | `--cpu-overcommit`, `--memory-overcommit`, `--reserve-memory-mb` | `1`, `1`, `2048` | Capacity rules, see [Capacity planning](#capacity-planning). |
+| `--node-id` | host name | Name of this host when it runs a node (`--role=all`). Informational to the node driver. |
 | `--log-level` | `info` | `debug`, `info`, `warn` or `error`. |
 
 Migrations run at start-up, before the server listens. Postgres must be reachable then.
@@ -169,13 +191,16 @@ Migrations run at start-up, before the server listens. Postgres must be reachabl
 
 - `/healthz` always answers `200 ok`.
 - `/readyz` answers `200 {"status":"ok"}` when its checks pass, or `503 {"status":"unavailable","failed":[...]}`
-  naming the failed checks. The checks are `postgres` (a ping, when a DSN is set) and `store` (a read of the node
-  list). Each check has a 2 s timeout. Error text is not returned.
+  naming the failed checks. For vmd the checks are `postgres-0` (and `postgres-1`, ... with several databases), a
+  ping of each database, and `store`, a read of the node list. For agentd the check is `postgres`. Each check has a
+  2 s timeout. Error text is not returned.
 
 ### Database schema
 
-vmd keeps its tables in its own database under the migration record `schema_migrations_vmd`. Migrations are
-the files `NNN_name.up.sql` embedded in the binary, applied in numeric order. Each runs in its own transaction.
+vmd keeps its tables in its database under the migration record `schema_migrations_vmd`. The migrations are in
+`internal/vmd/store/postgres/migrations/` (`001_init`, `002_vm_crashes`, `003_node_drain`). agentd keeps its tables
+in its own database under `schema_migrations_agentd`, with migrations in `internal/agentd/store/postgres/migrations/`.
+Each migration is embedded in the binary and applied in numeric order, each in its own transaction.
 
 ## Running a node
 
@@ -205,6 +230,7 @@ agentd --listen=:8081 \
 | `--postgres-dsn` | `$HOMECLOUD_POSTGRES_DSN` | Postgres for agents and tasks. Empty means memory. Migrations run at start-up. |
 | `--trusted-key` | none | `kid=path[:role,role]` for user tokens. Repeatable. |
 | `--max-token-ttl` | `24h` | Longest user token lifetime accepted. |
+| `--revoked-tokens` | none | File of revoked token ids, reloaded when it changes. |
 | `--vmd-url` | none (required) | Base URL of vmd's API. |
 | `--ollama-url` | `http://127.0.0.1:11434` | Base URL of the Ollama model server. |
 | `--service-key` | none (required) | Private key that agentd signs its service tokens with. |
@@ -226,6 +252,10 @@ Workers: each worker claims one queued task (or a task whose lease expired) at a
 renewed every 10 s. The lease owner is the host name and process id. Workers poll the queue every 500 ms when
 idle. A task keeps its lease while it runs; if the process dies, another worker takes the task over after the lease
 expires.
+
+Cancelling a task stops its model call and the command it is running in the VM. A worker that shuts down, or that
+loses its lease, leaves the command running: the next worker finds the same job through its idempotency key
+(`<task id>-<sequence>`) and reads its real result.
 
 Models: `CreateAgent` and `UpdateAgent` check that the model is installed on the Ollama server. If Ollama cannot be
 reached at that moment the check is skipped, and the task fails later if the model is missing.
@@ -256,9 +286,10 @@ replica that dies loses its leases after 30 s.
 - **Desired running.**
   - Runtime `RUNNING`: state `RUNNING`, checked again every 10 s (`ResyncInterval`).
   - Runtime `BOOTING`: state `STARTING`.
-  - Runtime absent or exited: the node has to start it. If the node lacks CPU or memory, the VM goes to
-    `PENDING` with `state_reason` `waiting for capacity: ...` and is re-checked every 3 s. Otherwise the node
-    starts QEMU and the VM is `STARTING`.
+  - Runtime absent or exited: the node has to start it. The start waits for capacity: if the node is draining, or
+    lacks CPU or memory, the VM goes to `PENDING` with `state_reason` `waiting for capacity: <reason>` (for example
+    `node is draining` or `not enough memory: ...`) and is re-checked every 3 s. Otherwise the node starts QEMU and
+    the VM is `STARTING`.
 - **Desired stopped.** A running guest is stopped: gracefully, or with a kill if `StopVM` used `force`. The state
   is `STOPPING` until the process is gone, then `STOPPED`. A graceful stop that takes longer than 60 s is killed,
   and the reason becomes `stop timed out, killed`. The reason after a normal stop is `stopped`.
@@ -267,56 +298,117 @@ replica that dies loses its leases after 30 s.
 
 ### Crashes and backoff
 
-- A VM whose QEMU process has exited while it was `RUNNING` or `STARTING` counts a crash (`Crashes`), and the
-  reason becomes `VM exited unexpectedly: ...` with the last lines of `qemu.log`. This includes a node or host
-  reboot, which leaves the process gone.
-- A VM is restarted after a crash, unless it has crashed more than three times. Then it is `ERROR` and retried
-  with backoff. The backoff doubles from 1 s and is capped at 60 s, counted from the crash count.
-- A healthy `RUNNING` VM forgives one crash each time it is checked after a resync interval (10 s).
-- `StartVM` on a VM in `ERROR` clears the crash count and retries at once.
-- An error from the node is retried with backoff (the same schedule as above). Errors classed as unavailable get
-  the `state_reason` prefix `node unreachable:`. That includes host-tool failures such as a missing `genisoimage`.
-- An error that is not transient (not found, invalid argument, failed precondition, already exists, permission
-  denied) puts the VM in `ERROR`. The VM is checked again every 60 s, in case the cause was fixed outside homecloud.
+The reconciler keeps two counters per VM, and they are separate:
 
-Note: a start that fails with a transient error (for example, `genisoimage` missing) leaves the VM in its
-previous observed state (`STOPPED`) with a `state_reason`, not in `ERROR`. Alerts on `state="error"` do not see
-it; alert on `state_reason` or on reconcile failures instead (see [Example alert rules](#example-alert-rules)).
+- **Crashes.** A VM whose QEMU process exits while it is `RUNNING` or `STARTING` counts one crash. The reason
+  becomes `VM exited unexpectedly: ...` with the last lines of `qemu.log`. A host reboot counts too, because the
+  process is gone.
+  - The first three crashes restart the VM at the next reconcile step (about 1 s).
+  - **Crash loop.** The fourth crash (a crash count above three) puts the VM in `ERROR`. The next attempt waits
+    1 s × 2^crashes, capped at 60 s: 16 s after the fourth crash, 32 s after the fifth, and 60 s from the sixth on.
+  - Forgiveness: a `RUNNING` VM that is checked again while still running (every 10 s) gives back one crash.
+    A VM that has only just been seen booting earns nothing.
+- **Failures.** An error from the node (the node is unreachable, or a host tool fails) is counted separately, and
+  the count is reset as soon as the node answers. Each failure is retried after 2 s, 4 s, 8 s and so on, capped at
+  60 s. A transient error sets the reason to `node unreachable: <node id>` (the error text is logged, not returned).
+  A host-tool failure such as a missing `genisoimage` is also reported this way.
+- **Not transient.** An error that is not transient (not found, invalid argument, failed precondition, already
+  exists, permission denied) puts the VM in `ERROR`. The VM is checked again every 60 s, in case the cause was
+  fixed outside homecloud.
+- `StartVM` on a VM in `ERROR` clears both counters and retries at once.
 
-There is no log line at `ERROR` level for a crash loop. The crash loop is visible as the VM's `ERROR` state.
-Reconcile failures are logged at `WARN` with the VM id and failure count.
+A start that fails with a transient error leaves the VM in its previous observed state (`STOPPED`, or `PENDING`)
+with a `state_reason`, not in `ERROR`. Alerts on `state="error"` do not see it; alert on the reconcile failure
+counter (see [Example alert rules](#example-alert-rules)).
+
+There is no log line at `ERROR` level for a crash loop. Reconcile failures are logged at `WARN` with the VM id and
+failure count.
 
 ### Jobs and VMs
 
-Jobs live in the guest. A job whose VM is no longer `RUNNING` is marked `LOST` the next time a job call reads it
-(`PollJob` or `CancelJob`). Nothing marks it in the background. The `killed_reason` says why, for example
-`vm stopped: ...`.
+Jobs live in the guest. A job whose VM is no longer `RUNNING` is marked `LOST` the next time `PollJob` or `CancelJob`
+reads it. Nothing marks it in the background. The `killed_reason` says why, for example `vm stopped: ...`.
 
 ## Node lifecycle
 
-A node is `ready`, `draining` or `down`.
+A node is `ready`, `draining` or `down`. The state reported by `GetCapacity` and `homecloud_node_*` metrics is the
+combination of two facts that are stored separately:
 
-- `ready`: takes new VMs and disks.
-- `down`: the control plane has not heard from it for more than 15 s. The control plane polls each node
-  every 5 s with a 5 s timeout. A node that answers again becomes `ready`.
-- `draining`: meant to keep its existing VMs and take no new ones. **No API or flag sets this state.** Only the
-  store can write it. Do not rely on draining in this version.
+- **Health**, observed by the control plane. The control plane polls each node every 5 s with a 5 s timeout. A node
+  that has been silent for more than 15 s is `down`. A node that answers again is healthy.
+- **Drain**, the operator's decision. Set and cleared with `ClusterService.SetNodeDraining` (see below). Health
+  updates never change it, so an outage does not erase a drain.
 
-A node's VMs stay in their last observed state while it is down. The reconciler retries them with backoff.
+The effective state is `down` if the node is down, otherwise `draining` if drain is set, otherwise `ready`.
+`down` beats `draining`.
+
+- `ready`: takes new VM starts and new disks.
+- `draining`: running VMs keep running. Nothing that needs a start is started on it.
+- `down`: the control plane has not heard from it for more than 15 s. A node's VMs stay in their last observed state
+  while it is down, with reason `node unreachable: <node id>`, and the reconciler retries them with backoff.
+
+### Draining a node
+
+```
+curl -sS -X POST http://127.0.0.1:8080/homecloud.vmd.v1.ClusterService/SetNodeDraining \
+  -H "Authorization: Bearer $OPS_TOKEN" -H "Content-Type: application/json" \
+  -d '{"nodeId":"node-1","draining":true}'
+```
+
+Resume with `"draining":false`. The token needs the `operator` role (`node.drain`, on project `*`). A token with
+`-bind '*:operator'` is minted with `hcctl token mint -key ... -kid admin -sub user:ops -type user -bind '*:operator' -ttl 1h`.
+
+What a drain does:
+
+- **Running VMs keep running.** Draining does not stop or move any VM.
+- **Starts wait.** A VM on the node that should run and is not running (a new VM, a stopped VM set to run, or a crashed
+  VM being restarted) stays `PENDING` with `state_reason` `waiting for capacity: node is draining`. It starts within
+  about 3 s of undraining.
+- **New VMs are created.** `CreateVM` does not check the node's state, so a new VM whose image is on the draining
+  node is created and waits. A disk created without an image is placed only on a ready node; a disk created with an
+  explicit `node_id` is not checked against drain.
+- **Visible.** `GetCapacity` shows `state: "draining"` for the node, `homecloud_node_draining` is `1` and
+  `homecloud_node_up` is `0`. If the node also goes down, `state` is `down`.
+- **Survives restarts and outages.** The drain is stored in the database. Restarting vmd or losing the node does not
+  clear it.
+
+### Evacuating a host for maintenance
+
+VMs are never moved between nodes: a VM runs on the node that holds its boot disk. Draining keeps new work off a
+host, but it does not empty it. To take a host down, stop its VMs first. If the host reboots with VMs still running,
+the QEMU processes are gone, which counts as a crash of each VM; they are restarted when the node answers again, and
+an operator who wants them to stay down must stop them first.
+
+1. **Drain the node** with `SetNodeDraining` (`"draining":true`). This stops anything else from starting on it.
+2. **Find its VMs.** `ListVMs` takes no node filter. List each project's VMs and select those whose `node_id` is the
+   node, or use labels that you set on the VMs.
+3. **Stop them**, gracefully, and wait:
+
+   ```
+   call VMService/StopVM '{"id":"vm_..."}'
+   call VMService/GetVM '{"id":"vm_...","waitForState":"VM_STATE_STOPPED","waitSeconds":30}'
+   ```
+
+   `StopVM` sets the VM's desired state to stopped. It stays stopped after the node is undrained.
+4. **Confirm** that `homecloud_node_vms_running` for the node is `0`, or that `GetCapacity` shows no running
+   VMs on it.
+5. **Do the maintenance.** The node daemon can be restarted without stopping VMs, but none are running at this point.
+6. **Undrain** with `"draining":false`, then **start the VMs again** with `VMService/StartVM` for each one you stopped.
+   Keep the list of IDs (or labels) from step 2.
 
 ## Failure behaviour
 
 | Failure | What happens | What to do |
 | --- | --- | --- |
-| **Node daemon unreachable** (host down, network, daemon stopped) | The control plane marks the node `down` after 15 s of silence. Its VMs keep their last observed state, with `state_reason` `node unreachable: ...`. The reconciler retries with backoff (1 s to 60 s). Exec, file and metrics calls to its VMs fail with `unavailable`. The node's capacity is left out of cluster totals. A VM can still be created on it, but its disks are not created until the node answers. | Restore the node. Reconciliation resumes on its own. |
+| **Node daemon unreachable** (host down, network, daemon stopped) | The control plane marks the node `down` after 15 s of silence. Its VMs keep their last observed state, with `state_reason` `node unreachable: <node id>`. The reconciler retries with backoff (2 s, doubling, capped at 60 s). Exec, file and metrics calls to its VMs fail with `unavailable`. The node's capacity is left out of cluster totals. A VM can still be created on it, but its disks are not created until the node answers. | Restore the node. Reconciliation resumes on its own. |
 | **Node daemon restarted** | QEMU processes are detached, so VMs keep running. On start, the new driver re-reserves the SSH ports of live VMs and reads their runtime files. Guest jobs continue. Calls to that node fail with `unavailable` while it restarts, and the reconciler retries. | Nothing, normally. Check that `run-as` and `data-dir` are unchanged. |
 | **Control-plane replica dies** | Its leases on VMs and tasks expire after 30 s, and another replica takes them over. Requests it was serving fail. Clients retry; create calls are safe to retry with an idempotency key. | Restart it. Other replicas keep serving. |
 | **All control-plane replicas down** | No API calls and no reconciliation. VMs keep running. | Restore at least one replica. |
-| **Postgres down** | `/readyz` returns `503`, listing `postgres` and/or `store`. API calls that touch the database return `internal`, because database errors are not mapped to `unavailable`. The reconciler logs `claim vms` errors each tick. Running VMs keep running. No state is lost. | Restore Postgres. Reconciliation resumes. |
+| **Postgres down** | `/readyz` returns `503`, listing the failed `postgres-N` and/or `store` checks. API calls that touch the database return `internal`, because database errors are not mapped to `unavailable`. The reconciler logs `claim vms` errors each tick. Running VMs keep running. No state is lost. | Restore Postgres. Reconciliation resumes. |
 | **agentd worker dies mid-task** | Its lease expires after 30 s, and another worker claims the task. The attempt count rises. The task resumes from the stored messages. A command that was running in the guest is found again by its idempotency key, so it is not started twice. After more than three takeovers the task ends in `TASK_STATE_ERROR`. | Nothing, normally. |
-| **VM crashes** (QEMU exits) | The reconciler restarts it, counting the crash. After more than three crashes the VM is `ERROR`, retried with backoff. Guest jobs become `LOST` when they are next read. | Read `state_reason` and the VM's `qemu.log` on the node. Use `StartVM` after fixing the cause. |
+| **VM crashes** (QEMU exits) | The reconciler restarts it, counting the crash. On the fourth crash the VM is `ERROR`, retried with backoff. Guest jobs become `LOST` when they are next read. | Read `state_reason` and the VM's `qemu.log` on the node. Use `StartVM` after fixing the cause. |
 | **Guest powers itself off** | The QEMU process exits without a stop request from vmd. The reconciler treats that as a crash and restarts the VM, as long as its desired state is `RUNNING`. Its running jobs become `LOST`. | Stop the VM through the API (`StopVM`) instead of powering off inside the guest. |
-| **Host reboot** | QEMU processes are gone, so VMs that were running count as crashed and are restarted by the reconciler when the node answers. | Check that the VMs come back. |
+| **Host reboot** | QEMU processes are gone, so VMs that were running count as crashed and are restarted by the reconciler when the node answers. | Drain and stop VMs first (see above), or check that they come back. |
 | **Image or disk file missing on the node** | An image registered from a missing file goes to `IMAGE_STATE_ERROR`. A VM whose disk is `DISK_STATE_ERROR` goes to `ERROR` with the disk's reason. A VM whose disk is still being created waits in `PENDING` with `waiting for disk ...`. | Restore the file, or delete the resource and register or create it again. |
 
 ## Prometheus
@@ -353,11 +445,11 @@ scrape_configs:
 
 ## Metric catalogue
 
-All metric names start with `homecloud_`, except the standard Go and process collectors. The control
-plane registers only the collectors listed here.
+All metric names start with `homecloud_`, except the standard Go and process collectors. Each server registers
+only the collectors listed here.
 
 The names and meanings below are from `internal/vmd/promcollect` (`descs.go`, `promcollect.go`, `capacity.go`
-and `sampler.go`).
+and `sampler.go`), `internal/obs` and `internal/agentd/metrics`.
 
 ### RPC metrics (every API server)
 
@@ -372,27 +464,27 @@ and `sampler.go`).
 
 ### Node and cluster capacity (per scrape, from the store)
 
-Units: CPU counts are threads or vCPUs; memory is MiB; disk is bytes.
+Units: CPU counts are threads or vCPUs; memory is bytes; disk is bytes.
 
 | Metric | Labels | Meaning |
 | --- | --- | --- |
-| `homecloud_node_up` | `node` | 1 if the node is `ready`, 0 if draining or down. |
-| `homecloud_node_draining` | `node` | 1 if the node is draining. |
-| `homecloud_node_cpus_total` | `node` | Physical CPU threads on the node. |
-| `homecloud_node_cpus_allocated` | `node` | vCPUs of VMs that should be running on the node. |
-| `homecloud_node_cpus_available` | `node` | vCPUs the scheduler can still allocate, after overcommit. |
-| `homecloud_node_memory_mb_total` | `node` | Physical memory, MiB. |
-| `homecloud_node_memory_mb_allocated` | `node` | Memory of VMs that should be running, MiB. |
-| `homecloud_node_memory_mb_available` | `node` | Memory the scheduler can still allocate, MiB, after the reserve and overcommit. |
-| `homecloud_node_disk_bytes_total` | `node` | Disk capacity on the node. |
-| `homecloud_node_disk_bytes_free` | `node` | Free disk on the node for new disks. |
-| `homecloud_node_vms_total` | `node` | VMs placed on the node, any state. |
+| `homecloud_node_up` | `node` | 1 if the node's effective state is `ready`, 0 if draining or down. |
+| `homecloud_node_draining` | `node` | 1 if the node's effective state is `draining`. |
+| `homecloud_node_cpu_threads` | `node` | Physical CPU threads on the node. |
+| `homecloud_node_cpu_allocated_vcpus` | `node` | vCPUs of VMs that should be running on the node. |
+| `homecloud_node_cpu_available_vcpus` | `node` | vCPUs the scheduler can still hand out on the node, after overcommit. |
+| `homecloud_node_memory_total_bytes` | `node` | Physical memory on the node. |
+| `homecloud_node_memory_allocated_bytes` | `node` | Memory of VMs that should be running on the node. |
+| `homecloud_node_memory_available_bytes` | `node` | Memory the scheduler can still hand out, after the reserve and overcommit. |
+| `homecloud_node_disk_total_bytes` | `node` | Disk capacity on the node. |
+| `homecloud_node_disk_free_bytes` | `node` | Free disk on the node for new disks. |
+| `homecloud_node_vms` | `node` | VMs placed on the node, any state. |
 | `homecloud_node_vms_running` | `node` | VMs on the node in state `RUNNING`. |
 | `homecloud_node_last_heartbeat_timestamp_seconds` | `node` | Unix time of the last successful poll; 0 if it never answered. |
-| `homecloud_cluster_cpus_total`, `..._cpus_allocated`, `..._cpus_available` | none | The same, summed over ready nodes. |
-| `homecloud_cluster_memory_mb_total`, `..._memory_mb_allocated`, `..._memory_mb_available` | none | Summed over ready nodes, MiB. |
-| `homecloud_cluster_disk_bytes_total`, `..._disk_bytes_free` | none | Summed over ready nodes. |
-| `homecloud_cluster_vms_total`, `..._vms_running` | none | Summed over ready nodes. |
+| `homecloud_cluster_cpu_threads`, `homecloud_cluster_cpu_allocated_vcpus`, `homecloud_cluster_cpu_available_vcpus` | none | The same, summed over ready nodes. |
+| `homecloud_cluster_memory_total_bytes`, `homecloud_cluster_memory_allocated_bytes`, `homecloud_cluster_memory_available_bytes` | none | Summed over ready nodes. |
+| `homecloud_cluster_disk_total_bytes`, `homecloud_cluster_disk_free_bytes` | none | Summed over ready nodes. |
+| `homecloud_cluster_vms`, `homecloud_cluster_vms_running` | none | Summed over ready nodes. |
 | `homecloud_cluster_nodes_ready` | none | Nodes in state `ready`. |
 | `homecloud_vms` | `state` | VMs per observed state across all nodes. Every state is present, zeros included. |
 | `homecloud_vms_desired_running` | none | VMs whose desired state is running. |
@@ -410,7 +502,7 @@ are removed.
 | --- | --- | --- |
 | `homecloud_vm_cpu_percent` | percent | Guest CPU use, like `top`: 100 per busy vCPU. An 8-vCPU guest can reach 800. |
 | `homecloud_vm_cpu_cores` | count | vCPUs the guest sees. |
-| `homecloud_vm_load1`, `_load5`, `_load15` | load average | Guest load over 1, 5 and 15 minutes. |
+| `homecloud_vm_load1`, `homecloud_vm_load5`, `homecloud_vm_load15` | load average | Guest load over 1, 5 and 15 minutes. |
 | `homecloud_vm_memory_total_bytes` | bytes | Guest memory. |
 | `homecloud_vm_memory_used_bytes` | bytes | Guest memory in use. |
 | `homecloud_vm_memory_available_bytes` | bytes | Guest memory available for new work. |
@@ -421,7 +513,7 @@ are removed.
 | `homecloud_vm_disk_virtual_size_bytes` | bytes | Virtual size of a VM disk. |
 | `homecloud_vm_disk_allocated_bytes` | bytes | Host space the disk's qcow2 file occupies. Thin provisioning makes this smaller than the virtual size. |
 
-### Self-instrumentation
+### Self-instrumentation (vmd)
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
@@ -429,7 +521,7 @@ are removed.
 | `homecloud_vm_sample_errors_total` | counter | none | Guest samples that failed. |
 | `homecloud_vm_samples_last_duration_seconds` | gauge | none | How long the last sampling pass took. |
 | `homecloud_vm_samples_last_timestamp_seconds` | gauge | none | Unix time at which the last sampling pass finished. |
-| `homecloud_reconcile_vm_total` | counter | `outcome` (`ok`, `error`) | VM reconciliation steps, by outcome. |
+| `homecloud_reconcile_vm_total` | counter | `outcome` (`ok`, `error`) | VM reconciliation steps, by outcome. Counts failed steps, including transient ones. |
 | `homecloud_reconcile_vm_duration_seconds` | histogram | none | Time to reconcile one VM. |
 | `homecloud_reconcile_ticks_total` | counter | none | Reconciler ticks completed. |
 | `homecloud_reconcile_tick_duration_seconds` | histogram | none | Time per tick. |
@@ -462,12 +554,19 @@ groups:
         for: 2m
         labels: {severity: page}
 
+      - alert: HomecloudNodeDrainedLongTerm
+        expr: homecloud_node_draining == 1
+        for: 24h
+        labels: {severity: warn}
+        annotations:
+          summary: "A node has been draining for a day. Undrain it or plan its maintenance."
+
       - alert: HomecloudNoCapacity
-        expr: homecloud_cluster_cpus_available <= 0 or homecloud_cluster_memory_mb_available < 1024
+        expr: homecloud_cluster_cpu_available_vcpus <= 0 or homecloud_cluster_memory_available_bytes < 1073741824
         for: 10m
         labels: {severity: warn}
         annotations:
-          summary: "No CPU or memory left to start VMs. Pending VMs wait with 'waiting for capacity'."
+          summary: "No CPU or less than 1 GiB of memory left to start VMs. Pending VMs wait with 'waiting for capacity'."
 
       - alert: HomecloudVMInError
         expr: homecloud_vms{state="error"} > 0
@@ -487,7 +586,7 @@ groups:
         labels: {severity: page}
 
       - alert: HomecloudNodeDiskNearlyFull
-        expr: homecloud_node_disk_bytes_free / homecloud_node_disk_bytes_total < 0.10
+        expr: homecloud_node_disk_free_bytes / homecloud_node_disk_total_bytes < 0.10
         for: 15m
         labels: {severity: warn}
 
@@ -512,11 +611,22 @@ groups:
         expr: time() - homecloud_vm_samples_last_timestamp_seconds > 300
         for: 5m
         labels: {severity: warn}
+
+      - alert: HomecloudAgentLeaseLost
+        expr: increase(homecloud_agent_lease_lost_total[10m]) > 0
+        labels: {severity: warn}
+        annotations:
+          summary: "An agentd worker lost a task lease. Check worker health and Postgres latency."
+
+      - alert: HomecloudAgentTaskError
+        expr: increase(homecloud_agent_tasks_finished_total{state="error"}[30m]) > 0
+        labels: {severity: warn}
+        annotations:
+          summary: "Agent tasks ended in ERROR (agent not active, VM gone, model error). Read the task result."
 ```
 
-Not covered: a VM crash counter is not exported. Use `state="error"`, and the reconcile failure rate. vmd
-exports no task queue gauge. For agentd, use the [agentd metrics](#agentd-metrics) (for example,
-`increase(homecloud_agent_lease_lost_total[10m]) > 0` shows workers losing their leases).
+Not covered: a VM crash counter is not exported. Use `homecloud_vms{state="error"}` and the reconcile failure rate.
+vmd exports no task queue gauge.
 
 A transient start failure (for example, a missing `genisoimage`) does not show as `error`; the VM stays
 `stopped` with a `state_reason`. Watch `homecloud_reconcile_vm_total{outcome="error"}` for those.
@@ -541,39 +651,49 @@ The allocated amount counts VMs whose desired state is running. A stopped VM tak
 
 ### Where capacity is checked
 
-- **At start.** A VM that should run but has no CPU or memory on its node waits in `PENDING` with
-  `state_reason` `waiting for capacity: ...`, and is checked every 3 s.
-- **At create.** `CreateVM` checks that the node is registered and the project quota (when one is configured).
-  It does not check CPU or memory.
+- **At start.** A VM that should run but has no CPU or memory on its node (or whose node is draining or down) waits in
+  `PENDING` with `state_reason` `waiting for capacity: ...`, and is checked every 3 s.
+- **At create.** `CreateVM` checks that the node is registered and the project quotas. It does not check CPU or
+  memory.
 - **Disks without an image** go to the ready node with the most free disk that has the requested size.
 
 ### Placement
 
 A VM runs on the node of its boot disk, and that node is the node of its image. A VM is never moved. The
-scheduler has a `Pick` function that chooses the best node by headroom, but no service code calls it at present.
+scheduler has a `Pick` function that chooses the node with the most headroom, but no service code calls it at
+present; see [ARCHITECTURE.md](ARCHITECTURE.md#placement-and-the-reconciler).
 
-### Quotas
+## Quotas
 
-The service has quotas per project (VMs, running vCPUs, running memory, disk GB). They are enforced when set in
-the service configuration. `cmd/vmd` sets none, so **quotas are unlimited in the shipped binary**. There is no
-flag for them.
+Quotas are per project. They are set with flags and are **unlimited by default** (`0` means unlimited).
 
-### Per-VM and per-disk limits
+| Flag | Limit |
+| --- | --- |
+| `--quota-vms` | VMs in the project, in any state. |
+| `--quota-vcpus` | vCPUs of the project's VMs whose desired state is running. |
+| `--quota-memory-mb` | Memory (MB) of the project's VMs whose desired state is running. |
+| `--quota-disk-gb` | Disk size (GB) of all the project's disks. |
 
-These are the service defaults, which `cmd/vmd` does not change:
+Where they are checked, and what a violation returns (`resource_exhausted`, with the limit in the message):
 
-- vCPUs per VM: 1 to 64.
-- Memory per VM: 256 MB to 1 TiB.
-- Disk size: 1 to 4096 GB; a boot disk made from an image defaults to 20 GB.
+- `CreateVM`: the VM count, and the boot disk size for a new image-based VM. The running vCPUs and memory are
+  checked only when `start` is true.
+- `StartVM`: the running vCPUs and memory of the VM.
+- `CreateDisk`: the disk size.
+- `ResizeDisk`: the added size.
+- `UpdateVM` (resizing a stopped VM) does not check quotas.
+
+A quota is a ceiling checked at these calls. Lowering a flag does not stop VMs that already exist.
 
 ## Backups
 
 Back up three things. Restoring them together is what keeps the control plane and the nodes in agreement.
 
-1. **Postgres.** Back up the vmd database (its tables and `schema_migrations_vmd`) and, if used, agentd's
-   database. Use `pg_dump` or continuous archiving, as usual for Postgres. A restore brings back VM and disk
-   records; the reconciler then works towards them. Files on nodes that are not in the restored database are
-   not known to vmd and must be cleaned up by hand.
+1. **Postgres.** Back up every vmd database (its tables and `schema_migrations_vmd`) and, if used, agentd's database
+   (`schema_migrations_agentd`). Use `pg_dump` or continuous archiving, as usual for Postgres. Keep the databases
+   together: a restore must bring back the same set in the same order (see [Postgres partitioned by project](#3-postgres-partitioned-by-project)).
+   A restore brings back VM and disk records; the reconciler then works towards them. Files on nodes that are not in
+   the restored database are not known to vmd and must be cleaned up by hand.
 2. **Node data directory** (`--data-dir`): `images/`, `disks/`, `vms/` and `shared/`. Remember that
    `images/<id>.qcow2` may be a symlink to a file outside the data directory: back up the target too.
    A copy of a disk that a running VM writes to can be inconsistent. Stop the VM first, or use
@@ -588,7 +708,7 @@ Guest job directories are not backed up. They are short-lived.
 
 - **Migrations are forward-only.** Only `NNN_name.up.sql` files are applied, in numeric order. There are no
   down migrations. Each migration runs in its own transaction, and its version is recorded in
-  `schema_migrations_vmd`.
+  `schema_migrations_vmd` (or `schema_migrations_agentd`).
 - **Migrations run at start-up**, before the server listens, under a Postgres advisory lock. Several replicas
   can start together: one applies the migration and the rest wait. Take a database backup before an upgrade.
 - **Control plane replicas are stateless.** Upgrade them one at a time: start the new binary (it migrates first),

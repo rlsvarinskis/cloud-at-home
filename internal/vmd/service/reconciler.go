@@ -148,7 +148,7 @@ func (r *Reconciler) createImage(ctx context.Context, img *domain.Image) {
 		}
 	}
 	if err != nil && !errors.Is(err, errs.ErrAlreadyExists) {
-		r.failImage(ctx, img, err.Error(), transient(err))
+		r.failImage(ctx, img, clientReason("node "+img.NodeID, err), transient(err))
 		return
 	}
 	img.State, img.StateReason, img.SizeBytes, img.UpdatedAt = domain.ImageReady, "", size, r.now()
@@ -182,7 +182,7 @@ func (r *Reconciler) reconcileDisks(ctx context.Context) {
 		}
 		_, err = drv.CreateDisk(ctx, &nodev1.CreateDiskRequest{DiskId: d.ID, BackingImageId: d.ImageID, SizeGb: int32(d.SizeGB)})
 		if err != nil && !errors.Is(err, errs.ErrAlreadyExists) {
-			r.failDisk(ctx, d, err.Error(), transient(err))
+			r.failDisk(ctx, d, clientReason("node "+d.NodeID, err), transient(err))
 			continue
 		}
 		d.State, d.StateReason, d.UpdatedAt = domain.DiskReady, "", r.now()
@@ -234,8 +234,11 @@ func (r *Reconciler) reconcileVM(ctx context.Context, vm *domain.VM) {
 		// state_reason is shown to API clients: say what is wrong, not where the node lives. Details go to the log.
 		reason, hidden := errs.Sanitize("node "+vm.NodeID, err)
 		msg := reason.Error()
-		if hidden || errors.Is(err, errs.ErrUnavailable) {
+		switch {
+		case errors.Is(err, errs.ErrUnavailable):
 			msg = "node unreachable: " + vm.NodeID
+		case hidden: // reached the node, but it failed in a way we do not show (a host tool, a driver bug...)
+			msg = "node " + vm.NodeID + " failed to carry out the request (details in the vmd log)"
 		}
 		vm.StateReason = msg
 		vm.NextReconcile = now.Add(backoff(vm.Failures))
@@ -458,4 +461,10 @@ func (r *Reconciler) fits(ctx context.Context, vm *domain.VM) (bool, string) {
 		return scheduler.Fits(info, scheduler.Request{CPUs: vm.CPUs, MemoryMB: vm.MemoryMB}, r.cfg.Scheduler)
 	}
 	return true, ""
+}
+
+// clientReason is err's text as it may be shown to API clients (see errs.Sanitize).
+func clientReason(what string, err error) string {
+	out, _ := errs.Sanitize(what, err)
+	return out.Error()
 }

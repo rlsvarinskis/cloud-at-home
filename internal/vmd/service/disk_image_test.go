@@ -192,7 +192,7 @@ func ditImageReason(t *testing.T, e *env, id string) string {
 	return img.StateReason
 }
 
-// ditDiskReason reads the store directly: the API does not expose state_reason for disks.
+// ditDiskReason reads the reason from the store (the API exposes the same text: see TestFailureReasonsAreVisibleToClients).
 func ditDiskReason(t *testing.T, e *env, id string) string {
 	t.Helper()
 	d, err := e.st.GetDisk(context.Background(), id)

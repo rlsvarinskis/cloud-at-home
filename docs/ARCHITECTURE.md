@@ -58,7 +58,7 @@ nodes (`--node id=URL`); `--role=node` is the host daemon.
   placement until images can live on several nodes.)
 * The reconciler claims due VMs with a lease, so any number of control-plane replicas share the work. Failures to reach a
   node back off exponentially (capped at 60 s). Unexpected VM exits are counted separately (`Crashes`): the count is
-  forgiven only while the VM stays healthy, and after three crashes the VM goes to `ERROR` and is retried ever more slowly.
+  forgiven only while the VM stays healthy, and on the fourth crash the VM goes to `ERROR` and is retried ever more slowly.
   An explicit `StartVM` on an errored VM retries immediately.
 * **Drain** is the operator's decision, stored apart from observed health, so an outage cannot erase it.
 

@@ -2,9 +2,9 @@
 
 homecloud authenticates callers with signed bearer tokens and authorizes them with project-scoped roles.
 Servers hold only public keys, so no server can mint a token it is not configured to trust with a key
-it holds privately. This document describes the token model, the roles, service-to-service calls, key
-rotation and hardening. The code is in [`internal/auth`](../internal/auth/), the admin tool is
-[`cmd/hcctl`](../cmd/hcctl/).
+it holds privately. This document describes the token model, the roles, revocation, service-to-service calls,
+key rotation and hardening. The code is in [`internal/auth`](../internal/auth/), the admin tool is
+[`cmd/hcctl`](../cmd/hcctl/). The system design is in [ARCHITECTURE.md](ARCHITECTURE.md#identity-and-authorization).
 
 ## Contents
 
@@ -12,6 +12,7 @@ rotation and hardening. The code is in [`internal/auth`](../internal/auth/), the
 - [Keys](#keys)
 - [Projects and bindings](#projects-and-bindings)
 - [Roles and permissions](#roles-and-permissions)
+- [Revoking a token](#revoking-a-token)
 - [Service-to-service](#service-to-service)
 - [Key rotation](#key-rotation)
 - [What a leaked key allows](#what-a-leaked-key-allows)
@@ -40,18 +41,14 @@ The verifier (`auth.Verifier`) accepts a token only if all of these hold:
 3. The signature verifies with that key.
 4. `exp` is present and has not passed (30 s leeway).
 5. `iss` equals the header `kid`.
-6. `exp - iat` is at most the server's maximum lifetime plus one minute. vmd sets the maximum with
+6. `exp - iat` is at most the server's maximum lifetime plus one minute. Both vmd and agentd set the maximum with
    `-max-token-ttl`, which defaults to 24 hours.
-7. The `jti` is not revoked, if the server has a revocation source (see below).
+7. The `jti` is not on the server's revocation list, if the server has one (see [Revoking a token](#revoking-a-token)).
 8. If the key is restricted to certain roles, every binding's role is one of them.
 9. Every binding names a known role and a non-empty project.
 
 Any failure returns `unauthenticated` with the message `unauthenticated`. The reason is logged on the server
 as an `authentication failed` warning with the procedure name, and is not sent to the client.
-
-Revocation: the verifier has a revocation hook (`Verifier.Revocations`, an interface with `Revoked(jti)`).
-The shipped `cmd/vmd` does not set it, so tokens cannot be revoked before they expire without a code change
-or a rotation (see [Key rotation](#key-rotation)).
 
 ### Lifetimes
 
@@ -59,7 +56,7 @@ or a rotation (see [Key rotation](#key-rotation)).
 | --- | --- | --- |
 | `hcctl token mint -ttl` | 24 h | Lifetime of the token. Must be positive and not above `-max-ttl`. |
 | `hcctl token mint -max-ttl` | 720 h (30 days) | Ceiling for `-ttl` at mint time. |
-| `vmd -max-token-ttl` | 24 h | The longest lifetime vmd accepts. A token minted with a longer `-ttl` is refused by vmd with `unauthenticated`. |
+| `vmd -max-token-ttl`, `agentd -max-token-ttl` | 24 h | The longest lifetime the server accepts. A token minted with a longer `-ttl` is refused with `unauthenticated`. |
 
 The server's `-max-token-ttl` is the effective limit. Raise it on the server to accept longer tokens. Short
 lifetimes are safer: a leaked token is useful until it expires.
@@ -72,8 +69,11 @@ hcctl token inspect -pub keys/admin.pub -kid admin "$TOKEN"
 echo "$TOKEN" | hcctl token inspect -pub keys/admin.pub -kid admin -
 ```
 
-The output lists subject, type, token id, key id, expiry and bindings. It exits with 1 and an error on stderr
-if the signature, key id or expiry is wrong.
+The output lists `subject`, `type`, `token-id`, `key-id`, `expires` and `bindings`. It exits with 1 and an error on
+stderr if the signature, key id or expiry is wrong.
+
+`hcctl token mint` prints only the token. Its id appears in `token inspect`, so inspect a token when you need its
+id, for example before you revoke it.
 
 ## Keys
 
@@ -102,7 +102,7 @@ A token carries bindings `(project, role)`. Project `*` is every project. A bind
 - the binding's project is `*`, or
 - the binding's project equals the project of the resource (or of the request, for requests that name one).
 
-Requests that do not belong to a project (for example `capacity.get`, `image.register` with an empty
+Requests that do not belong to a project (for example `capacity.get`, `node.drain`, `image.register` with an empty
 project) are satisfied only by a `*` binding.
 
 Two rules decide the error a caller sees when access is refused:
@@ -119,16 +119,16 @@ Shared images (empty project) are readable by any caller who has the permission 
 ## Roles and permissions
 
 Roles are fixed sets of permissions in [`internal/auth/rbac.go`](../internal/auth/rbac.go). The table below is
-the output of `go run ./cmd/hcctl roles -v` at the time this document was written. Regenerate it with that
-command after any change to `rbac.go`.
+the output of `go run ./cmd/hcctl roles -v`, reformatted as a table. Regenerate it with that command after any
+change to `rbac.go`.
 
 Notes on the table:
 
 - `viewer` is the base of `editor`, and `editor` is the base of `admin`.
 - `vm.hold` is not granted to `editor`. Agents place holds through the `service` role.
 - `image.register` and `image.delete` are admin only. A shared image needs a `*` binding for either.
-- `capacity.get` (cluster capacity, and the `/metrics` endpoint) is granted only by `operator`, and only
-  on project `*`.
+- `capacity.get` (cluster capacity, and the `/metrics` endpoint) and `node.drain` (`ClusterService.SetNodeDraining`)
+  are granted only by `operator`, and only on project `*`.
 - `node.manage` (the node API) is granted only by `node`.
 
 | Permission | viewer | editor | admin | service | node | operator |
@@ -156,6 +156,7 @@ Notes on the table:
 | `image.list` | yes | yes | yes |  |  |  |
 | `image.register` |  |  | yes |  |  |  |
 | `model.list` | yes | yes | yes | yes |  |  |
+| `node.drain` |  |  |  |  |  | yes |
 | `node.manage` |  |  |  |  | yes |  |
 | `task.cancel` |  | yes | yes |  |  |  |
 | `task.create` |  | yes | yes |  |  |  |
@@ -179,9 +180,31 @@ Which RPC needs which permission is listed per service in [API.md](API.md).
 | --- | --- |
 | Engineer with full access to one project | `-bind proj-a:admin` |
 | Engineer who only reads one project | `-bind proj-a:viewer` |
-| Operator dashboard and Prometheus | `-bind '*:operator'` |
+| Operator (drains nodes, reads capacity), Prometheus | `-bind '*:operator'` |
 | agentd, calling vmd | `*:service`, minted by agentd itself (see below) |
-| vmd control plane, calling a node | `-bind '*:node'` (minted by vmd itself) |
+| vmd control plane, calling a node | `*:node`, minted by vmd itself (see below) |
+
+## Revoking a token
+
+Tokens are valid until they expire unless the server is told otherwise. `-revoked-tokens FILE` is accepted by both
+`vmd` and `agentd`. The file lists token ids (`jti`), one per line; `#` starts a comment:
+
+```
+# revoked 2026-10-18: laptop lost
+tok_01m5611vsv4gv1njmdxk8jymgp
+```
+
+- **Finding the id.** `hcctl token inspect` prints it as `token-id`. The id is not printed at mint time.
+- **Revoking.** Append the id to the file. Each server reloads the file when its modification time changes; the
+  check runs every 5 s. Afterwards the token is refused with `unauthenticated` (logged as
+  `token revoked`).
+- **Each server has its own copy.** Every `vmd` and `agentd` process that should refuse the token must read the same
+  file (or its own copy of it).
+- **Start-up.** The file must exist when the server starts, otherwise the server does not start. Create it empty first.
+- **Failed reloads.** If the file disappears or cannot be read, the server logs a warning and keeps the last good list.
+  A failed reload never un-revokes a token.
+
+Revocation applies to one token. To invalidate every token from a key, [rotate the key](#key-rotation).
 
 ## Service-to-service
 
@@ -197,7 +220,7 @@ key can never mint an admin token even if it leaks. The example in `deploy/docke
 agentd signs its own service tokens with its private key (in the compose file: `--service-key`,
 `--service-key-id agentd`). The `service` role grants `vm.get`, `vm.list`, `vm.metrics`, `vm.hold`,
 `exec.*`, `file.read`, `file.write` and `model.list`. It does not grant `vm.create`, `vm.delete`, disk or
-image changes.
+image changes, and it does not grant `node.drain`.
 
 agentd mints its service tokens with subject `svc:agentd`, type `service`, binding `*:service` and a lifetime of
 five minutes, and refreshes them as the vmd client needs them. The `*` binding lets that service act in every
@@ -250,13 +273,13 @@ same kid from the new private key.
 | --- | --- |
 | A private key of a key trusted with no role restriction | Any role on any project, and the global roles. Includes `node`, which is direct control of the hypervisor on every node that trusts the key: start and stop any VM, and read or write any disk file on that host. Treat as full compromise. |
 | The vmd service key (`svc:vmd`, role `node`) | Direct control of every node that trusts it: VMs, disks, images and files on those hosts, bypassing the project model. |
-| The agentd service key (restricted to `service` on vmd) | Within the projects its tokens are bound to: run commands in VMs, read and write files in them, place holds. With a `*` binding this is every VM in every project. Cannot create or delete VMs, disks or images, and cannot mint anything. |
+| The agentd service key (restricted to `service` on vmd) | Within the projects its tokens are bound to: run commands in VMs, read and write files in them, place holds. With a `*` binding this is every VM in every project. Cannot create or delete VMs, disks or images, cannot drain nodes, and cannot mint anything. |
 | An admin user key | Everything the admin role allows in the bound projects, and image registration and deletion. Restrict its `-trusted-key` roles on the servers if the key does not need every role. |
-| An operator key | Cluster capacity and the `/metrics` endpoint. No VM or file access. |
+| An operator key | Cluster capacity, the `/metrics` endpoint, and draining or undraining nodes (`node.drain`). No VM or file access. |
 | A viewer or editor user key | Reads, and for editors changes, in the bound projects only. |
 
-Mitigations: short token lifetimes, restricted `-trusted-key` role lists, `*` bindings only where needed, and
-rotation after any suspected exposure.
+Mitigations: short token lifetimes, restricted `-trusted-key` role lists, `*` bindings only where needed,
+revocation of individual tokens with `-revoked-tokens`, and rotation after any suspected exposure.
 
 ## Hardening checklist
 
@@ -264,6 +287,8 @@ rotation after any suspected exposure.
   them. gRPC needs HTTP/2, so the proxy must support it.
 - **Short token lifetimes.** Keep `-max-token-ttl` at the lowest value that works (the default is 24 hours).
   Mint interactive tokens with short `-ttl`. Automation should mint short-lived tokens when it needs them.
+- **Revocation file.** Run `vmd` and `agentd` with `-revoked-tokens` so that a single token can be cut off without
+  a key rotation.
 - **Minimal trusted roles.** On every server, give each `-trusted-key` only the roles it must grant. Never
   trust the vmd service key on a host other than the nodes it manages.
 - **Node API reachable only from the control plane.** `node.manage` is the only check on the node API. Use
