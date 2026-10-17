@@ -23,6 +23,10 @@ type Reconciler struct {
 	owner string
 	log   *slog.Logger
 	Hooks Hooks
+
+	// placing serialises, per node, the VMs that may start: the capacity check (fits) only counts VMs whose
+	// Starting state is already persisted, so two concurrent starts on one node would both see free room.
+	placing sync.Map // node ID -> *sync.Mutex
 }
 
 // Hooks lets metrics (or tests) observe reconciliation without the reconciler knowing about them.
@@ -220,6 +224,13 @@ func (r *Reconciler) failDisk(ctx context.Context, d *domain.Disk, reason string
 // ------------------------------------------------------------------------------------ VMs
 
 func (r *Reconciler) reconcileVM(ctx context.Context, vm *domain.VM) {
+	if vm.Desired == domain.PowerRunning && vm.State != domain.VMRunning {
+		// This VM may take capacity. Hold the node's placement lock from the capacity check until the new state
+		// is persisted below, so the next VM's check sees it. Running, stopping and deleting VMs stay parallel.
+		mu, _ := r.placing.LoadOrStore(vm.NodeID, new(sync.Mutex))
+		mu.(*sync.Mutex).Lock()
+		defer mu.(*sync.Mutex).Unlock()
+	}
 	start := time.Now()
 	gone, err := r.step(ctx, vm)
 	if r.Hooks.OnVMReconciled != nil {

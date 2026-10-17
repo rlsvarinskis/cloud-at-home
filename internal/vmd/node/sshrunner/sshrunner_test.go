@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -243,6 +244,11 @@ func TestRunExitStatusIsNotAnError(t *testing.T) {
 		{"exit 200", 200},
 	} {
 		t.Run(tc.command, func(t *testing.T) {
+			// A child inherits SIG_IGN from this process. Under nohup or a launcher that ignores SIGHUP,
+			// "kill -HUP $$" is then a no-op, so the case cannot be checked here.
+			if tc.command == "kill -HUP $$" && signal.Ignored(syscall.SIGHUP) {
+				t.Skip("SIGHUP is ignored in this process, so the child inherits it")
+			}
 			_, _, code, err := r.Run(testCtx(t), tc.command, nil)
 			if err != nil {
 				t.Fatalf("Run: %v", err)
