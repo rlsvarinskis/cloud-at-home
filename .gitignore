@@ -1,0 +1,7 @@
+/bin/
+cover.out
+*.test
+/var/
+.env
+*.pem
+!testdata/*.pem
