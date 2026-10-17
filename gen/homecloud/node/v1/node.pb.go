@@ -2121,7 +2121,7 @@ func (x *GetVMMetricsRequest) GetDiskIds() []string {
 
 type GetVMMetricsResponse struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	CpuPercent        float64                `protobuf:"fixed64,1,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"`
+	CpuPercent        float64                `protobuf:"fixed64,1,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"` // like top: 100 per busy vCPU, 0..100*cpu_cores
 	CpuCores          int32                  `protobuf:"varint,2,opt,name=cpu_cores,json=cpuCores,proto3" json:"cpu_cores,omitempty"`
 	Load1             float64                `protobuf:"fixed64,3,opt,name=load1,proto3" json:"load1,omitempty"`
 	Load5             float64                `protobuf:"fixed64,4,opt,name=load5,proto3" json:"load5,omitempty"`

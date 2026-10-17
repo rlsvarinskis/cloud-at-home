@@ -72,26 +72,20 @@ func cpJob(j *domain.Job) *domain.Job {
 	return &c
 }
 
-// Tx works on a copy and swaps it in only if fn succeeds, giving all-or-nothing semantics.
-// (A single global lock is fine for a test/dev store.)
+// Tx works on a private copy of the data and swaps it in only if fn succeeds, giving all-or-nothing
+// semantics. The copy is a Memory with its own lock, so calls inside fn do not deadlock on the outer one.
 func (m *Memory) Tx(ctx context.Context, fn func(Store) error) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	work := &Memory{mu: &sync.Mutex{}, d: m.d.clone()}
-	if err := fn(&locked{work}); err != nil {
+	if err := fn(work); err != nil {
 		return err
 	}
 	m.d = work.d
 	return nil
 }
 
-// locked is a Memory whose methods assume the caller already holds the lock (used inside Tx).
-type locked struct{ *Memory }
-
-func (l *locked) Tx(ctx context.Context, fn func(Store) error) error { return fn(l) }
-
-// Every public method below locks; the *locked wrapper re-implements them without locking by
-// delegating to the unexported *Locked variants.
+// Every method below takes the lock for its whole duration.
 func (m *Memory) with(fn func()) { m.mu.Lock(); defer m.mu.Unlock(); fn() }
 
 func (m *Memory) UpsertNode(ctx context.Context, n *domain.Node) error {
@@ -177,12 +171,23 @@ func (m *Memory) ListImages(ctx context.Context, project string, shared bool, af
 	var all []*domain.Image
 	m.with(func() {
 		for _, i := range m.d.images {
-			if i.ProjectID == project || (shared && i.ProjectID == "") {
+			if (project != "" && i.ProjectID == project) || (shared && i.ProjectID == "") {
 				all = append(all, cp(i))
 			}
 		}
 	})
 	return after(all, func(i *domain.Image) string { return i.ID }, aft, limit), nil
+}
+func (m *Memory) ListImagesByState(ctx context.Context, st domain.ImageState, limit int) ([]*domain.Image, error) {
+	var all []*domain.Image
+	m.with(func() {
+		for _, i := range m.d.images {
+			if i.State == st {
+				all = append(all, cp(i))
+			}
+		}
+	})
+	return after(all, func(i *domain.Image) string { return i.ID }, "", limit), nil
 }
 func (m *Memory) UpdateImage(ctx context.Context, i *domain.Image) (err error) {
 	m.with(func() {
@@ -260,6 +265,16 @@ func (m *Memory) ListDisksByState(ctx context.Context, st domain.DiskState, limi
 		}
 	})
 	return after(all, func(d *domain.Disk) string { return d.ID }, "", limit), nil
+}
+func (m *Memory) CountDisksUsingImage(ctx context.Context, imageID string) (n int, err error) {
+	m.with(func() {
+		for _, d := range m.d.disks {
+			if d.ImageID == imageID {
+				n++
+			}
+		}
+	})
+	return
 }
 func (m *Memory) UpdateDisk(ctx context.Context, d *domain.Disk) (err error) {
 	m.with(func() {

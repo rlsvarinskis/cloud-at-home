@@ -124,12 +124,12 @@ const (
 )
 
 type Node struct {
-	ID, Address   string
-	State         NodeState
-	CPUs          int
-	MemoryMB      int64
-	DiskBytesFree int64
-	LastHeartbeat time.Time
+	ID, Address                   string
+	State                         NodeState
+	CPUs                          int
+	MemoryMB                      int64
+	DiskBytesTotal, DiskBytesFree int64
+	LastHeartbeat                 time.Time
 }
 
 // Usage is what a project currently consumes (VMs that are, or should be, running plus all disks).

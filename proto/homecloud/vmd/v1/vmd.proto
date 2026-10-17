@@ -327,7 +327,7 @@ message VMMetrics {
   string vm_id = 1;
   google.protobuf.Timestamp sampled_at = 2;
   // Measured inside the guest.
-  double cpu_percent = 3;      // utilisation across all vCPUs, 0..100
+  double cpu_percent = 3;      // like top: 100 per busy vCPU, so 0..100*cpu_cores (an 8-vCPU guest can show 800)
   int32 cpu_cores = 4;
   double load1 = 5;
   double load5 = 6;

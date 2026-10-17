@@ -22,7 +22,9 @@ var (
 	ErrConflict           = errors.New("conflict") // optimistic concurrency failure
 )
 
-func NotFound(format string, a ...any) error { return fmt.Errorf("%w: "+format, prepend(ErrNotFound, a)...) }
+func NotFound(format string, a ...any) error {
+	return fmt.Errorf("%w: "+format, prepend(ErrNotFound, a)...)
+}
 func Invalid(format string, a ...any) error {
 	return fmt.Errorf("%w: "+format, prepend(ErrInvalidArgument, a)...)
 }

@@ -63,7 +63,9 @@ func (s *ServerInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFu
 type TokenSource func(ctx context.Context) (string, error)
 
 // StaticToken is a TokenSource for a fixed token (e.g. from an environment variable).
-func StaticToken(t string) TokenSource { return func(context.Context) (string, error) { return t, nil } }
+func StaticToken(t string) TokenSource {
+	return func(context.Context) (string, error) { return t, nil }
+}
 
 // ServiceTokens returns a TokenSource that mints short-lived tokens for this service's identity
 // and caches them until shortly before they expire.

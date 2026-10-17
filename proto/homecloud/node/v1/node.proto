@@ -152,7 +152,7 @@ message GetVMMetricsRequest {
   repeated string disk_ids = 2;    // in attach order: vda = first, vdb = second, ...
 }
 message GetVMMetricsResponse {
-  double cpu_percent = 1;
+  double cpu_percent = 1;   // like top: 100 per busy vCPU, 0..100*cpu_cores
   int32 cpu_cores = 2;
   double load1 = 3;
   double load5 = 4;

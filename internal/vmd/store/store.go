@@ -14,7 +14,11 @@ import (
 //   - Create* of a duplicate (ID, or project+name, or project+idempotency key) returns errs.ErrAlreadyExists.
 //   - Update* is a compare-and-swap on Version: if the stored Version differs from the passed object's
 //     it returns errs.ErrConflict; on success the passed object's Version is incremented in place.
-//   - All list methods are keyset-paginated by ID (IDs are time-sortable ULIDs).
+//   - Delete* and Update* of a missing row return errs.ErrNotFound.
+//   - ClaimVMs bumps the claimed row's Version (it is a write); callers must continue with the copy it
+//     returns, a copy read before the claim will fail its next Update with errs.ErrConflict.
+//   - Tx returns the callback's error exactly as given (not wrapped), after discarding its writes.
+//   - All list methods are keyset-paginated by ID (IDs are time-sortable ULIDs); limit<=0 means no limit.
 type Store interface {
 	// Tx runs fn atomically: either every write inside it happens or none does.
 	Tx(ctx context.Context, fn func(Store) error) error
@@ -26,7 +30,9 @@ type Store interface {
 	CreateImage(ctx context.Context, i *domain.Image) error
 	GetImage(ctx context.Context, id string) (*domain.Image, error)
 	// ListImages returns the project's images and, if includeShared, images with an empty project.
+	// An empty project argument selects no project images (only shared ones, when includeShared).
 	ListImages(ctx context.Context, project string, includeShared bool, after string, limit int) ([]*domain.Image, error)
+	ListImagesByState(ctx context.Context, state domain.ImageState, limit int) ([]*domain.Image, error)
 	UpdateImage(ctx context.Context, i *domain.Image) error
 	DeleteImage(ctx context.Context, id string) error
 
@@ -34,6 +40,8 @@ type Store interface {
 	GetDisk(ctx context.Context, id string) (*domain.Disk, error)
 	ListDisks(ctx context.Context, project, after string, limit int) ([]*domain.Disk, error)
 	ListDisksByState(ctx context.Context, state domain.DiskState, limit int) ([]*domain.Disk, error)
+	// CountDisksUsingImage counts disks (in any state) whose backing image is imageID.
+	CountDisksUsingImage(ctx context.Context, imageID string) (int, error)
 	UpdateDisk(ctx context.Context, d *domain.Disk) error
 	DeleteDisk(ctx context.Context, id string) error
 

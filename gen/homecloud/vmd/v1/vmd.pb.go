@@ -2957,7 +2957,7 @@ type VMMetrics struct {
 	VmId      string                 `protobuf:"bytes,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
 	SampledAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=sampled_at,json=sampledAt,proto3" json:"sampled_at,omitempty"`
 	// Measured inside the guest.
-	CpuPercent        float64            `protobuf:"fixed64,3,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"` // utilisation across all vCPUs, 0..100
+	CpuPercent        float64            `protobuf:"fixed64,3,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"` // like top: 100 per busy vCPU, so 0..100*cpu_cores (an 8-vCPU guest can show 800)
 	CpuCores          int32              `protobuf:"varint,4,opt,name=cpu_cores,json=cpuCores,proto3" json:"cpu_cores,omitempty"`
 	Load1             float64            `protobuf:"fixed64,5,opt,name=load1,proto3" json:"load1,omitempty"`
 	Load5             float64            `protobuf:"fixed64,6,opt,name=load5,proto3" json:"load5,omitempty"`
