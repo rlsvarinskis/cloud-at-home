@@ -119,3 +119,20 @@ func FromConnect(err error) error {
 	}
 	return fmt.Errorf("%w: %s", sentinel, ce.Message())
 }
+
+// Sanitize prepares an error from a downstream system (a node, another service, the model backend) for an API
+// client. Answers that mean something to the caller (not found, invalid, precondition, permission, quota,
+// conflict) pass through. Everything else (transport failures, unknown errors) would expose hostnames, ports and
+// internals, so it is replaced by a generic Unavailable and reported as hidden so the caller can log the original.
+func Sanitize(what string, err error) (clientErr error, hidden bool) {
+	switch {
+	case err == nil:
+		return nil, false
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded),
+		errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalidArgument), errors.Is(err, ErrFailedPrecondition),
+		errors.Is(err, ErrAlreadyExists), errors.Is(err, ErrPermissionDenied), errors.Is(err, ErrResourceExhausted),
+		errors.Is(err, ErrConflict), errors.Is(err, ErrUnauthenticated):
+		return err, false
+	}
+	return Unavailable("%s is unavailable", what), true
+}

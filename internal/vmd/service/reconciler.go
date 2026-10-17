@@ -57,8 +57,7 @@ func (r *Reconciler) Tick(ctx context.Context) int {
 	r.reconcileDisks(ctx)
 	vms, err := r.st.ClaimVMs(ctx, r.owner, r.now(), r.cfg.LeaseTTL, r.cfg.BatchSize)
 	if err != nil {
-		r.log.Error("claim vms", "err", err)
-		return 0
+		r.log.Error("claim vms", "err", err, "claimed", len(vms)) // a sharded store may still have claimed some
 	}
 	sem := make(chan struct{}, 8) // bounded parallelism: one slow node must not stall the others for long
 	var wg sync.WaitGroup
@@ -232,19 +231,19 @@ func (r *Reconciler) reconcileVM(ctx context.Context, vm *domain.VM) {
 	now := r.now()
 	if err != nil {
 		vm.Failures++
-		reason := err.Error()
-		if errors.Is(err, errs.ErrUnavailable) {
-			reason = "node unreachable: " + reason
+		// state_reason is shown to API clients: say what is wrong, not where the node lives. Details go to the log.
+		reason, hidden := errs.Sanitize("node "+vm.NodeID, err)
+		msg := reason.Error()
+		if hidden || errors.Is(err, errs.ErrUnavailable) {
+			msg = "node unreachable: " + vm.NodeID
 		}
-		vm.StateReason = reason
+		vm.StateReason = msg
 		vm.NextReconcile = now.Add(backoff(vm.Failures))
 		if !transient(err) {
 			vm.State = domain.VMError
 			vm.NextReconcile = now.Add(60 * time.Second) // keep checking: the cause may be fixed externally
 		}
 		r.log.Warn("reconcile failed", "vm", vm.ID, "failures", vm.Failures, "err", err)
-	} else if vm.State != domain.VMStarting {
-		vm.Failures = 0
 	}
 	vm.LeaseOwner, vm.LeaseUntil, vm.UpdatedAt = "", time.Time{}, now
 	if err := r.st.UpdateVM(ctx, vm); err != nil {
@@ -303,6 +302,7 @@ func (r *Reconciler) step(ctx context.Context, vm *domain.VM) (gone bool, err er
 	if err != nil {
 		return false, err
 	}
+	vm.Failures = 0 // the node answered: whatever was failing before is over
 	rt := res.GetRuntime()
 	state := rt.GetState()
 	alive := state == nodev1.RuntimeState_RUNTIME_STATE_RUNNING || state == nodev1.RuntimeState_RUNTIME_STATE_BOOTING
@@ -311,22 +311,27 @@ func (r *Reconciler) step(ctx context.Context, vm *domain.VM) (gone bool, err er
 	case domain.PowerRunning:
 		switch {
 		case state == nodev1.RuntimeState_RUNTIME_STATE_RUNNING:
-			vm.State, vm.StateReason, vm.Failures = domain.VMRunning, "", 0
+			// Forgive one crash per resync interval of continuous health. A VM that was only just seen
+			// booting (state Starting) earns nothing, so a boot-then-crash loop keeps backing off.
+			if vm.State == domain.VMRunning && vm.Crashes > 0 {
+				vm.Crashes--
+			}
+			vm.State, vm.StateReason = domain.VMRunning, ""
 			vm.NextReconcile = now.Add(r.cfg.ResyncInterval)
 		case state == nodev1.RuntimeState_RUNTIME_STATE_BOOTING:
 			vm.State, vm.StateReason = domain.VMStarting, rt.GetReason()
 			vm.NextReconcile = now.Add(time.Second)
 		default: // absent or exited: (re)start
 			if state == nodev1.RuntimeState_RUNTIME_STATE_EXITED && (vm.State == domain.VMRunning || vm.State == domain.VMStarting) {
-				vm.Failures++
+				vm.Crashes++
 				vm.StateReason = "VM exited unexpectedly: " + rt.GetReason()
-				if vm.Failures > 3 { // crash loop: stop hammering, retry slowly
-					vm.State, vm.NextReconcile = domain.VMError, now.Add(backoff(vm.Failures))
+				if vm.Crashes > 3 { // crash loop: stop hammering, retry ever more slowly
+					vm.State, vm.NextReconcile = domain.VMError, now.Add(backoff(vm.Crashes))
 					return false, nil
 				}
 			}
 			if ok, why := r.fits(ctx, vm); !ok {
-				vm.State, vm.StateReason, vm.NextReconcile = domain.VMPending, "waiting for capacity: "+why, now.Add(10*time.Second)
+				vm.State, vm.StateReason, vm.NextReconcile = domain.VMPending, "waiting for capacity: "+why, now.Add(3*time.Second)
 				return false, nil
 			}
 			if _, err := drv.StartVM(ctx, &nodev1.StartVMRequest{VmId: vm.ID, Name: vm.Name, Cpus: int32(vm.CPUs), MemoryMb: vm.MemoryMB, DiskIds: vm.DiskIDs}); err != nil {
@@ -345,7 +350,7 @@ func (r *Reconciler) step(ctx context.Context, vm *domain.VM) (gone bool, err er
 			}
 			vm.State, vm.NextReconcile = domain.VMStopping, now.Add(time.Second)
 		default:
-			vm.State, vm.StateReason, vm.Failures = domain.VMStopped, stopReason(vm, rt), 0
+			vm.State, vm.StateReason, vm.Crashes = domain.VMStopped, stopReason(vm, rt), 0
 			vm.NextReconcile = time.Time{} // nothing more to do until the API changes the VM
 		}
 	}
@@ -380,7 +385,7 @@ func (r *Reconciler) stepDelete(ctx context.Context, vm *domain.VM, drv nodeDriv
 	if _, err := drv.ForgetVM(ctx, &nodev1.ForgetVMRequest{VmId: vm.ID}); err != nil && !errors.Is(err, errs.ErrNotFound) {
 		return false, err
 	}
-	err = r.st.Tx(ctx, func(tx store.Store) error {
+	err = r.st.Tx(r.txCtx(ctx, vm.ProjectID), func(tx store.Store) error {
 		for _, id := range vm.DiskIDs {
 			d, err := tx.GetDisk(ctx, id)
 			if errors.Is(err, errs.ErrNotFound) {
@@ -422,22 +427,35 @@ func (r *Reconciler) disksReady(ctx context.Context, vm *domain.VM) (ready bool,
 	return true, "", nil
 }
 
-// fits checks node capacity for starting vm, not counting vm's own reservation (it is already "desired running").
+// fits checks node capacity for starting vm. Only VMs that actually hold resources right now (starting,
+// running or stopping) are counted, not VMs that merely want to run: otherwise two pending VMs competing for
+// one slot would each see the other as taking it and neither would ever start. Whoever the reconciler reaches
+// first starts and holds the slot; the other waits. A draining node takes no new starts.
 func (r *Reconciler) fits(ctx context.Context, vm *domain.VM) (bool, string) {
-	infos, err := r.nodes.Info(ctx)
+	rows, err := r.st.ListNodes(ctx)
 	if err != nil {
 		return true, "" // cannot tell: let the node decide
 	}
-	for _, n := range infos {
+	for _, n := range rows {
 		if n.ID != vm.NodeID {
 			continue
 		}
-		n.AllocatedCPUs = max(n.AllocatedCPUs-vm.CPUs, 0)
-		n.AllocatedMemoryMB = max(n.AllocatedMemoryMB-vm.MemoryMB, 0)
-		if n.State == domain.NodeDraining {
-			n.State = domain.NodeReady // draining nodes keep the VMs they already have
+		vms, err := r.st.ListVMsByNode(ctx, n.ID)
+		if err != nil {
+			return true, ""
 		}
-		return scheduler.Fits(n, scheduler.Request{CPUs: vm.CPUs, MemoryMB: vm.MemoryMB}, r.cfg.Scheduler)
+		info := scheduler.NodeInfo{ID: n.ID, State: n.State, CPUs: n.CPUs, MemoryMB: n.MemoryMB, DiskBytesFree: n.DiskBytesFree}
+		for _, o := range vms {
+			if o.ID == vm.ID {
+				continue
+			}
+			switch o.State {
+			case domain.VMStarting, domain.VMRunning, domain.VMStopping:
+				info.AllocatedCPUs += o.CPUs
+				info.AllocatedMemoryMB += o.MemoryMB
+			}
+		}
+		return scheduler.Fits(info, scheduler.Request{CPUs: vm.CPUs, MemoryMB: vm.MemoryMB}, r.cfg.Scheduler)
 	}
 	return true, ""
 }

@@ -29,7 +29,7 @@ func (s *MetricsServer) GetVMMetrics(ctx context.Context, req *connect.Request[v
 	}
 	m, err := SampleVM(ctx, s.nodes, vm, s.now())
 	if err != nil {
-		return nil, err
+		return nil, s.nodeErr(vm.NodeID, err)
 	}
 	return connect.NewResponse(m), nil
 }
@@ -102,9 +102,11 @@ func ClusterCapacity(ctx context.Context, st store.Store, sc scheduler.Config) (
 				info.AllocatedMemoryMB += v.MemoryMB
 			}
 		}
-		av := scheduler.Avail(info, sc)
-		c.CpusAllocated, c.CpusAvailable = int32(info.AllocatedCPUs), int32(av.CPUs)
-		c.MemoryMbAllocated, c.MemoryMbAvailable = info.AllocatedMemoryMB, av.MemoryMB
+		c.CpusAllocated, c.MemoryMbAllocated = int32(info.AllocatedCPUs), info.AllocatedMemoryMB
+		if n.State == domain.NodeReady { // a down or draining node hands out nothing
+			av := scheduler.Avail(info, sc)
+			c.CpusAvailable, c.MemoryMbAvailable = int32(av.CPUs), av.MemoryMB
+		}
 		nodes = append(nodes, c)
 		if n.State == domain.NodeReady {
 			total.CpusTotal += c.CpusTotal

@@ -54,6 +54,8 @@ type Store interface {
 	DeleteVM(ctx context.Context, id string) error
 	// ClaimVMs leases up to limit VMs whose NextReconcile is due and whose lease has expired, so several
 	// reconciler instances (replicas, shards) never work on the same VM. The returned copies carry the lease.
+	// A sharded store may return some claimed VMs AND an error (one shard unreachable): callers must process
+	// whatever was returned and report the error, otherwise those VMs stay leased until the TTL.
 	ClaimVMs(ctx context.Context, owner string, now time.Time, ttl time.Duration, limit int) ([]*domain.VM, error)
 
 	CreateJob(ctx context.Context, j *domain.Job) error

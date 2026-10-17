@@ -10,7 +10,6 @@ import (
 	vmdv1 "example.com/homecloud/gen/homecloud/vmd/v1"
 	"example.com/homecloud/internal/auth"
 	"example.com/homecloud/internal/errs"
-	"example.com/homecloud/internal/ids"
 	"example.com/homecloud/internal/vmd/domain"
 )
 
@@ -68,12 +67,16 @@ func (s *DiskServer) CreateDisk(ctx context.Context, req *connect.Request[vmdv1.
 		if nodeID, err = s.pickDiskNode(ctx, size); err != nil {
 			return nil, err
 		}
+	} else if infos, err := s.nodes.Info(ctx); err != nil {
+		return nil, err
+	} else if !hasNode(infos, nodeID) {
+		return nil, errs.Precondition("node %s is not registered", nodeID)
 	}
 	if err := s.checkQuota(ctx, m.ProjectId, 0, 0, 0, size); err != nil {
 		return nil, err
 	}
 	now := s.now()
-	d := &domain.Disk{ID: ids.New("disk"), ProjectID: m.ProjectId, Name: m.Name, NodeID: nodeID, SizeGB: size,
+	d := &domain.Disk{ID: s.newID("disk", m.ProjectId), ProjectID: m.ProjectId, Name: m.Name, NodeID: nodeID, SizeGB: size,
 		ImageID: m.ImageId, State: domain.DiskCreating, CreatedAt: now, UpdatedAt: now}
 	if err := s.st.CreateDisk(ctx, d); err != nil {
 		return nil, err
@@ -165,7 +168,7 @@ func (s *DiskServer) ResizeDisk(ctx context.Context, req *connect.Request[vmdv1.
 		return nil, errs.Unavailable("node %s is not registered", d.NodeID)
 	}
 	if _, err := drv.ResizeDisk(ctx, &nodev1.ResizeDiskRequest{DiskId: d.ID, SizeGb: int32(size)}); err != nil {
-		return nil, err
+		return nil, s.nodeErr(d.NodeID, err)
 	}
 	d.SizeGB, d.UpdatedAt = size, s.now()
 	if err := s.st.UpdateDisk(ctx, d); err != nil {
@@ -208,7 +211,7 @@ func (s *DiskServer) SnapshotDisk(ctx context.Context, req *connect.Request[vmdv
 		return nil, err
 	}
 	now := s.now()
-	img := &domain.Image{ID: ids.New("img"), ProjectID: d.ProjectID, Name: m.ImageName, NodeID: d.NodeID,
+	img := &domain.Image{ID: s.newID("img", d.ProjectID), ProjectID: d.ProjectID, Name: m.ImageName, NodeID: d.NodeID,
 		State: domain.ImageCreating, SourceDiskID: d.ID, CreatedAt: now, UpdatedAt: now}
 	if err := s.st.CreateImage(ctx, img); err != nil {
 		return nil, err

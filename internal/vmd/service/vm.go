@@ -11,7 +11,6 @@ import (
 	vmdv1 "example.com/homecloud/gen/homecloud/vmd/v1"
 	"example.com/homecloud/internal/auth"
 	"example.com/homecloud/internal/errs"
-	"example.com/homecloud/internal/ids"
 	"example.com/homecloud/internal/vmd/domain"
 )
 
@@ -96,16 +95,16 @@ func (s *VMServer) CreateVM(ctx context.Context, req *connect.Request[vmdv1.Crea
 
 	now := s.now()
 	vm := &domain.VM{
-		ID: ids.New("vm"), ProjectID: m.ProjectId, Name: m.Name, NodeID: nodeID,
+		ID: s.newID("vm", m.ProjectId), ProjectID: m.ProjectId, Name: m.Name, NodeID: nodeID,
 		CPUs: int(m.Cpus), MemoryMB: m.MemoryMb, Desired: domain.PowerStopped, State: domain.VMPending,
 		Labels: m.Labels, Generation: 1, IdempotencyKey: m.IdempotencyKey, NextReconcile: now, CreatedAt: now, UpdatedAt: now,
 	}
 	if m.Start {
 		vm.Desired = domain.PowerRunning
 	}
-	err := s.st.Tx(ctx, func(tx storeTx) error {
+	err := s.st.Tx(s.txCtx(ctx, m.ProjectId), func(tx storeTx) error {
 		if image != nil {
-			d := &domain.Disk{ID: ids.New("disk"), ProjectID: m.ProjectId, Name: vm.ID + "-boot", NodeID: nodeID,
+			d := &domain.Disk{ID: s.newID("disk", m.ProjectId), ProjectID: m.ProjectId, Name: vm.ID + "-boot", NodeID: nodeID,
 				SizeGB: diskGB, ImageID: image.ID, State: domain.DiskCreating, AttachedVMID: vm.ID, CreatedAt: now, UpdatedAt: now}
 			if err := tx.CreateDisk(ctx, d); err != nil {
 				return err
@@ -206,15 +205,19 @@ func (s *VMServer) UpdateVM(ctx context.Context, req *connect.Request[vmdv1.Upda
 			}
 		}
 		if m.ReplaceLabels {
-			v.Labels, changed = m.Labels, true
+			if !sameLabels(v.Labels, m.Labels) {
+				v.Labels, changed = m.Labels, true
+			}
 		} else if len(m.Labels) > 0 {
-			if v.Labels == nil {
-				v.Labels = map[string]string{}
-			}
 			for k, val := range m.Labels {
-				v.Labels[k] = val
+				if cur, ok := v.Labels[k]; !ok || cur != val {
+					if v.Labels == nil {
+						v.Labels = map[string]string{}
+					}
+					v.Labels[k] = val
+					changed = true
+				}
 			}
-			changed = true
 		}
 		if !changed {
 			return errUnchanged
@@ -232,13 +235,16 @@ func (s *VMServer) StartVM(ctx context.Context, req *connect.Request[vmdv1.Start
 		switch {
 		case v.Desired == domain.PowerDeleted || v.State == domain.VMDeleting:
 			return errs.Precondition("vm %s is being deleted", v.ID)
+		case v.Desired == domain.PowerRunning && v.State == domain.VMError:
+			v.Failures, v.Crashes, v.NextReconcile = 0, 0, s.now() // "try again now" instead of waiting for the slow retry
+			return nil
 		case v.Desired == domain.PowerRunning:
 			return errUnchanged
 		}
 		if err := s.checkQuota(ctx, v.ProjectID, 0, v.CPUs, v.MemoryMB, 0); err != nil {
 			return err
 		}
-		v.Desired, v.StopForce, v.Failures, v.NextReconcile = domain.PowerRunning, false, 0, s.now()
+		v.Desired, v.StopForce, v.Failures, v.Crashes, v.NextReconcile = domain.PowerRunning, false, 0, 0, s.now()
 		return nil
 	})
 	if err != nil {
@@ -304,6 +310,9 @@ func (s *VMServer) AddHold(ctx context.Context, req *connect.Request[vmdv1.HoldR
 }
 
 func (s *VMServer) RemoveHold(ctx context.Context, req *connect.Request[vmdv1.HoldRequest]) (*connect.Response[vmdv1.VM], error) {
+	if req.Msg.Holder == "" {
+		return nil, errs.Invalid("holder is required")
+	}
 	v, err := s.mutateVM(ctx, req.Msg.Id, auth.VMHold, func(v *domain.VM) error {
 		holds := removeHold(v.Holds, req.Msg.Holder)
 		if len(holds) == len(v.Holds) {
@@ -325,4 +334,16 @@ func hasNode(infos []nodeInfo, id string) bool {
 		}
 	}
 	return false
+}
+
+func sameLabels(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if bv, ok := b[k]; !ok || bv != v {
+			return false
+		}
+	}
+	return true
 }

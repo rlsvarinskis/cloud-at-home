@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"strings"
@@ -91,8 +92,10 @@ func TestMigrateIdempotent(t *testing.T) {
 
 	var applied int
 	must(t, pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations_vmd").Scan(&applied))
-	if applied != 1 {
-		t.Fatalf("schema_migrations_vmd has %d rows, want 1", applied)
+	files, err := fs.Glob(migrations, "migrations/*.up.sql")
+	must(t, err)
+	if applied != len(files) { // every migration applied exactly once, however many replicas raced
+		t.Fatalf("schema_migrations_vmd has %d rows, want %d (one per migration file)", applied, len(files))
 	}
 }
 

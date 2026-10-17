@@ -18,7 +18,7 @@ import (
 var vmCols = []string{
 	"id", "project_id", "name", "node_id", "cpus", "memory_mb", "disk_ids", "desired", "state", "state_reason",
 	"holds", "labels", "generation", "version", "stop_force", "delete_disks", "idempotency_key",
-	"next_reconcile", "lease_owner", "lease_until", "failures", "created_at", "updated_at",
+	"next_reconcile", "lease_owner", "lease_until", "failures", "crashes", "created_at", "updated_at",
 }
 
 var (
@@ -49,7 +49,7 @@ func vmArgs(v *domain.VM) pgx.NamedArgs {
 		"holds": v.Holds, "labels": labelsJSON(v.Labels), "generation": v.Generation,
 		"version": v.Version, "stop_force": v.StopForce, "delete_disks": v.DeleteDisks,
 		"idempotency_key": v.IdempotencyKey, "next_reconcile": nullableTime(v.NextReconcile),
-		"lease_owner": v.LeaseOwner, "lease_until": leaseValue(v.LeaseUntil), "failures": v.Failures,
+		"lease_owner": v.LeaseOwner, "lease_until": leaseValue(v.LeaseUntil), "failures": v.Failures, "crashes": v.Crashes,
 		"created_at": v.CreatedAt.UTC(), "updated_at": v.UpdatedAt.UTC(),
 	}
 }
@@ -150,7 +150,7 @@ func scanVM(r scanner) (*domain.VM, error) {
 	)
 	if err := r.Scan(&v.ID, &v.ProjectID, &v.Name, &v.NodeID, &v.CPUs, &v.MemoryMB, &v.DiskIDs,
 		&desired, &state, &v.StateReason, &v.Holds, &labels, &v.Generation, &v.Version, &v.StopForce,
-		&v.DeleteDisks, &v.IdempotencyKey, &next, &v.LeaseOwner, &lease, &v.Failures,
+		&v.DeleteDisks, &v.IdempotencyKey, &next, &v.LeaseOwner, &lease, &v.Failures, &v.Crashes,
 		&v.CreatedAt, &v.UpdatedAt); err != nil {
 		return nil, err
 	}

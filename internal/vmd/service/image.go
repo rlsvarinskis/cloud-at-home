@@ -9,7 +9,6 @@ import (
 	vmdv1 "example.com/homecloud/gen/homecloud/vmd/v1"
 	"example.com/homecloud/internal/auth"
 	"example.com/homecloud/internal/errs"
-	"example.com/homecloud/internal/ids"
 	"example.com/homecloud/internal/vmd/domain"
 )
 
@@ -39,7 +38,7 @@ func (s *ImageServer) RegisterImage(ctx context.Context, req *connect.Request[vm
 		return nil, errs.Precondition("node %s is not registered", m.NodeId)
 	}
 	now := s.now()
-	img := &domain.Image{ID: ids.New("img"), ProjectID: m.ProjectId, Name: m.Name, NodeID: m.NodeId,
+	img := &domain.Image{ID: s.newID("img", m.ProjectId), ProjectID: m.ProjectId, Name: m.Name, NodeID: m.NodeId,
 		State: domain.ImageCreating, Path: m.Path, CreatedAt: now, UpdatedAt: now}
 	if err := s.st.CreateImage(ctx, img); err != nil {
 		return nil, err

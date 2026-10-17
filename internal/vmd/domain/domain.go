@@ -46,7 +46,8 @@ type VM struct {
 	NextReconcile time.Time
 	LeaseOwner    string
 	LeaseUntil    time.Time
-	Failures      int // consecutive failed reconcile attempts (drives backoff)
+	Failures      int // consecutive failed reconcile attempts against the node (drives retry backoff)
+	Crashes       int // unexpected VM exits; decays while the VM stays healthy, so flapping VMs back off
 
 	CreatedAt, UpdatedAt time.Time
 }

@@ -26,6 +26,14 @@ type base struct {
 
 func (b *base) now() time.Time { return b.cfg.Now().UTC() }
 
+// newID makes a resource ID for a project (shard-aware when sharding is configured).
+func (b *base) newID(prefix, project string) string { return b.cfg.NewID(prefix, project) }
+
+// txCtx routes a transaction on a sharded store to the project's shard; it is a no-op otherwise.
+func (b *base) txCtx(ctx context.Context, project string) context.Context {
+	return b.cfg.ProjectContext(ctx, project)
+}
+
 var nameRE = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 func validName(kind, n string) error {
@@ -181,4 +189,14 @@ func recoverPanic(cfg Config) func(context.Context, connect.Spec, http.Header, a
 		cfg.Log.Error("panic in handler", "procedure", spec.Procedure, "panic", p)
 		return connect.NewError(connect.CodeInternal, errors.New("internal error"))
 	}
+}
+
+// nodeErr reports a node failure to an API client without exposing node addresses or driver internals; the
+// original is logged. Meaningful answers (NotFound, FailedPrecondition, ...) pass through.
+func (b *base) nodeErr(nodeID string, err error) error {
+	out, hidden := errs.Sanitize("node "+nodeID, err)
+	if hidden {
+		b.cfg.Log.Warn("node call failed", "node", nodeID, "err", err)
+	}
+	return out
 }

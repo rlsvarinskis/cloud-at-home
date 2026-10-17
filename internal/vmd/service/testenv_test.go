@@ -3,6 +3,8 @@ package service_test
 import (
 	"context"
 	"net/http/httptest"
+	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"example.com/homecloud/internal/vmd/node/fake"
 	"example.com/homecloud/internal/vmd/service"
 	"example.com/homecloud/internal/vmd/store"
+	"example.com/homecloud/internal/vmd/store/shard"
 )
 
 // clock is a manually advanced clock shared by the service, the reconciler and the fake node, so tests
@@ -49,6 +52,7 @@ type env struct {
 	srv   *httptest.Server
 	iss   *auth.Issuer
 	reg   *prometheus.Registry
+	cfg   service.Config // the config every component of this env shares (incl. any sharding hooks)
 }
 
 // clients bundles every service client authenticated as one principal.
@@ -72,11 +76,24 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 		o(&cfg, &fcfg)
 	}
 	e.st = store.NewMemory()
+	if n, _ := strconv.Atoi(os.Getenv("HOMECLOUD_TEST_SHARDS")); n > 1 {
+		// Run the whole suite on a project-sharded store (HOMECLOUD_TEST_SHARDS=3 go test ./internal/vmd/service).
+		shards := make([]store.Store, n)
+		for i := range shards {
+			shards[i] = store.NewMemory()
+		}
+		ss, err := shard.New(shards)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.st, cfg.NewID, cfg.ProjectContext = ss, ss.NewID, shard.WithProject
+	}
 	e.node = fake.New(fcfg)
 	e.node.Now = e.clk.Now
 	e.nodes = service.NewNodeManager(e.st, nil, e.clk.Now)
 	e.nodes.Add("n1", "fake://n1", e.node)
 	e.nodes.Poll(context.Background()) // registers the node row with its capacity
+	e.cfg = cfg
 	e.rec = service.NewReconciler(e.st, e.nodes, cfg, "test-reconciler")
 
 	pub, priv, err := auth.GenerateKey()

@@ -3,9 +3,11 @@
 package service
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
+	"example.com/homecloud/internal/ids"
 	"example.com/homecloud/internal/vmd/scheduler"
 )
 
@@ -33,6 +35,12 @@ type Config struct {
 	ResyncInterval    time.Duration // re-check running VMs this often (default 10s)
 	LeaseTTL          time.Duration // claim lease (default 30s)
 	BatchSize         int           // VMs claimed per tick (default 32)
+
+	// Sharding hooks (leave nil for a single database). NewID makes resource IDs; for a sharded store it
+	// should embed the project's shard (shard.Store.NewID). ProjectContext tags a context so a transaction is
+	// routed to the project's shard (shard.WithProject).
+	NewID          func(prefix, project string) string
+	ProjectContext func(ctx context.Context, project string) context.Context
 
 	Log *slog.Logger
 	Now func() time.Time // injectable clock for tests
@@ -65,6 +73,12 @@ func (c Config) withDefaults() Config {
 	}
 	if c.BatchSize <= 0 {
 		c.BatchSize = 32
+	}
+	if c.NewID == nil {
+		c.NewID = func(prefix, _ string) string { return ids.New(prefix) }
+	}
+	if c.ProjectContext == nil {
+		c.ProjectContext = func(ctx context.Context, _ string) context.Context { return ctx }
 	}
 	if c.Log == nil {
 		c.Log = slog.Default()

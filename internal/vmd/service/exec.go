@@ -12,7 +12,6 @@ import (
 	vmdv1 "example.com/homecloud/gen/homecloud/vmd/v1"
 	"example.com/homecloud/internal/auth"
 	"example.com/homecloud/internal/errs"
-	"example.com/homecloud/internal/ids"
 	"example.com/homecloud/internal/vmd/domain"
 )
 
@@ -112,7 +111,7 @@ func (s *ExecServer) pollOnce(ctx context.Context, vm *domain.VM, j *domain.Job,
 	}
 	r, err := drv.PollJob(ctx, &nodev1.PollJobRequest{VmId: vm.ID, JobId: j.ID, StdoutOffset: out, StderrOffset: errOff, MaxOutput: maxOut, Tail: tail})
 	if err != nil {
-		return nil, err
+		return nil, s.nodeErr(vm.NodeID, err)
 	}
 	if s.applyPoll(j, r) {
 		s.saveJob(ctx, j)
@@ -166,32 +165,41 @@ func (s *ExecServer) StartJob(ctx context.Context, req *connect.Request[vmdv1.St
 	}
 	if m.IdempotencyKey != "" { // a retry of the same request must not run the command twice
 		if j, err := s.st.GetJobByIdempotencyKey(ctx, vm.ProjectID, m.IdempotencyKey); err == nil {
-			res, err := s.waitOutput(ctx, vm, j, m.WaitSeconds, 0, 0, clampOutput(m.MaxOutput), true)
-			return respond(res, err)
+			return s.replay(ctx, vm, j, m)
 		}
 	}
 	drv, err := s.runningDriver(vm)
 	if err != nil {
 		return nil, err
 	}
-	j := &domain.Job{ID: ids.New("job"), VMID: vm.ID, ProjectID: vm.ProjectID, Command: m.Command, Workdir: m.Workdir,
+	j := &domain.Job{ID: s.newID("job", vm.ProjectID), VMID: vm.ID, ProjectID: vm.ProjectID, Command: m.Command, Workdir: m.Workdir,
 		State: domain.JobRunning, TimeoutSeconds: timeout, IdempotencyKey: m.IdempotencyKey, StartedAt: s.now()}
 	if err := s.st.CreateJob(ctx, j); err != nil {
 		if m.IdempotencyKey != "" && errors.Is(err, errs.ErrAlreadyExists) {
 			if prev, gerr := s.st.GetJobByIdempotencyKey(ctx, vm.ProjectID, m.IdempotencyKey); gerr == nil {
-				res, err := s.waitOutput(ctx, vm, prev, m.WaitSeconds, 0, 0, clampOutput(m.MaxOutput), true)
-				return respond(res, err)
+				return s.replay(ctx, vm, prev, m)
 			}
 		}
 		return nil, err
 	}
 	if _, err := drv.StartJob(ctx, &nodev1.StartJobRequest{VmId: vm.ID, Spec: &nodev1.JobSpec{
 		JobId: j.ID, Command: m.Command, Workdir: m.Workdir, TimeoutSeconds: int32(timeout)}}); err != nil {
-		j.State, j.KilledReason, j.FinishedAt = domain.JobFailed, "could not start: "+err.Error(), s.now()
+		clientErr := s.nodeErr(vm.NodeID, err)
+		j.State, j.KilledReason, j.FinishedAt = domain.JobFailed, "could not start: "+clientErr.Error(), s.now()
 		s.saveJob(ctx, j)
-		return nil, err
+		return nil, clientErr
 	}
 	res, err := s.waitOutput(ctx, vm, j, m.WaitSeconds, 0, 0, clampOutput(m.MaxOutput), true)
+	return respond(res, err)
+}
+
+// replay answers a retried StartJob with the job the first attempt created. The key identifies one
+// request: reusing it for a different VM or command is a client bug, reported rather than ignored.
+func (s *ExecServer) replay(ctx context.Context, vm *domain.VM, prev *domain.Job, m *vmdv1.StartJobRequest) (*connect.Response[vmdv1.JobOutput], error) {
+	if prev.VMID != vm.ID || prev.Command != m.Command || prev.Workdir != m.Workdir {
+		return nil, errs.Invalid("idempotency_key %q was already used for a different request", m.IdempotencyKey)
+	}
+	res, err := s.waitOutput(ctx, vm, prev, m.WaitSeconds, 0, 0, clampOutput(m.MaxOutput), true)
 	return respond(res, err)
 }
 
@@ -262,7 +270,7 @@ func (s *ExecServer) CancelJob(ctx context.Context, req *connect.Request[vmdv1.C
 		return nil, err
 	}
 	if _, err := drv.CancelJob(ctx, &nodev1.CancelJobRequest{VmId: vm.ID, JobId: j.ID}); err != nil {
-		return nil, err
+		return nil, s.nodeErr(vm.NodeID, err)
 	}
 	res, err := s.waitOutput(ctx, vm, j, 3, 0, 0, defaultOutput, true)
 	return respond(res, err)
@@ -304,8 +312,12 @@ func (s *ExecServer) PutFile(ctx context.Context, req *connect.Request[vmdv1.Put
 	if err != nil {
 		return nil, err
 	}
-	if _, err := drv.PutFile(ctx, &nodev1.PutFileRequest{VmId: vm.ID, Path: m.Path, Content: m.Content, Mode: m.Mode}); err != nil {
-		return nil, err
+	mode := m.Mode
+	if mode == 0 {
+		mode = 0o644 // the documented default
+	}
+	if _, err := drv.PutFile(ctx, &nodev1.PutFileRequest{VmId: vm.ID, Path: m.Path, Content: m.Content, Mode: mode}); err != nil {
+		return nil, s.nodeErr(vm.NodeID, err)
 	}
 	return connect.NewResponse(&vmdv1.PutFileResponse{}), nil
 }
@@ -329,7 +341,7 @@ func (s *ExecServer) GetFile(ctx context.Context, req *connect.Request[vmdv1.Get
 	}
 	res, err := drv.GetFile(ctx, &nodev1.GetFileRequest{VmId: vm.ID, Path: m.Path, MaxBytes: max})
 	if err != nil {
-		return nil, err
+		return nil, s.nodeErr(vm.NodeID, err)
 	}
 	return connect.NewResponse(&vmdv1.GetFileResponse{Content: res.Content, Truncated: res.Truncated}), nil
 }

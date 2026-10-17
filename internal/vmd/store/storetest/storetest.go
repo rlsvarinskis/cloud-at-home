@@ -492,10 +492,14 @@ func testVMsCreateAndGet(t *testing.T, s store.Store) {
 	ctx := context.Background()
 	v := newVM("vm_1", "p1", "web")
 	v.Labels = map[string]string{"env": "prod"}
+	v.Failures, v.Crashes = 2, 5 // reconcile bookkeeping must round-trip too
 	must(t, s.CreateVM(ctx, v))
 
 	got, err := s.GetVM(ctx, "vm_1")
 	must(t, err)
+	if got.Failures != 2 || got.Crashes != 5 {
+		t.Fatalf("Failures/Crashes = %d/%d, want 2/5", got.Failures, got.Crashes)
+	}
 	if got.ProjectID != "p1" || got.Name != "web" || got.CPUs != 2 || got.MemoryMB != 1024 {
 		t.Fatalf("GetVM = %+v", got)
 	}
