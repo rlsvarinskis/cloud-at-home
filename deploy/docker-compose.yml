@@ -21,6 +21,7 @@ services:
       POSTGRES_PASSWORD: ${HOMECLOUD_POSTGRES_PASSWORD:?set HOMECLOUD_POSTGRES_PASSWORD in deploy/.env}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/10-agentd.sql:ro   # creates the agentd database
     ports:
       # Bound to loopback so the database is reachable from the host for debugging only.
       - "127.0.0.1:5432:5432"
@@ -51,8 +52,16 @@ services:
       # --log-level:        debug, info, warn or error.
       # --metrics:          expose Prometheus metrics on the API listener.
       # --data-dir:         local state for the node role (disk images, guest work files).
+      # --ssh-key:          key vmd uses to reach guests (created on first start, public half goes into cloud-init).
+      # --no-firewall, --kvm=false, --run-as=: this container has no iptables rights, no /dev/kvm and no
+      #                     separate VM user, so guests cannot actually boot here. The stack is for exercising the
+      #                     APIs; run a real node (deploy/README.md) to boot VMs.
       - --listen=:8080
       - --role=all
+      - --ssh-key=/var/lib/homecloud/node_ssh
+      - --no-firewall
+      - --kvm=false
+      - --run-as=
       - --trusted-key=admin=/keys/admin.pub
       - --trusted-key=agentd=/keys/agentd.pub:service
       - --max-token-ttl=720h
@@ -71,6 +80,8 @@ services:
       dockerfile: deploy/Dockerfile.agentd
     restart: unless-stopped
     depends_on:
+      postgres:
+        condition: service_healthy
       vmd:
         # The images have no healthcheck, so this only waits for the container to start.
         condition: service_started
@@ -78,7 +89,10 @@ services:
         # Optional: when the "llm" profile is not enabled, agentd starts without ollama.
         condition: service_started
         required: false
+    environment:
+      HOMECLOUD_POSTGRES_DSN: postgres://homecloud:${HOMECLOUD_POSTGRES_PASSWORD:?set HOMECLOUD_POSTGRES_PASSWORD in deploy/.env}@postgres:5432/agentd?sslmode=disable
     command:
+      # --trusted-key:    kid=path public key to accept user tokens from (the same admin key vmd trusts).
       # --vmd-url:        where agentd calls the vmd Connect API (compose network name).
       # --ollama-url:     LLM endpoint for task execution.
       # --service-key:    private key agentd signs its service tokens with (mounted read-only).
@@ -86,6 +100,7 @@ services:
       # --workers:        concurrent task workers.
       # --listen, --log-level, --metrics: as for vmd.
       - --listen=:8080
+      - --trusted-key=admin=/keys/admin.pub
       - --vmd-url=http://vmd:8080
       - --ollama-url=http://ollama:11434
       - --service-key=/keys/agentd.key

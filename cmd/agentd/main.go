@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -27,14 +28,19 @@ import (
 
 var version = "dev" // set with -ldflags "-X main.version=..."
 
+// onListen, when set (tests), is told the address the server listens on.
+var onListen func(net.Addr)
+
 func main() {
-	if err := run(os.Args[1:], os.Stderr); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx, os.Args[1:], os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, "agentd:", err)
 		os.Exit(1)
 	}
 }
 
-func run(args []string, stderr *os.File) error {
+func run(ctx context.Context, args []string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("agentd", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	listen := fs.String("listen", ":8081", "address to listen on")
@@ -74,8 +80,6 @@ func run(args []string, stderr *os.File) error {
 	if err != nil {
 		return fmt.Errorf("-service-key/-service-key-id: %w", err)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	var st store.Store
 	var checks []obs.NamedCheck
@@ -113,9 +117,17 @@ func run(args []string, stderr *os.File) error {
 	if *metricsOn {
 		deps.Registry = reg
 	}
-	ln, err := net.Listen("tcp", *listen)
+	ln, err := netListen(*listen)
 	if err != nil {
 		return err
 	}
 	return daemon.Serve(ctx, log, ln, service.NewHandler(deps), *tlsCert, *tlsKey, 20*time.Second)
+}
+
+func netListen(addr string) (net.Listener, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err == nil && onListen != nil {
+		onListen(ln.Addr())
+	}
+	return ln, err
 }

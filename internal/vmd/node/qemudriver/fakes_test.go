@@ -347,13 +347,6 @@ func (c *fakeCmd) iptables(tool string, args []string) error {
 	return nil
 }
 
-// hasRule reports whether the iptables rule (as passed to the tool, without the tool name) exists.
-func (c *fakeCmd) hasRule(rule string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.rules[rule]
-}
-
 // Start implements Commander. It creates a live process whose command line names the binary, and
 // binds the SSH port from the -netdev argument to it.
 func (c *fakeCmd) Start(name string, args []string, logPath, runAs string) (int, error) {

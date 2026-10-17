@@ -68,12 +68,6 @@ func (f *fakeVM) put(id, project string, state vmdv1.VMState) {
 	f.vms[id] = &vmdv1.VM{Id: id, ProjectId: project, State: state}
 }
 
-func (f *fakeVM) setState(id string, state vmdv1.VMState) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.vms[id].State = state
-}
-
 // holds returns the holders currently recorded on the VM.
 func (f *fakeVM) holds(id string) []string {
 	f.mu.Lock()

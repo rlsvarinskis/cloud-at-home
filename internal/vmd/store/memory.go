@@ -136,8 +136,6 @@ func cas(stored, given int64, kind, id string) error {
 	return nil
 }
 
-func ts(t time.Time) time.Time { return t.UTC() }
-
 // ---- images ----
 
 func (m *Memory) CreateImage(ctx context.Context, i *domain.Image) (err error) {

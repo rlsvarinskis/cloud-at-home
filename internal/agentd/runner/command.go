@@ -142,7 +142,7 @@ func resultOf(out *vmdv1.JobOutput) cmdResult {
 
 // stopJob kills the VM command only when the task itself was cancelled (not on shutdown or lease loss).
 func (r *Runner) stopJob(taskCtx context.Context, id string) {
-	if errors.Is(context.Cause(taskCtx), causeTaskCancelled) {
+	if errors.Is(context.Cause(taskCtx), errCancelledByRequest) {
 		r.cancelJob(id)
 	}
 }

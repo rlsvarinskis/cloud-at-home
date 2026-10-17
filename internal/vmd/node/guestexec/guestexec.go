@@ -37,8 +37,6 @@ import (
 const (
 	// defaultJobsDir is where jobs live inside the guest unless Exec.JobsDir is set.
 	defaultJobsDir = "/var/tmp/mcp-jobs"
-	// keepJobs is how many of the most recent jobs survive the pruning done at launch.
-	keepJobs = 50
 	// defaultMaxOutput is the per-stream byte limit of a poll when maxOutput is unset.
 	defaultMaxOutput = 8 << 10
 	// maxOutputCap is the largest per-stream byte limit a poll may ask for.

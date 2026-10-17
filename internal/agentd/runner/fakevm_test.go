@@ -84,12 +84,6 @@ func (f *fakeVM) startCount() int {
 	return len(f.starts)
 }
 
-func (f *fakeVM) cancelCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return len(f.cancels)
-}
-
 func (f *fakeVM) startRequests() []*vmdv1.StartJobRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()

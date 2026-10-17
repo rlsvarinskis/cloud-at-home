@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"golang.org/x/crypto/ssh"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -44,8 +45,13 @@ type multi []string
 func (m *multi) String() string     { return strings.Join(*m, " ") }
 func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
+// onListen, when set (tests), is told the address the server listens on.
+var onListen func(net.Addr)
+
 func main() {
-	if err := run(os.Args[1:], os.Stderr); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx, os.Args[1:], os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, "vmd:", err)
 		os.Exit(1)
 	}
@@ -62,7 +68,7 @@ type options struct {
 	reserveMemMB                                                                 int64
 }
 
-func run(args []string, stderr *os.File) error {
+func run(ctx context.Context, args []string, stderr io.Writer) error {
 	var o options
 	fs := flag.NewFlagSet("vmd", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -101,8 +107,6 @@ func run(args []string, stderr *os.File) error {
 	if err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	switch o.role {
 	case "node":
@@ -162,7 +166,7 @@ func runNode(ctx context.Context, log *slog.Logger, o *options) error {
 	live, ready := obs.HealthHandlers()
 	mux.Handle("/healthz", live)
 	mux.Handle("/readyz", ready)
-	ln, err := net.Listen("tcp", o.listen)
+	ln, err := netListen(o.listen)
 	if err != nil {
 		return err
 	}
@@ -239,7 +243,7 @@ func runControl(ctx context.Context, log *slog.Logger, o *options) error {
 	if o.metrics {
 		deps.Registry = reg
 	}
-	ln, err := net.Listen("tcp", o.listen)
+	ln, err := netListen(o.listen)
 	if err != nil {
 		return err
 	}
@@ -256,4 +260,12 @@ func newHTTPClient() *http.Client {
 		MaxIdleConnsPerHost: 8, IdleConnTimeout: 90 * time.Second,
 		DialContext: (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 	}} // no overall timeout: callers pass contexts, and some calls legitimately take a while
+}
+
+func netListen(addr string) (net.Listener, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err == nil && onListen != nil {
+		onListen(ln.Addr())
+	}
+	return ln, err
 }

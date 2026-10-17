@@ -53,12 +53,12 @@ const (
 	outRequeued                 // released to queued after a transient failure
 )
 
-// Why a task context was cancelled. Only causeTaskCancelled (the user cancelled the task) kills the command
+// Why a task context was cancelled. Only errCancelledByRequest (the user cancelled the task) kills the command
 // that is running in the VM; on shutdown or a lost lease the command is left alone, because the worker that
 // takes the task over re-attaches to the same job (by idempotency key) and sees its real result.
 var (
-	causeTaskCancelled = errors.New("task cancelled by request")
-	causeLeaseLost     = errors.New("task lease lost")
+	errCancelledByRequest = errors.New("task cancelled by request")
+	errLeaseTakenOver     = errors.New("task lease lost")
 )
 
 // taskRun is the state of one task run shared by the worker and its heartbeat and cancel-watch goroutines.
@@ -112,7 +112,7 @@ func (run *taskRun) heartbeat(ctx context.Context) {
 				c := run.snap
 				r.cfg.Hooks.OnLeaseLost(&c)
 			}
-			run.cancel(causeLeaseLost)
+			run.cancel(errLeaseTakenOver)
 			return
 		default:
 			r.log.Warn("extend lease", "task", run.snap.ID, "err", err)
@@ -140,7 +140,7 @@ func (run *taskRun) watchCancel(ctx context.Context) {
 		}
 		if cur.CancelRequested {
 			run.cancelReq.Store(true)
-			run.cancel(causeTaskCancelled)
+			run.cancel(errCancelledByRequest)
 			return
 		}
 	}
