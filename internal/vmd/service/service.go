@@ -1,8 +1,10 @@
 package service
 
 import (
+	"connectrpc.com/connect"
 	"context"
 	"errors"
+	"net/http"
 	"regexp"
 	"slices"
 	"time"
@@ -172,3 +174,11 @@ type (
 )
 
 type nodeDriver = node.Driver
+
+// recoverPanic turns a handler panic into a generic Internal error and logs the details.
+func recoverPanic(cfg Config) func(context.Context, connect.Spec, http.Header, any) error {
+	return func(_ context.Context, spec connect.Spec, _ http.Header, p any) error {
+		cfg.Log.Error("panic in handler", "procedure", spec.Procedure, "panic", p)
+		return connect.NewError(connect.CodeInternal, errors.New("internal error"))
+	}
+}
