@@ -10,6 +10,7 @@ import (
 	"example.com/homecloud/internal/auth"
 	"example.com/homecloud/internal/errs"
 	"example.com/homecloud/internal/vmd/domain"
+	"example.com/homecloud/internal/vmd/node"
 	"example.com/homecloud/internal/vmd/scheduler"
 	"example.com/homecloud/internal/vmd/store"
 )
@@ -169,3 +170,5 @@ type (
 	storeTx  = store.Store
 	nodeInfo = scheduler.NodeInfo
 )
+
+type nodeDriver = node.Driver

@@ -299,3 +299,58 @@ func TestOperatorAndMetricsPermissions(t *testing.T) {
 		t.Fatal("'*' operator should see capacity")
 	}
 }
+
+func TestRequireAnyProject(t *testing.T) {
+	if err := auth.RequireAnyProject(context.Background(), auth.ImageGet); !errors.Is(err, errs.ErrUnauthenticated) {
+		t.Fatalf("no principal: %v", err)
+	}
+	viewer := auth.Principal{Subject: "u", Bindings: []auth.Binding{{Project: "p1", Role: auth.RoleViewer}}}
+	ctx := auth.WithPrincipal(context.Background(), &viewer)
+	if err := auth.RequireAnyProject(ctx, auth.ImageGet); err != nil {
+		t.Fatalf("viewer on p1 may read shared images: %v", err)
+	}
+	if err := auth.RequireAnyProject(ctx, auth.VMCreate); !errors.Is(err, errs.ErrPermissionDenied) {
+		t.Fatalf("viewer may not create: %v", err)
+	}
+}
+
+// Base64url decoding must be strict: flipping the unused trailing bits of the signature's last
+// character may not produce a second valid spelling of the same token.
+func TestTokenHasOneCanonicalForm(t *testing.T) {
+	iss, trusted := newIssuer(t, "k1")
+	v := &auth.Verifier{Keys: map[string]auth.TrustedKey{"k1": trusted}}
+	tok, _ := iss.Mint(editorOn("p1"), time.Minute)
+	if _, err := v.Verify(tok); err != nil {
+		t.Fatal(err)
+	}
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+	accepted := 0
+	for _, c := range alphabet {
+		variant := tok[:len(tok)-1] + string(c)
+		if variant != tok {
+			if _, err := v.Verify(variant); err == nil {
+				accepted++
+			}
+		}
+	}
+	if accepted != 0 {
+		t.Fatalf("%d non-canonical spellings of the token verified", accepted)
+	}
+}
+
+func TestRolePermissionsAreListed(t *testing.T) {
+	if len(auth.Roles()) < 6 {
+		t.Fatalf("roles: %v", auth.Roles())
+	}
+	for _, r := range auth.Roles() {
+		perms := r.Permissions()
+		if len(perms) == 0 {
+			t.Errorf("%s has no permissions", r)
+		}
+		for _, p := range perms {
+			if !r.Grants(p) {
+				t.Errorf("%s lists %s but does not grant it", r, p)
+			}
+		}
+	}
+}

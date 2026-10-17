@@ -5,6 +5,8 @@
 // permission they need and the project of the resource they touch; there is no ambient access.
 package auth
 
+import "sort"
+
 type Permission string
 
 const (
@@ -88,6 +90,26 @@ func set(p []Permission) map[Permission]bool {
 		m[x] = true
 	}
 	return m
+}
+
+// Roles lists every defined role, sorted by name.
+func Roles() []Role {
+	out := make([]Role, 0, len(rolePerms))
+	for r := range rolePerms {
+		out = append(out, r)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// Permissions lists what the role grants, sorted.
+func (r Role) Permissions() []Permission {
+	out := make([]Permission, 0, len(rolePerms[r]))
+	for p := range rolePerms[r] {
+		out = append(out, p)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
 }
 
 // KnownRole reports whether r is a defined role.

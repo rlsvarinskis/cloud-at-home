@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+#
+# agentd: the agent daemon that drives LLM-backed tasks against vmd. Build from the repository root:
+#   docker build -f deploy/Dockerfile.agentd -t homecloud/agentd .
+
+FROM golang:1.26 AS build
+WORKDIR /src
+
+# Download modules first so source-only changes reuse this layer; the cache mount keeps them across builds.
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/agentd ./cmd/agentd
+
+# Distroless static image: no shell, no package manager, runs as the nonroot user.
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/agentd /agentd
+EXPOSE 8080
+ENTRYPOINT ["/agentd"]

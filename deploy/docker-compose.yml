@@ -1,0 +1,114 @@
+# Local development stack for homecloud.
+#
+# Usage (from the deploy/ directory):
+#   1. Create deploy/.env with at least:
+#        HOMECLOUD_POSTGRES_PASSWORD=<any local dev password>
+#   2. Generate keys (see deploy/README.md) into deploy/keys/.
+#   3. docker compose up -d --build           # core stack
+#      docker compose --profile llm up -d     # also start ollama for agentd
+#
+# Keys are mounted read-only from ./keys. Only public keys go to vmd; agentd gets its private key.
+# Secrets come from the environment via ${VAR} substitution. Nothing secret is written in this file.
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: homecloud
+      POSTGRES_DB: homecloud
+      # Required: compose fails fast if HOMECLOUD_POSTGRES_PASSWORD is unset.
+      POSTGRES_PASSWORD: ${HOMECLOUD_POSTGRES_PASSWORD:?set HOMECLOUD_POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Bound to loopback so the database is reachable from the host for debugging only.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homecloud -d homecloud"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  vmd:
+    build:
+      # The build context is the repository root so the Dockerfile can see go.mod and ./cmd.
+      context: ..
+      dockerfile: deploy/Dockerfile.vmd
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # vmd reads the DSN from this variable so the password never appears on the command line.
+      HOMECLOUD_POSTGRES_DSN: postgres://homecloud:${HOMECLOUD_POSTGRES_PASSWORD:?set HOMECLOUD_POSTGRES_PASSWORD in deploy/.env}@postgres:5432/homecloud?sslmode=disable
+    command:
+      # --listen:           address for the Connect API inside the container.
+      # --role=all:         run control plane and node in one process (dev only; see deploy/README.md).
+      # --trusted-key:      kid=path[:roles]. Repeatable. The admin key may grant any role; the
+      #                     agentd key may only grant the "service" role, so it cannot mint admin tokens.
+      # --max-token-ttl:    longest lifetime vmd accepts on a token.
+      # --log-level:        debug, info, warn or error.
+      # --metrics:          expose Prometheus metrics on the API listener.
+      # --data-dir:         local state for the node role (disk images, guest work files).
+      - --listen=:8080
+      - --role=all
+      - --trusted-key=admin=/keys/admin.pub
+      - --trusted-key=agentd=/keys/agentd.pub:service
+      - --max-token-ttl=720h
+      - --log-level=info
+      - --metrics=true
+      - --data-dir=/var/lib/homecloud
+    volumes:
+      - ./keys:/keys:ro
+      - vmddata:/var/lib/homecloud
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  agentd:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.agentd
+    restart: unless-stopped
+    depends_on:
+      vmd:
+        # The images have no healthcheck, so this only waits for the container to start.
+        condition: service_started
+      ollama:
+        # Optional: when the "llm" profile is not enabled, agentd starts without ollama.
+        condition: service_started
+        required: false
+    command:
+      # --vmd-url:        where agentd calls the vmd Connect API (compose network name).
+      # --ollama-url:     LLM endpoint for task execution.
+      # --service-key:    private key agentd signs its service tokens with (mounted read-only).
+      # --service-key-id: kid that matches the --trusted-key entry on vmd.
+      # --workers:        concurrent task workers.
+      # --listen, --log-level, --metrics: as for vmd.
+      - --listen=:8080
+      - --vmd-url=http://vmd:8080
+      - --ollama-url=http://ollama:11434
+      - --service-key=/keys/agentd.key
+      - --service-key-id=agentd
+      - --workers=4
+      - --log-level=info
+      - --metrics=true
+    volumes:
+      - ./keys:/keys:ro
+    ports:
+      - "127.0.0.1:8081:8080"
+
+  ollama:
+    # Optional LLM server. Start it with: docker compose --profile llm up -d
+    profiles: ["llm"]
+    image: ollama/ollama
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+
+volumes:
+  pgdata:
+  vmddata:
+  ollama:

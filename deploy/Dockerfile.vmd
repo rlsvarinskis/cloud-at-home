@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+#
+# vmd: the control plane (API, scheduler, state). Build from the repository root:
+#   docker build -f deploy/Dockerfile.vmd -t homecloud/vmd .
+#
+# This image has no qemu tooling on purpose. Running VMs needs a node, and nodes run the same
+# binary with --role=node (see Dockerfile.node). A control-plane-only image cannot start guests.
+
+FROM golang:1.26 AS build
+WORKDIR /src
+
+# Download modules first so source-only changes reuse this layer; the cache mount keeps them across builds.
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/vmd ./cmd/vmd
+
+# Distroless static image: no shell, no package manager, runs as the nonroot user.
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/vmd /vmd
+EXPOSE 8080
+ENTRYPOINT ["/vmd"]

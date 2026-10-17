@@ -90,7 +90,7 @@ func (v *Verifier) Verify(token string) (*Principal, error) {
 			return nil, fmt.Errorf("unknown key id %q", kid)
 		}
 		return k.Public, nil
-	}, jwt.WithValidMethods([]string{"EdDSA"}), jwt.WithExpirationRequired(), jwt.WithTimeFunc(v.timeFunc()),
+	}, jwt.WithValidMethods([]string{"EdDSA"}), jwt.WithExpirationRequired(), jwt.WithStrictDecoding(), jwt.WithTimeFunc(v.timeFunc()),
 		jwt.WithLeeway(30*time.Second))
 	if err != nil || !parsed.Valid {
 		return nil, fmt.Errorf("%w: %v", errs.ErrUnauthenticated, err)

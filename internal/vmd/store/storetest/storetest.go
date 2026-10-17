@@ -60,6 +60,7 @@ func Run(t *testing.T, newStore func(t *testing.T) store.Store) {
 
 		{"ClaimVMs/DueOrderedAndLeased", testClaimDueOrderedAndLeased},
 		{"ClaimVMs/ExclusiveWithinLease", testClaimExclusive},
+		{"ClaimVMs/BumpsVersion", testClaimBumpsVersion},
 		{"ClaimVMs/Limit", testClaimLimit},
 		{"ClaimVMs/ExpiredLeaseReclaimable", testClaimExpiredLease},
 		{"ClaimVMs/ZeroNextReconcileNeverClaimed", testClaimZeroNextReconcile},
@@ -1271,4 +1272,28 @@ func testDisksCountUsingImage(t *testing.T, s store.Store) {
 			t.Errorf("CountDisksUsingImage(%s) = %d, want %d", img, n, want)
 		}
 	}
+}
+
+// A claim is a write: it bumps the row version, so a copy read before the claim can no longer overwrite
+// the claimed row, while the copy the claim returns can be updated and release the lease.
+func testClaimBumpsVersion(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	v := newVM("vm_x", "p1", "x")
+	v.NextReconcile = fixed
+	must(t, s.CreateVM(ctx, v))
+	stale, err := s.GetVM(ctx, "vm_x")
+	must(t, err)
+
+	claimed, err := s.ClaimVMs(ctx, "owner-1", fixed, time.Minute, 10)
+	must(t, err)
+	wantIDs(t, claimed, vmID, "vm_x")
+	if claimed[0].Version != stale.Version+1 {
+		t.Fatalf("claimed Version = %d, want %d", claimed[0].Version, stale.Version+1)
+	}
+	stale.StateReason = "from a copy read before the claim"
+	wantErr(t, s.UpdateVM(ctx, stale), errs.ErrConflict)
+
+	mine := claimed[0]
+	mine.LeaseOwner, mine.LeaseUntil = "", time.Time{}
+	must(t, s.UpdateVM(ctx, mine))
 }

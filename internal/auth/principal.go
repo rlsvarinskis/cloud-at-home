@@ -95,3 +95,18 @@ func RequireResource(ctx context.Context, perm Permission, project, kind, id str
 	}
 	return nil
 }
+
+// RequireAnyProject checks that the caller holds perm in at least one project (or globally). It guards
+// resources shared across projects, such as shared images, which any tenant may read.
+func RequireAnyProject(ctx context.Context, perm Permission) error {
+	p, ok := FromContext(ctx)
+	if !ok {
+		return errs.ErrUnauthenticated
+	}
+	for _, b := range p.Bindings {
+		if b.Role.Grants(perm) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %s lacks %s", errs.ErrPermissionDenied, p.Subject, perm)
+}
