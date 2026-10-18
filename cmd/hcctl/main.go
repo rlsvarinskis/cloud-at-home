@@ -20,7 +20,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"example.com/homecloud/internal/auth"
+	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 )
 
 const (
@@ -36,7 +36,7 @@ const defaultMaxTTL = 30 * 24 * time.Hour
 var keyIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
 // knownRoles lists the roles hcctl can grant (every role defined in internal/auth).
-var knownRoles = auth.Roles()
+var knownRoles = authz.Roles()
 
 const usageText = `usage:
   hcctl key generate -out DIR -id KEYID
@@ -157,16 +157,16 @@ func generateKey(dir, id string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	pub, priv, err := auth.GenerateKey()
+	pub, priv, err := authz.GenerateKey()
 	if err != nil {
 		cleanup()
 		return failErr(stderr, err)
 	}
-	if err := auth.SavePrivateKey(privPath, priv); err != nil {
+	if err := authz.SavePrivateKey(privPath, priv); err != nil {
 		cleanup()
 		return failErr(stderr, err)
 	}
-	if err := auth.SavePublicKey(pubPath, pub); err != nil {
+	if err := authz.SavePublicKey(pubPath, pub); err != nil {
 		cleanup()
 		return failErr(stderr, err)
 	}
@@ -190,7 +190,7 @@ func runToken(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 }
 
 // bindingList collects repeated -bind flags, validating each one as it is set.
-type bindingList []auth.Binding
+type bindingList []authz.Binding
 
 func (b *bindingList) String() string {
 	if b == nil {
@@ -213,16 +213,16 @@ func (b *bindingList) Set(s string) error {
 }
 
 // parseBinding parses "project:role". The project may be "*" for every project.
-func parseBinding(s string) (auth.Binding, error) {
+func parseBinding(s string) (authz.Binding, error) {
 	project, role, ok := strings.Cut(s, ":")
 	if !ok || project == "" || role == "" {
-		return auth.Binding{}, fmt.Errorf("binding %q: want project:role", s)
+		return authz.Binding{}, fmt.Errorf("binding %q: want project:role", s)
 	}
-	r := auth.Role(role)
-	if !auth.KnownRole(r) {
-		return auth.Binding{}, fmt.Errorf("binding %q: unknown role %q (see hcctl roles)", s, role)
+	r := authz.Role(role)
+	if !authz.KnownRole(r) {
+		return authz.Binding{}, fmt.Errorf("binding %q: unknown role %q (see hcctl roles)", s, role)
 	}
-	return auth.Binding{Project: project, Role: r}, nil
+	return authz.Binding{Project: project, Role: r}, nil
 }
 
 func runMint(args []string, stdout, stderr io.Writer) int {
@@ -251,12 +251,12 @@ func runMint(args []string, stdout, stderr io.Writer) int {
 	if subject == "" {
 		return usageErr(stderr, "token mint: -sub is required")
 	}
-	var ptype auth.PrincipalType
+	var ptype authz.PrincipalType
 	switch *typ {
-	case string(auth.User):
-		ptype = auth.User
-	case string(auth.Service):
-		ptype = auth.Service
+	case string(authz.User):
+		ptype = authz.User
+	case string(authz.Service):
+		ptype = authz.Service
 	default:
 		return usageErr(stderr, "token mint: -type must be user or service, got %q", *typ)
 	}
@@ -273,12 +273,12 @@ func runMint(args []string, stdout, stderr io.Writer) int {
 		return usageErr(stderr, "token mint: -ttl %s exceeds -max-ttl %s", *ttl, *maxTTL)
 	}
 
-	priv, err := auth.LoadPrivateKey(*keyPath)
+	priv, err := authz.LoadPrivateKey(*keyPath)
 	if err != nil {
 		return failErr(stderr, fmt.Errorf("load signing key: %w", err))
 	}
-	issuer := &auth.Issuer{KeyID: *kid, Key: priv}
-	token, err := issuer.Mint(auth.Principal{Subject: subject, Type: ptype, Bindings: binds}, *ttl)
+	issuer := &authz.Issuer{KeyID: *kid, Key: priv}
+	token, err := issuer.Mint(authz.Principal{Subject: subject, Type: ptype, Bindings: binds}, *ttl)
 	if err != nil {
 		return failErr(stderr, fmt.Errorf("mint: %w", err))
 	}
@@ -315,11 +315,11 @@ func runInspect(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return failErr(stderr, errors.New("no token given"))
 	}
 
-	pub, err := auth.LoadPublicKey(*pubPath)
+	pub, err := authz.LoadPublicKey(*pubPath)
 	if err != nil {
 		return failErr(stderr, fmt.Errorf("load public key: %w", err))
 	}
-	verifier := &auth.Verifier{Keys: map[string]auth.TrustedKey{*kid: {Public: pub}}}
+	verifier := &authz.Verifier{Keys: map[string]authz.TrustedKey{*kid: {Public: pub}}}
 	p, err := verifier.Verify(token)
 	if err != nil {
 		fmt.Fprintf(stderr, "hcctl: invalid token: %v\n", err)

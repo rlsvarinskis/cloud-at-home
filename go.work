@@ -1,0 +1,13 @@
+go 1.26.0
+
+use (
+	./api
+	./libs/common
+	./libs/authz
+	./libs/qemu
+	./libs/server
+	./services/vmd
+	./services/agentd
+	./cmd/hcctl
+	./e2e
+)

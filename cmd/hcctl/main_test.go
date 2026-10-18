@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"example.com/homecloud/internal/auth"
+	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 )
 
 // invoke runs hcctl with the given stdin and arguments and returns the exit code and output.
@@ -345,7 +345,7 @@ func TestRolesListsKnownRoles(t *testing.T) {
 		if lines[i] != string(r) {
 			t.Errorf("line %d = %q, want %q", i, lines[i], r)
 		}
-		if !auth.KnownRole(r) {
+		if !authz.KnownRole(r) {
 			t.Errorf("knownRoles entry %q is not an auth role", r)
 		}
 	}

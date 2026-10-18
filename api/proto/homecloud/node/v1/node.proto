@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+// node: the per-host hypervisor API. Only the vmd control plane calls it (service credentials);
+// it is the unit of horizontal scaling: one node daemon per physical host.
+package homecloud.node.v1;
+
+option go_package = "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1;nodev1";
+
+message Capacity {
+  int32 cpus_total = 1;
+  int64 memory_mb_total = 2;
+  int64 disk_bytes_free = 3;
+  int64 memory_mb_available = 4;   // what the host could still give out (MemAvailable)
+  int64 disk_bytes_total = 5;
+}
+message GetCapacityRequest {}
+message GetCapacityResponse { Capacity capacity = 1; }
+
+// Images and disks are plain files named by ID under the node's data directory.
+message RegisterImageRequest {
+  string image_id = 1;
+  string path = 2;            // existing file to adopt (symlinked)
+}
+message RegisterImageResponse { int64 size_bytes = 1; }
+message DeleteImageRequest { string image_id = 1; }
+message DeleteImageResponse {}
+
+message CreateDiskRequest {
+  string disk_id = 1;
+  string backing_image_id = 2;   // optional: copy-on-write overlay
+  int32 size_gb = 3;
+}
+message CreateDiskResponse {}
+message ResizeDiskRequest {
+  string disk_id = 1;
+  int32 size_gb = 2;
+}
+message ResizeDiskResponse {}
+message DeleteDiskRequest { string disk_id = 1; }
+message DeleteDiskResponse {}
+message SnapshotDiskRequest {
+  string disk_id = 1;
+  string image_id = 2;           // flattened copy becomes this image
+}
+message SnapshotDiskResponse { int64 size_bytes = 1; }
+
+enum RuntimeState {
+  RUNTIME_STATE_UNSPECIFIED = 0;
+  RUNTIME_STATE_ABSENT = 1;      // no such VM process
+  RUNTIME_STATE_BOOTING = 2;
+  RUNTIME_STATE_RUNNING = 3;     // reachable over ssh
+  RUNTIME_STATE_EXITED = 4;      // was running, process is gone
+}
+message Runtime {
+  RuntimeState state = 1;
+  string reason = 2;
+}
+message StartVMRequest {
+  string vm_id = 1;
+  string name = 2;               // guest hostname
+  int32 cpus = 3;
+  int64 memory_mb = 4;
+  repeated string disk_ids = 5;  // first is the boot disk
+}
+message StartVMResponse { Runtime runtime = 1; }
+message StopVMRequest {
+  string vm_id = 1;
+  bool force = 2;
+}
+message StopVMResponse {}
+message GetVMRuntimeRequest { string vm_id = 1; }
+message GetVMRuntimeResponse { Runtime runtime = 1; }
+message ForgetVMRequest { string vm_id = 1; }   // drop per-VM runtime files (seed, logs)
+message ForgetVMResponse {}
+
+message JobSpec {
+  string job_id = 1;
+  string command = 2;
+  string workdir = 3;
+  int32 timeout_seconds = 4;
+}
+message StartJobRequest {
+  string vm_id = 1;
+  JobSpec spec = 2;
+}
+message StartJobResponse {}
+message PollJobRequest {
+  string vm_id = 1;
+  string job_id = 2;
+  int64 stdout_offset = 3;
+  int64 stderr_offset = 4;
+  int32 max_output = 5;
+  bool tail = 6;
+}
+enum GuestJobState {
+  GUEST_JOB_STATE_UNSPECIFIED = 0;
+  GUEST_JOB_STATE_MISSING = 1;
+  GUEST_JOB_STATE_RUNNING = 2;
+  GUEST_JOB_STATE_EXITED = 3;
+  GUEST_JOB_STATE_LOST = 4;       // process vanished without an exit code
+}
+message PollJobResponse {
+  GuestJobState state = 1;
+  optional int32 exit_code = 2;
+  bool cancelled = 3;
+  int64 elapsed_seconds = 4;
+  bytes stdout = 5;
+  bytes stderr = 6;
+  int64 stdout_from = 7;
+  int64 stderr_from = 8;
+  int64 stdout_offset = 9;
+  int64 stderr_offset = 10;
+  bool more = 11;
+  bool truncated = 12;
+}
+message CancelJobRequest {
+  string vm_id = 1;
+  string job_id = 2;
+}
+message CancelJobResponse {}
+message PutFileRequest {
+  string vm_id = 1;
+  string path = 2;
+  bytes content = 3;
+  uint32 mode = 4;
+}
+message PutFileResponse {}
+message GetFileRequest {
+  string vm_id = 1;
+  string path = 2;
+  int64 max_bytes = 3;
+}
+message GetFileResponse {
+  bytes content = 1;
+  bool truncated = 2;
+}
+
+message GuestFilesystem {
+  string disk_id = 1;
+  string device = 2;
+  string mount_point = 3;
+  int64 size_bytes = 4;
+  int64 used_bytes = 5;
+}
+message DiskAllocation {
+  string disk_id = 1;
+  int64 virtual_size_bytes = 2;
+  int64 allocated_bytes = 3;
+}
+message GetVMMetricsRequest {
+  string vm_id = 1;
+  repeated string disk_ids = 2;    // in attach order: vda = first, vdb = second, ...
+}
+message GetVMMetricsResponse {
+  double cpu_percent = 1;   // like top: 100 per busy vCPU, 0..100*cpu_cores
+  int32 cpu_cores = 2;
+  double load1 = 3;
+  double load5 = 4;
+  double load15 = 5;
+  int64 mem_total_bytes = 6;
+  int64 mem_used_bytes = 7;
+  int64 mem_available_bytes = 8;
+  int64 swap_total_bytes = 9;
+  int64 swap_used_bytes = 10;
+  int64 uptime_seconds = 11;
+  repeated GuestFilesystem filesystems = 12;
+  repeated DiskAllocation disks = 13;
+}
+
+service NodeService {
+  rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+  rpc RegisterImage(RegisterImageRequest) returns (RegisterImageResponse);
+  rpc DeleteImage(DeleteImageRequest) returns (DeleteImageResponse);
+  rpc CreateDisk(CreateDiskRequest) returns (CreateDiskResponse);
+  rpc ResizeDisk(ResizeDiskRequest) returns (ResizeDiskResponse);
+  rpc DeleteDisk(DeleteDiskRequest) returns (DeleteDiskResponse);
+  rpc SnapshotDisk(SnapshotDiskRequest) returns (SnapshotDiskResponse);
+  rpc StartVM(StartVMRequest) returns (StartVMResponse);
+  rpc StopVM(StopVMRequest) returns (StopVMResponse);
+  rpc GetVMRuntime(GetVMRuntimeRequest) returns (GetVMRuntimeResponse);
+  rpc ForgetVM(ForgetVMRequest) returns (ForgetVMResponse);
+  rpc StartJob(StartJobRequest) returns (StartJobResponse);
+  rpc PollJob(PollJobRequest) returns (PollJobResponse);
+  rpc CancelJob(CancelJobRequest) returns (CancelJobResponse);
+  rpc PutFile(PutFileRequest) returns (PutFileResponse);
+  rpc GetFile(GetFileRequest) returns (GetFileResponse);
+  rpc GetVMMetrics(GetVMMetricsRequest) returns (GetVMMetricsResponse);
+}
