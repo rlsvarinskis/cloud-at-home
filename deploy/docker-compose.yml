@@ -1,19 +1,31 @@
-# Local development stack for attic.
+# Attic Cloud on one Docker host: control plane, one VM node, agent daemon, MCP server, Postgres, optional Ollama.
 #
-# Usage (from the deploy/ directory):
-#   1. Create deploy/.env with at least:
-#        ATTIC_POSTGRES_PASSWORD=<any local dev password>
-#   2. Generate keys (see deploy/README.md) into deploy/keys/.
-#   3. docker compose up -d --build           # core stack
-#      docker compose --profile llm up -d     # also start ollama for agentd
+# Quick start (from this directory; details in deploy/README.md):
+#   1. echo 'ATTIC_POSTGRES_PASSWORD=<any local password>' > .env
+#   2. generate keys:  go run ../cmd/atticctl key generate -out keys -id admin   (also: -id agentd, -id vmd)
+#   3. docker compose up -d --build
+#   4. docker compose --profile llm up -d     # optional: Ollama for agentd
 #
-# Keys are mounted read-only from ./keys. Only public keys go to vmd; agentd gets its private key.
-# Secrets come from the environment via ${VAR} substitution. Nothing secret is written in this file.
+# Isolation knobs (all optional, set in .env or the shell): run next to other Docker projects without clashing.
+#   COMPOSE_PROJECT_NAME   prefix of every container, network and volume (default: the directory name, "deploy")
+#   ATTIC_BIND             host address the ports are published on (default 127.0.0.1)
+#   ATTIC_VMD_PORT / ATTIC_AGENTD_PORT / ATTIC_MCP_PORT / ATTIC_OLLAMA_PORT   host ports (8080 / 8081 / 8082 / 11434)
+#   ATTIC_SUBNET           subnet of the private network (default 172.30.77.0/24)
+#   ATTIC_NODE_CPUS / ATTIC_NODE_MEM   hard caps for the node container, which hosts the guests (default 4 / 6g)
+#   ATTIC_IMAGES_DIR       host folder with guest base images, mounted read-only at /images in the node (default ./images)
+#
+# Secrets come from the environment via ${VAR} substitution; nothing secret is written in this file.
+# Keys are mounted read-only from ./keys. Each service gets only the key files it needs.
+
+name: ${COMPOSE_PROJECT_NAME:-attic}
+
+x-restart: &restart
+  restart: unless-stopped
 
 services:
   postgres:
+    <<: *restart
     image: postgres:17
-    restart: unless-stopped
     environment:
       POSTGRES_USER: attic
       POSTGRES_DB: attic
@@ -22,21 +34,19 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres-init.sql:/docker-entrypoint-initdb.d/10-agentd.sql:ro   # creates the agentd database
-    ports:
-      # Bound to loopback so the database is reachable from the host for debugging only.
-      - "127.0.0.1:5432:5432"
+    networks: [attic]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U attic -d attic"]
       interval: 2s
       timeout: 3s
       retries: 30
 
+  # Control plane: API, scheduler, state in Postgres. It calls the node over the private network.
   vmd:
+    <<: *restart
     build:
-      # The build context is the repository root so the Dockerfile can see go.work, the module directories and ./services.
-      context: ..
+      context: ..       # the repository root, so the Dockerfile sees go.work and every module
       dockerfile: deploy/Dockerfile.vmd
-    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,92 +54,94 @@ services:
       # vmd reads the DSN from this variable so the password never appears on the command line.
       ATTIC_POSTGRES_DSN: postgres://attic:${ATTIC_POSTGRES_PASSWORD:?set ATTIC_POSTGRES_PASSWORD in deploy/.env}@postgres:5432/attic?sslmode=disable
     command:
-      # --listen:           address for the Connect API inside the container.
-      # --role=all:         run control plane and node in one process (dev only; see deploy/README.md).
-      # --trusted-key:      kid=path[:roles]. Repeatable. The admin key may grant any role; the
-      #                     agentd key may only grant the "service" role, so it cannot mint admin tokens.
-      # --max-token-ttl:    longest lifetime vmd accepts on a token.
-      # --log-level:        debug, info, warn or error.
-      # --metrics:          expose Prometheus metrics on the API listener.
-      # --data-dir:         local state for the node role (disk images, guest work files).
-      # --ssh-key:          key vmd uses to reach guests (created on first start, public half goes into cloud-init).
-      # --no-firewall, --kvm=false, --run-as=: this container has no iptables rights, no /dev/kvm and no
-      #                     separate VM user, so guests cannot actually boot here. The stack is for exercising the
-      #                     APIs; run a real node (deploy/README.md) to boot VMs.
+      - --role=control
       - --listen=:8080
-      - --role=all
-      - --ssh-key=/var/lib/attic/node_ssh
-      - --no-firewall
-      - --kvm=false
-      - --run-as=
-      - --trusted-key=admin=/keys/admin.pub
-      - --trusted-key=agentd=/keys/agentd.pub:service
+      - --node=node1=http://node:8080                  # id=URL of the VM node below
+      - --service-key=/keys/vmd.key                    # signs the tokens vmd uses to call the node
+      - --service-key-id=vmd
+      - --trusted-key=admin=/keys/admin.pub            # user tokens
+      - --trusted-key=agentd=/keys/agentd.pub:service  # agentd may only ever act with the "service" role
       - --max-token-ttl=720h
       - --log-level=info
       - --metrics=true
-      - --data-dir=/var/lib/attic
     volumes:
-      - ./keys:/keys:ro
-      - vmddata:/var/lib/attic
+      - ./keys/admin.pub:/keys/admin.pub:ro
+      - ./keys/agentd.pub:/keys/agentd.pub:ro
+      - ./keys/vmd.key:/keys/vmd.key:ro
+    networks: [attic]
     ports:
-      - "127.0.0.1:8080:8080"
+      - "${ATTIC_BIND:-127.0.0.1}:${ATTIC_VMD_PORT:-8080}:8080"
+
+  # VM node: runs QEMU/KVM guests. Needs /dev/kvm; NET_ADMIN is for the guest firewall inside this container's own
+  # network namespace only (it never touches the host's rules).
+  node:
+    <<: *restart
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.node
+    command:
+      - --listen=:8080
+      - --node-id=node1
+      - --data-dir=/var/lib/attic
+      - --ssh-key=/var/lib/attic/node_ssh              # created on first start; its public half goes into cloud-init
+      - --run-as=qemu
+      - --trusted-key=vmd=/keys/vmd.pub:node           # only the control plane's key, and only the "node" role
+      - --reserve-memory-mb=${ATTIC_NODE_RESERVE_MB:-1024}
+      - --log-level=info
+    devices:
+      - /dev/kvm:/dev/kvm
+    cap_add:
+      - NET_ADMIN
+    cpus: ${ATTIC_NODE_CPUS:-4}
+    mem_limit: ${ATTIC_NODE_MEM:-6g}
+    volumes:
+      - nodedata:/var/lib/attic
+      - ${ATTIC_IMAGES_DIR:-./images}:/images:ro
+      - ./keys/vmd.pub:/keys/vmd.pub:ro
+    networks: [attic]
 
   agentd:
+    <<: *restart
     build:
       context: ..
       dockerfile: deploy/Dockerfile.agentd
-    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
       vmd:
-        # The images have no healthcheck, so this only waits for the container to start.
         condition: service_started
-      ollama:
-        # Optional: when the "llm" profile is not enabled, agentd starts without ollama.
-        condition: service_started
-        required: false
     environment:
       ATTIC_POSTGRES_DSN: postgres://attic:${ATTIC_POSTGRES_PASSWORD:?set ATTIC_POSTGRES_PASSWORD in deploy/.env}@postgres:5432/agentd?sslmode=disable
     command:
-      # --trusted-key:    kid=path public key to accept user tokens from (the same admin key vmd trusts).
-      # --vmd-url:        where agentd calls the vmd Connect API (compose network name).
-      # --ollama-url:     LLM endpoint for task execution.
-      # --service-key:    private key agentd signs its service tokens with (mounted read-only).
-      # --service-key-id: kid that matches the --trusted-key entry on vmd.
-      # --workers:        concurrent task workers.
-      # --listen, --log-level, --metrics: as for vmd.
       - --listen=:8080
       - --trusted-key=admin=/keys/admin.pub
       - --vmd-url=http://vmd:8080
-      - --ollama-url=http://ollama:11434
+      - --ollama-url=${ATTIC_OLLAMA_URL:-http://ollama:11434}
       - --service-key=/keys/agentd.key
       - --service-key-id=agentd
       - --workers=4
       - --log-level=info
       - --metrics=true
     volumes:
-      - ./keys:/keys:ro
+      - ./keys/admin.pub:/keys/admin.pub:ro
+      - ./keys/agentd.key:/keys/agentd.key:ro
+    networks: [attic]
     ports:
-      - "127.0.0.1:8081:8080"
+      - "${ATTIC_BIND:-127.0.0.1}:${ATTIC_AGENTD_PORT:-8081}:8080"
 
+  # MCP server for Claude and other MCP clients. Callers send the same bearer tokens vmd and agentd accept; the
+  # server forwards them, so it can do nothing its caller could not. Put TLS in front of it for anything but loopback.
   mcp:
-    # MCP server for Claude and other MCP clients. Callers send the same bearer tokens vmd and agentd accept; the
-    # server forwards them, so it can do nothing its caller could not. Put TLS in front of it (or pass --tls-cert/--tls-key).
+    <<: *restart
     build:
       context: ..
       dockerfile: deploy/Dockerfile.mcp
-    restart: unless-stopped
     depends_on:
       vmd:
         condition: service_started
       agentd:
         condition: service_started
     command:
-      # --vmd-url / --agentd-url: the Connect APIs this server calls (compose network names).
-      # --default-project:        project used when a tool call names none.
-      # --default-image:          image (name or ID) agent_create boots from when none is given.
-      # --trusted-key:            same public key(s) vmd and agentd trust, to authenticate MCP callers.
       - --listen=:8082
       - --trusted-key=admin=/keys/admin.pub
       - --vmd-url=http://vmd:8080
@@ -138,21 +150,30 @@ services:
       - --default-image=${ATTIC_DEFAULT_IMAGE:-}
       - --log-level=info
     volumes:
-      - ./keys:/keys:ro
+      - ./keys/admin.pub:/keys/admin.pub:ro
+    networks: [attic]
     ports:
-      - "127.0.0.1:8082:8082"
+      - "${ATTIC_BIND:-127.0.0.1}:${ATTIC_MCP_PORT:-8082}:8082"
 
+  # Optional LLM server on the CPU (no GPU reservation). Start it with: docker compose --profile llm up -d
+  # For a GPU, add a deploy.resources.reservations.devices entry in a compose override file.
   ollama:
-    # Optional LLM server. Start it with: docker compose --profile llm up -d
     profiles: ["llm"]
+    <<: *restart
     image: ollama/ollama
-    restart: unless-stopped
     volumes:
       - ollama:/root/.ollama
+    networks: [attic]
     ports:
-      - "127.0.0.1:11434:11434"
+      - "${ATTIC_BIND:-127.0.0.1}:${ATTIC_OLLAMA_PORT:-11434}:11434"
+
+networks:
+  attic:
+    ipam:
+      config:
+        - subnet: ${ATTIC_SUBNET:-172.30.77.0/24}
 
 volumes:
   pgdata:
-  vmddata:
+  nodedata:
   ollama:

@@ -39,7 +39,9 @@ RUN apt-get update \
       qemu-utils \
       genisoimage \
       openssh-client \
- && rm -rf /var/lib/apt/lists/*
+      iptables \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --shell /usr/sbin/nologin qemu
 COPY --from=build /out/vmd /vmd
 EXPOSE 8080
 ENTRYPOINT ["/vmd", "--role=node"]

@@ -8,7 +8,11 @@ cover.out
 
 # Binaries built by `go build` inside a module directory
 /cmd/*/atticctl
-/cmd/*/atticctl
 /services/*/cmd/*/vmd
 /services/*/cmd/*/agentd
 /services/*/cmd/*/mcp
+
+# Never commit compiled binaries, handoff/session notes, or deployment details.
+/cmd/*/hcctl
+HANDOFF*.md
+handoff*.md
