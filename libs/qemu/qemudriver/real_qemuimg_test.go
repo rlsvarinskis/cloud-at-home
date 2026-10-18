@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
@@ -132,5 +133,43 @@ func TestDiskAndImageLayerAgainstRealQemuImg(t *testing.T) {
 	}
 	if _, err := os.Stat(golden); err != nil {
 		t.Fatal("deleting a registered image must not delete the operator's original file")
+	}
+}
+
+// A disk that a running QEMU (here: qemu-io, which takes the same write lock) has open can still be inspected.
+func TestImgInfoWorksWhileTheImageIsInUse(t *testing.T) {
+	for _, tool := range []string{"qemu-img", "qemu-io"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skip(tool + " is not installed")
+		}
+	}
+	path := filepath.Join(t.TempDir(), "busy.qcow2")
+	if out, err := exec.Command("qemu-img", "create", "-q", "-f", "qcow2", path, "1G").CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	holder := exec.Command("qemu-io", "-c", "sleep 30000", path) // holds the write lock until killed
+	if err := holder.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = holder.Process.Kill(); _ = holder.Wait() })
+	// Wait until the lock is really held: plain `qemu-img info` must fail.
+	deadline := time.Now().Add(5 * time.Second)
+	for exec.Command("qemu-img", "info", path).Run() == nil {
+		if time.Now().After(deadline) {
+			t.Skip("qemu-io did not take the image lock; cannot reproduce")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	d, err := New(Config{DataDir: t.TempDir(), Keys: fixedKeys("ssh-ed25519 AAAATEST test"),
+		NewRunner: func(int) guestexec.Runner { return noGuest{} }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := d.imgInfo(context.Background(), path)
+	if err != nil {
+		t.Fatalf("imgInfo on an image in use: %v", err)
+	}
+	if info.Format != "qcow2" || info.VirtualSize != 1<<30 {
+		t.Fatalf("got %+v", info)
 	}
 }

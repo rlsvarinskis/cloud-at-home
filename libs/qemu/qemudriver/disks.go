@@ -13,9 +13,10 @@ import (
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/qemu"
 )
 
-// imgInfo returns the size and format of the image at path, from qemu-img info.
+// imgInfo returns the size and format of the image at path, from qemu-img info. It runs with --force-share
+// because a running VM holds the image's write lock, and plain `qemu-img info` then fails.
 func (d *Driver) imgInfo(ctx context.Context, path string) (qemu.ImageInfo, error) {
-	out, err := d.cfg.Cmd.Run(ctx, "qemu-img", "info", "--output=json", path)
+	out, err := d.cfg.Cmd.Run(ctx, "qemu-img", "info", "--force-share", "--output=json", path)
 	if err != nil {
 		return qemu.ImageInfo{}, fmt.Errorf("qemu-img info %s: %w", path, err)
 	}
