@@ -46,8 +46,11 @@ nodes (`--node id=URL`); `--role=node` is the host daemon.
 * A **Task** is queued in the database and run by any agentd replica that claims it with a *lease*. The conversation is
   persisted message by message; if a worker dies, another resumes from the stored messages and re-attaches to the
   command already running in the VM (idempotency keys), instead of running it twice.
-* The caller chooses the model per agent (there is no default). A task ends `SUCCEEDED / FAILED / GAVE_UP / CANCELLED /
-  ERROR`, decided by an optional `check_command` or by the model's explicit `VERDICT:` line.
+* The caller chooses the model per agent (there is no default). A task ends `SUCCEEDED / SUCCEEDED_UNVERIFIED / FAILED /
+  GAVE_UP / CANCELLED / ERROR`. A `check_command`, when set, decides the outcome (it can end the task early, after a batch
+  of commands); without one the model's `VERDICT:` line decides, and a claimed success is `SUCCEEDED_UNVERIFIED`. The loop
+  guards that stop runaway models (token cap, repetition, time limit, malformed tool calls) are described in
+  [agentd's README](../services/agentd/README.md#behaviour) and in [ADR 4](adr/0004-agent-loop-guards.md).
 * agentd uses only vmd's public API, as a service principal. It shares no database with vmd.
 
 ## Placement and the reconciler
@@ -102,6 +105,10 @@ nodes (`--node id=URL`); `--role=node` is the host daemon.
 | Postgres down | API returns errors, `/readyz` fails; nothing is lost that was committed |
 | agentd worker dies mid-task | lease expires, another worker resumes from the stored conversation |
 | User cancels a task | the model call is aborted mid-reply and the running VM command is killed; shutdown or lost lease does *not* kill it (the successor re-attaches) |
+| Task passes `max_minutes` | the model call is aborted and the running VM command is killed; the task ends `CANCELLED` with `reason` `timeout` |
+| Model repeats itself or hits the token cap | the reply is discarded and the model is asked to wrap up; after two such replies the task ends `GAVE_UP` |
+| Model emits a malformed tool call | the call is repaired if possible; otherwise the model is told why and asked to re-emit it. Four unusable calls in a row end the task in `ERROR` |
+| A run panics | the task ends `ERROR` with the panic recorded in `result` |
 
 Everything that can take long is asynchronous (jobs, tasks, VM transitions) with long-poll `wait` parameters capped at 30 s,
 because clients and proxies give up around 60 s.
@@ -150,6 +157,7 @@ services/
   agentd/                            module: the agent service
     domain/, store/                  agentd's model; store with postgres/ (migrations/), storetest/, mock/
     llm/                             model client interface, Ollama client, fake, mock/
+    runner/toolcall/, runner/applypatch/  tool-call repair and normalisation; the apply_patch format (pure, with an FS interface)
     vmclient/                        the only way agentd calls vmd; mock/
     runner/                          task workers: leases, conversation loop, commands, sanitising
     service/                         agentd's Connect handlers

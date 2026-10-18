@@ -102,7 +102,7 @@ func (h *llmHub) setOnChat(fn func(model string, n int)) {
 	h.onChat = fn
 }
 
-func (h *llmHub) Chat(ctx context.Context, model string, msgs []llm.Message, tools []llm.Tool, onChunk func(llm.Chunk)) (llm.Message, error) {
+func (h *llmHub) Chat(ctx context.Context, model string, msgs []llm.Message, tools []llm.Tool, opts llm.ChatOptions, onChunk func(llm.Chunk)) (llm.Message, error) {
 	h.mu.Lock()
 	f, ok := h.fakes[model]
 	h.calls[model]++
@@ -114,7 +114,7 @@ func (h *llmHub) Chat(ctx context.Context, model string, msgs []llm.Message, too
 	if hook != nil {
 		hook(model, n)
 	}
-	return f.Chat(ctx, model, msgs, tools, onChunk)
+	return f.Chat(ctx, model, msgs, tools, opts, onChunk)
 }
 
 func (h *llmHub) ListModels(context.Context) ([]llm.ModelInfo, error) {
@@ -463,6 +463,15 @@ func (w *world) createTask(c *clientSet, agentID, prompt, check string) *agentdv
 	w.t.Helper()
 	task, err := c.Task.CreateTask(context.Background(), connect.NewRequest(&agentdv1.CreateTaskRequest{
 		AgentId: agentID, Prompt: prompt, CheckCommand: check}))
+	must(w.t, err)
+	return task.Msg
+}
+
+// createTaskEach is createTask with check_each_step set explicitly.
+func (w *world) createTaskEach(c *clientSet, agentID, prompt, check string, eachStep bool) *agentdv1.Task {
+	w.t.Helper()
+	task, err := c.Task.CreateTask(context.Background(), connect.NewRequest(&agentdv1.CreateTaskRequest{
+		AgentId: agentID, Prompt: prompt, CheckCommand: check, CheckEachStep: &eachStep}))
 	must(w.t, err)
 	return task.Msg
 }

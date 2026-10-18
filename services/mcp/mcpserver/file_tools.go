@@ -2,7 +2,10 @@ package mcpserver
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -30,8 +33,6 @@ const (
 	filFetchTimeout = 3600
 	// filStderrTail is how many bytes of stderr an error reports.
 	filStderrTail = 1000
-	// filTruncatedNote is appended to downloads that hit max_bytes.
-	filTruncatedNote = "[truncated: file is larger than max_bytes]"
 	// filSSHKeyCommand prints the machine's ed25519 public key, creating the key pair first when there is none.
 	filSSHKeyCommand = "cat ~/.ssh/id_ed25519.pub 2>/dev/null || (mkdir -p ~/.ssh && ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/id_ed25519 && cat ~/.ssh/id_ed25519.pub)"
 )
@@ -48,9 +49,21 @@ type filUploadArgs struct {
 type filDownloadArgs struct {
 	Name     string `json:"name" jsonschema:"name of the machine (VM) to read the file from"`
 	Path     string `json:"path" jsonschema:"path of the file inside the machine"`
-	Base64   bool   `json:"base64,omitempty" jsonschema:"true to return the file bytes as base64 (use for binary files); default false returns UTF-8 text"`
-	MaxBytes *int   `json:"max_bytes,omitempty" jsonschema:"most bytes to return; default 1048576 (1 MiB). Text is capped at 1 MiB; base64 may go up to 8 MiB"`
+	Encoding string `json:"encoding,omitempty" jsonschema:"auto (default: UTF-8 text if the file is valid UTF-8, else base64), utf-8 (fails on binary files) or base64 (the raw bytes as base64)"`
+	Base64   bool   `json:"base64,omitempty" jsonschema:"deprecated alias for encoding=base64"`
+	MaxBytes *int   `json:"max_bytes,omitempty" jsonschema:"most bytes to read; default 1048576 (1 MiB). utf-8 is capped at 1 MiB; auto and base64 may go up to 8 MiB"`
 	Project  string `json:"project,omitempty" jsonschema:"project ID; default is the server's default project"`
+}
+
+// filDownloadResult is what agent_download returns, as JSON. size is the number of bytes returned, which is the
+// file size unless truncated is set (vmd does not report the size of a larger file). sha256 is over those raw bytes.
+type filDownloadResult struct {
+	Path      string `json:"path"`
+	Size      int    `json:"size"`
+	SHA256    string `json:"sha256"`
+	Encoding  string `json:"encoding"`
+	Content   string `json:"content"`
+	Truncated bool   `json:"truncated,omitempty"`
 }
 
 type filFetchArgs struct {
@@ -72,9 +85,10 @@ func (s *Server) registerFileTools() {
 			"path must be absolute. mode is octal permission bits (default 0644). The file is limited to 8 MiB after decoding.",
 		s.agentUpload)
 	addTool(s, "agent_download",
-		"Read a file from a machine. By default the file must be UTF-8 text; if it is binary, call again with base64=true. "+
-			"max_bytes limits the output (default 1 MiB; text is capped at 1 MiB, base64 may go up to 8 MiB). "+
-			"A truncated result ends with a line saying so.",
+		"Read a file from a machine. The reply is JSON: path, size (bytes returned), sha256 (of the raw bytes), encoding "+
+			"and content. encoding auto (default) gives UTF-8 text when the file is valid UTF-8 and base64 otherwise; "+
+			"utf-8 fails on binary files; base64 always gives base64. max_bytes limits the read (default 1 MiB; utf-8 is "+
+			"capped at 1 MiB, auto and base64 may go up to 8 MiB). A truncated read sets truncated=true.",
 		s.agentDownload)
 	addTool(s, "agent_fetch",
 		"Download a http:// or https:// URL inside a machine (the machine fetches it, so large files do not pass through this server) "+
@@ -120,7 +134,7 @@ func (s *Server) agentUpload(ctx context.Context, in filUploadArgs) (string, err
 	return fmt.Sprintf("wrote %d bytes to %s", len(data), in.Path), nil
 }
 
-// agentDownload reads a file from the VM, as text or base64.
+// agentDownload reads a file from the VM and returns it as a JSON object (see filDownloadResult).
 func (s *Server) agentDownload(ctx context.Context, in filDownloadArgs) (string, error) {
 	if in.Name == "" {
 		return "", errors.New("name is required: the machine to read from")
@@ -131,9 +145,18 @@ func (s *Server) agentDownload(ctx context.Context, in filDownloadArgs) (string,
 	if strings.ContainsRune(in.Path, 0) {
 		return "", errors.New("path must not contain NUL bytes")
 	}
-	limit := filMaxTextBytes
-	if in.Base64 {
-		limit = filMaxFileBytes
+	enc := strings.ToLower(strings.TrimSpace(in.Encoding))
+	switch {
+	case enc == "" && in.Base64:
+		enc = "base64"
+	case enc == "":
+		enc = "auto"
+	case enc != "auto" && enc != "utf-8" && enc != "base64":
+		return "", fmt.Errorf("encoding must be auto, utf-8 or base64 (got %q)", in.Encoding)
+	}
+	limit := filMaxFileBytes // auto and base64 may read up to 8 MiB
+	if enc == "utf-8" {
+		limit = filMaxTextBytes
 	}
 	maxBytes := filMaxTextBytes
 	if in.MaxBytes != nil {
@@ -153,25 +176,27 @@ func (s *Server) agentDownload(ctx context.Context, in filDownloadArgs) (string,
 	}
 	data := res.Msg.GetContent()
 	truncated := res.Msg.GetTruncated()
-	if in.Base64 {
-		out := base64.StdEncoding.EncodeToString(data)
-		if truncated {
-			out += "\n" + filTruncatedNote
-		}
-		return out, nil
-	}
-	if truncated {
+	if truncated && enc != "base64" {
 		// The cut may fall inside a multi-byte character; drop that incomplete tail before the UTF-8 check.
 		data = filTrimPartialUTF8(data)
 	}
-	if !utf8.Valid(data) {
-		return "", fmt.Errorf("%s is not UTF-8 text; call again with base64=true to get its bytes as base64", in.Path)
+	isText := utf8.Valid(data)
+	if enc == "utf-8" && !isText {
+		return "", fmt.Errorf("%s is not UTF-8 text; call again with encoding=base64 to get its bytes as base64", in.Path)
 	}
-	out := string(data)
-	if truncated {
-		out += "\n" + filTruncatedNote
+	out := filDownloadResult{Path: in.Path, Size: len(data), Truncated: truncated}
+	sum := sha256.Sum256(data)
+	out.SHA256 = hex.EncodeToString(sum[:])
+	if enc == "base64" || (enc == "auto" && !isText) {
+		out.Encoding, out.Content = "base64", base64.StdEncoding.EncodeToString(data)
+	} else {
+		out.Encoding, out.Content = "utf-8", string(data)
 	}
-	return out, nil
+	raw, err := json.Marshal(out)
+	if err != nil {
+		return "", fmt.Errorf("encode download result: %w", err)
+	}
+	return string(raw), nil
 }
 
 // agentFetch makes the VM download a URL with curl, then reports the saved file.

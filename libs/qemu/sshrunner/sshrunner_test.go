@@ -273,6 +273,9 @@ func TestRunSignalExitCodes(t *testing.T) {
 		{"kill -USR1 $$", 255},
 	} {
 		t.Run(tc.command, func(t *testing.T) {
+			if tc.command == "kill -HUP $$" && signal.Ignored(syscall.SIGHUP) { // same guard as the test above
+				t.Skip("SIGHUP is ignored in this process, so the child inherits it")
+			}
 			_, _, code, err := r.Run(testCtx(t), tc.command, nil)
 			if err != nil {
 				t.Fatalf("Run: %v", err)

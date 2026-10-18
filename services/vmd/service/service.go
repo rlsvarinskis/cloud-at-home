@@ -1,7 +1,6 @@
 package service
 
 import (
-	"connectrpc.com/connect"
 	"context"
 	"errors"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/node"

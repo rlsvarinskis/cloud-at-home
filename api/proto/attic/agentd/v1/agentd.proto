@@ -72,6 +72,7 @@ enum TaskState {
   TASK_STATE_GAVE_UP = 5;     // no verdict / step limit reached
   TASK_STATE_CANCELLED = 6;
   TASK_STATE_ERROR = 7;       // infrastructure problem (VM gone, model error, ...)
+  TASK_STATE_SUCCEEDED_UNVERIFIED = 8; // the model claimed success but no check_command verified it
 }
 message Task {
   string id = 1;
@@ -89,6 +90,39 @@ message Task {
   google.protobuf.Timestamp created_at = 13;
   google.protobuf.Timestamp started_at = 14;
   google.protobuf.Timestamp finished_at = 15;
+  // Why the task ended or stopped early, for example "repetition", "token_limit", "step_limit", "timeout",
+  // "check passed". Empty for an ordinary final report.
+  string reason = 16;
+  // Who decided the state: "check" (check_command ran) or "model" (the model's VERDICT line). Empty while the
+  // task is queued or running and when no decision was made.
+  string verdict_source = 17;
+  int64 prompt_tokens = 18;       // prompt tokens the backend reported for completed model calls
+  int64 completion_tokens = 19;   // generated tokens; an aborted call counts one per streamed chunk
+  int32 model_calls = 20;         // model calls made so far (complete and aborted)
+  int32 partial_calls = 21;       // model calls that were aborted before their final chunk
+  double first_token_seconds = 22;    // seconds from start to the first streamed model output (0 = none yet)
+  double first_command_seconds = 23;  // seconds from start to the first command (0 = none yet)
+  // The model's partial answer so far (last ~600 characters) and its raw reasoning (last ~300 characters).
+  // Set only while a model call is streaming, throttled to about one update per second, and cleared when
+  // the call ends. They are never part of result.
+  string live_answer = 24;
+  string live_reasoning = 25;
+  // The most recent model calls (at most 50), oldest first.
+  repeated CallStat calls = 26;
+  bool check_each_step = 27;      // run check_command after every batch of commands (default true at creation)
+  int32 max_minutes = 28;         // 0 = no time limit
+  int32 max_call_tokens = 29;     // per-reply token cap; 0 = no cap
+}
+
+// CallStat describes one model call of a task.
+message CallStat {
+  int32 index = 1;                // 1-based, dense per task
+  double seconds = 2;
+  int64 prompt_tokens = 3;
+  int64 gen_tokens = 4;
+  string end = 5;                 // "ok", "cancel", "timeout", "repetition", "length", "parse", "error"
+  bool partial = 6;               // aborted before its final chunk: gen_tokens counts streamed chunks
+  string note = 7;                // what the loop did about the call, for example a repaired tool call
 }
 message CreateTaskRequest {
   string agent_id = 1;
@@ -96,6 +130,9 @@ message CreateTaskRequest {
   string check_command = 3;     // run in the VM afterwards; exit 0 decides SUCCEEDED
   int32 max_steps = 4;          // default 40
   string idempotency_key = 5;
+  optional bool check_each_step = 6;   // default true: run check_command after each batch of commands
+  int32 max_minutes = 7;               // 0 (default) = no time limit; otherwise the task is cancelled after it
+  optional int32 max_call_tokens = 8;  // per-reply token cap, default 32768; 0 = no cap
 }
 message GetTaskRequest {
   string id = 1;
@@ -124,8 +161,8 @@ message Step {
 }
 message ListStepsRequest {
   string task_id = 1;
-  int32 after_seq = 2;
-  int32 limit = 3;
+  int32 after_seq = 2;          // return only steps with seq greater than this (the cursor; 0 = from the start)
+  int32 limit = 3;              // page size; 0 = the server's default, the server caps it at 500
 }
 message ListStepsResponse { repeated Step steps = 1; }
 
@@ -140,6 +177,13 @@ service TaskService {
 message Model {
   string name = 1;
   int64 size_bytes = 2;
+  double size_gib = 3;          // size_bytes in GiB
+  string params = 4;            // parameter count as reported, for example "8.0B"; may be empty
+  string quant = 5;             // quantisation, for example "Q4_K_M"; may be empty
+  int64 context_length = 6;     // the model's context length; 0 when unknown
+  // Whether the weights fit the configured VRAM budget (see agentd -vram-gib). This is a rough, weights-only
+  // check: the KV cache and the runtime are not counted. A model that does not fit probably runs partly on the CPU.
+  bool fits_vram = 7;
 }
 message ListModelsRequest {}
 message ListModelsResponse { repeated Model models = 1; }

@@ -57,6 +57,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 	serviceKey := fs.String("service-key", "", "private key this service signs its own vmd tokens with (required)")
 	serviceKeyID := fs.String("service-key-id", "agentd", "key id of -service-key; vmd must trust it with -trusted-key kid=path:service")
 	workers := fs.Int("workers", 2, "tasks run concurrently by this process")
+	vramGiB := fs.Float64("vram-gib", 16, "GPU memory budget in GiB; models whose weights exceed it (less 0.5 GiB) are reported with fits_vram=false")
 	revoked := fs.String("revoked-tokens", "", "file of revoked token ids (jti), one per line; reloaded when it changes")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
@@ -117,7 +118,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 		Workers: *workers, Log: log, Hooks: hooks})
 	go rn.Run(ctx)
 
-	deps := service.Deps{Store: st, VM: vm, LLM: model, Verifier: ver, Config: service.Config{Log: log}, Ready: checks}
+	deps := service.Deps{Store: st, VM: vm, LLM: model, Verifier: ver, Config: service.Config{Log: log, VRAMGiB: *vramGiB}, Ready: checks}
 	if *metricsOn {
 		deps.Registry = reg
 	}

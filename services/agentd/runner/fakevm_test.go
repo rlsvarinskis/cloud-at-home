@@ -43,6 +43,8 @@ type fakeVM struct {
 	starts   []*vmdv1.StartJobRequest // one per new job
 	cancels  []string                 // job IDs passed to CancelJob
 	failGets int                      // the next failGets GetVM calls return Unavailable
+	files    map[string][]byte        // the VM's files, for PutFile and GetFile
+	putFails map[string]int           // PutFile of a path fails this many times while its parent is missing
 }
 
 func newFakeVM() *fakeVM {
@@ -51,7 +53,23 @@ func newFakeVM() *fakeVM {
 		scripts:  map[string]jobScript{},
 		jobs:     map[string]*fakeJob{},
 		byKey:    map[string]*fakeJob{},
+		files:    map[string][]byte{},
 	}
+}
+
+// file returns the content of a file in the fake VM, for assertions.
+func (f *fakeVM) file(path string) (string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c, ok := f.files[path]
+	return string(c), ok
+}
+
+// setFile puts a file into the fake VM.
+func (f *fakeVM) setFile(path, content string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.files[path] = []byte(content)
 }
 
 func (f *fakeVM) setVM(id string, st vmdv1.VMState) {
@@ -205,10 +223,31 @@ func (f *fakeVM) RemoveHold(context.Context, string, string) (*vmdv1.VM, error) 
 	return nil, errNotUsed
 }
 
-func (f *fakeVM) PutFile(context.Context, string, string, []byte, uint32) error {
-	return errNotUsed
+// PutFile stores the content. Like vmd, it refuses a path whose parent directory does not exist yet (the fake
+// treats a directory as existing once a command created it with mkdir -p, which the tests do not model: a
+// putFails entry makes the first writes fail instead).
+func (f *fakeVM) PutFile(ctx context.Context, vmID, path string, content []byte, _ uint32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.putFails[path] > 0 {
+		f.putFails[path]--
+		return fmt.Errorf("put %s: %w", path, errs.ErrFailedPrecondition)
+	}
+	f.files[path] = append([]byte(nil), content...)
+	return nil
 }
 
-func (f *fakeVM) GetFile(context.Context, string, string, int64) ([]byte, bool, error) {
-	return nil, false, errNotUsed
+// GetFile returns the content, or errs.ErrNotFound for a missing file.
+func (f *fakeVM) GetFile(ctx context.Context, vmID, path string, maxBytes int64) ([]byte, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c, ok := f.files[path]
+	if !ok {
+		return nil, false, errs.NotFound("file %s", path)
+	}
+	truncated := int64(len(c)) > maxBytes
+	if truncated {
+		c = c[:maxBytes]
+	}
+	return append([]byte(nil), c...), truncated, nil
 }

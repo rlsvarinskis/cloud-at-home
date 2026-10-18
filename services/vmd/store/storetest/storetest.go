@@ -212,12 +212,12 @@ func testNodesUpsertAndGet(t *testing.T, s store.Store) {
 	}
 
 	// Upsert on an existing ID updates it rather than failing.
-	n.State = domain.NodeDraining
+	n.State = domain.NodeDown
 	n.Address = "192.0.2.9:9000"
 	must(t, s.UpsertNode(ctx, n))
 	got, err = s.GetNode(ctx, "node-x")
 	must(t, err)
-	if got.State != domain.NodeDraining || got.Address != "192.0.2.9:9000" {
+	if got.State != domain.NodeDown || got.Address != "192.0.2.9:9000" {
 		t.Fatalf("GetNode after update = %+v", got)
 	}
 

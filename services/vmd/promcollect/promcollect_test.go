@@ -80,12 +80,7 @@ func newFixture(t *testing.T, tweak func(*Options)) *fixture {
 	nodes.Add("n1", "192.0.2.1:7000", n1)
 	nodes.Add("n2", "192.0.2.2:7000", n2)
 	nodes.Poll(ctx)
-	row, err := st.GetNode(ctx, "n2")
-	if err != nil {
-		t.Fatal(err)
-	}
-	row.State = domain.NodeDraining
-	if err := st.UpsertNode(ctx, row); err != nil {
+	if err := st.SetNodeDrain(ctx, "n2", true); err != nil {
 		t.Fatal(err)
 	}
 

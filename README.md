@@ -189,7 +189,7 @@ sharded over three databases. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 ## Documentation
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): components, placement, identity, distribution, failure model, known limitations.
-- [docs/adr/](docs/adr/): decisions on Connect RPC, Postgres with leases, and jobs living in the guest.
+- [docs/adr/](docs/adr/): decisions on Connect RPC, Postgres with leases, jobs living in the guest, and guards on the agent loop.
 - [docs/API.md](docs/API.md): every service, its RPCs, permissions, errors and limits, with examples.
 - [docs/AUTH.md](docs/AUTH.md): tokens, roles, projects, revocation, service-to-service auth, key rotation, hardening.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md): deployment shapes, node host setup, reconciler behaviour, draining,

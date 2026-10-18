@@ -93,13 +93,9 @@ func (m *NodeManager) pollOne(ctx context.Context, id string) {
 	res, err := d.GetCapacity(cctx, &nodev1.GetCapacityRequest{})
 	prev, perr := m.st.GetNode(ctx, id)
 	n := &domain.Node{ID: id, Address: m.addrs[id], State: domain.NodeReady}
-	legacyDrain := false
 	if perr == nil {
 		*n = *prev
 		n.Address = m.addrs[id]
-		if n.State == domain.NodeDraining { // older rows stored the drain decision as the state
-			n.State, legacyDrain = domain.NodeReady, true
-		}
 	}
 	if err != nil {
 		// Only declare the node down after it has been silent for a while. Drain is the operator's decision and
@@ -121,9 +117,6 @@ func (m *NodeManager) pollOne(ctx context.Context, id string) {
 	if err := m.st.UpsertNode(ctx, n); err != nil {
 		m.log.Error("upsert node", "node", id, "err", err)
 		return
-	}
-	if legacyDrain {
-		_ = m.st.SetNodeDrain(ctx, id, true)
 	}
 }
 

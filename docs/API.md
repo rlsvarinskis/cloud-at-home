@@ -129,7 +129,10 @@ Keys are not accepted by the other creates (disks, images, snapshots).
 | Task prompt | 64 KiB, not blank | agentd |
 | Task `check_command` | 16 KiB | agentd |
 | Task `max_steps` | default 40, max 200 | agentd |
-| Steps per `ListSteps` call | default 100, max 500 | agentd |
+| Task `max_call_tokens` | default 32768 per model reply; 0 = no cap | agentd |
+| Task `max_minutes` | default 0 (no time limit) | agentd |
+| Steps per `ListSteps` call (`limit`) | default 100, max 500 | agentd |
+| Model calls kept per task (`calls`) | the latest 50 | agentd |
 
 Resource names (VMs, disks, images, agents) must match `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`.
 
@@ -281,11 +284,11 @@ A task is one prompt given to an agent. Workers claim queued tasks under a lease
 
 | RPC | Purpose | Key request fields | Permission | Notes and errors |
 | --- | --- | --- | --- | --- |
-| `CreateTask` | Queue a task for an agent. | `agent_id`, `prompt`, `check_command`, `max_steps`, `idempotency_key` | `task.create` | The agent must be `ACTIVE` (`failed_precondition` otherwise). Limits are in the table above. `check_command` is run in the VM after the model finishes, and its exit status decides the outcome (see below). |
+| `CreateTask` | Queue a task for an agent. | `agent_id`, `prompt`, `check_command`, `max_steps`, `max_minutes`, `max_call_tokens`, `check_each_step`, `idempotency_key` | `task.create` | The agent must be `ACTIVE` (`failed_precondition` otherwise). Limits are in the table above. `check_command` is run in the VM and its exit status decides the outcome (see below). `check_each_step` (default true) runs it after every batch of commands and ends the task as soon as it passes. `max_minutes` cancels the task after that long, with `reason` `timeout`. `max_call_tokens` caps one model reply. |
 | `GetTask` | Read a task, optionally waiting. | `id`, `wait_for_not`, `wait_seconds` | `task.get` | Returns as soon as the state differs from `wait_for_not` (for example `TASK_STATE_QUEUED`), or after the wait. |
 | `ListTasks` | List an agent's tasks or a project's tasks. | exactly one of `agent_id` or `project_id`; `state`; `page_size`; `page_token` | `task.list` | Giving both or neither is `invalid_argument`. |
 | `CancelTask` | Stop a task. | `id` | `task.cancel` | A queued task becomes `TASK_STATE_CANCELLED` at once. A running task is flagged; within about a second its worker aborts the model call and cancels the command that is running in the VM. A finished task is returned unchanged. Cancelling twice is harmless. |
-| `ListSteps` | List the commands a task ran. | `task_id`, `after_seq`, `limit` | `task.get` | Steps are numbered from 1. Each has the command, an excerpt of its output (the first and last 2000 bytes) and its exit code. Output is cleaned before it is stored: NUL bytes are removed and invalid UTF-8 is replaced. |
+| `ListSteps` | List the commands a task ran. | `task_id`, `after_seq`, `limit` | `task.get` | Steps are numbered from 1. `after_seq` is the cursor: only steps with a higher number are returned, so pass the last `seq` you have seen (0 for the first page). `limit` is the page size (default 100, max 500). Each step has the command, an excerpt of its output (the first and last 2000 bytes) and its exit code. Output is cleaned before it is stored: NUL bytes are removed and invalid UTF-8 is replaced. |
 
 **Task states**
 
@@ -293,9 +296,10 @@ A task is one prompt given to an agent. Workers claim queued tasks under a lease
 | --- | --- |
 | `TASK_STATE_QUEUED` | Waiting for a worker. Also used after a transient failure, when the task is put back in the queue. |
 | `TASK_STATE_RUNNING` | Claimed by a worker, which holds a lease that it renews. |
-| `TASK_STATE_SUCCEEDED` | Success: the `check_command` exited 0, or, without a `check_command`, the model's last line was `VERDICT: SUCCESS`. |
+| `TASK_STATE_SUCCEEDED` | Verified success: the `check_command` exited 0. |
+| `TASK_STATE_SUCCEEDED_UNVERIFIED` | The model's last line was `VERDICT: SUCCESS` but there is no `check_command`, so nothing verified it. The result says so. |
 | `TASK_STATE_FAILED` | The `check_command` exited non-zero, or, without one, the model's last line was `VERDICT: FAILED - ...`. |
-| `TASK_STATE_GAVE_UP` | No verdict: the model gave no verdict after one reminder, or the step limit was reached. |
+| `TASK_STATE_GAVE_UP` | No verdict: the model gave no verdict after one reminder, the step limit was reached, or the model's replies kept repeating themselves or hit the token cap (`reason` says which). |
 | `TASK_STATE_CANCELLED` | Cancelled before it finished. |
 | `TASK_STATE_ERROR` | The task could not be run to a verdict: the agent is not active, the VM is not running or is gone (the agent is then set to `ORPHANED`), the model failed with an error other than "unavailable", a stored message is corrupt, or the task was taken over or requeued more than three times. `result` says which. |
 
@@ -303,11 +307,24 @@ When a `check_command` is set, the model's verdict is recorded in `verdict` and 
 exit status of the check decides the state. Transient failures (VM or model unreachable) requeue the task
 and count as an attempt.
 
+**Progress fields.** A task also reports how it is going, and why it ended. `reason` is set when the task ended
+early or stopped on a guard: `repetition`, `token_limit`, `step_limit`, `timeout`, or `check passed` (a
+`check_each_step` success). `verdict_source` is `check` or `model`: who decided the state. `prompt_tokens` and
+`completion_tokens` count the tokens of completed model calls; an aborted call counts one token per streamed chunk and
+is marked `partial`. `model_calls` and `partial_calls` count the calls, `first_token_seconds` and
+`first_command_seconds` are measured from the start. `calls` lists the latest 50 model calls (`index`, `seconds`,
+`prompt_tokens`, `gen_tokens`, `end`, `partial`, `note`). While a call streams, `live_answer` (the last ~600 characters
+of the answer) and `live_reasoning` (the last ~300 characters of the raw reasoning) are updated about once a second.
+They are cleared when the call ends and are never part of `result`.
+
+A task never ends with an empty `result`: if none was written, a note saying so is stored. A task that would end as
+a success without a result ends as `TASK_STATE_ERROR` instead.
+
 ### ModelService
 
 | RPC | Purpose | Permission | Notes |
 | --- | --- | --- | --- |
-| `ListModels` | List models installed on the LLM backend. | `model.list` (any project) | Returns `models`, each with `name` and `size_bytes`. Errors are `unavailable` when the backend cannot be reached. |
+| `ListModels` | List models installed on the LLM backend. | `model.list` (any project) | Returns `models`, each with `name`, `size_bytes`, `size_gib`, `params` and `quant` (as the backend reports them, may be empty), `context_length` (0 when unknown) and `fits_vram`. `fits_vram` is `size_gib <= budget - 0.5`, where the budget is agentd's `-vram-gib` flag (default 16). It is a rough check of the weights only: the KV cache and the runtime are not counted. Errors are `unavailable` when the backend cannot be reached. |
 
 ---
 

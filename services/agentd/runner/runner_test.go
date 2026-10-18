@@ -44,12 +44,12 @@ type spyLLM struct {
 	entered chan struct{}
 }
 
-func (s *spyLLM) Chat(ctx context.Context, model string, msgs []llm.Message, tools []llm.Tool, onChunk func(llm.Chunk)) (llm.Message, error) {
+func (s *spyLLM) Chat(ctx context.Context, model string, msgs []llm.Message, tools []llm.Tool, opts llm.ChatOptions, onChunk func(llm.Chunk)) (llm.Message, error) {
 	select {
 	case s.entered <- struct{}{}:
 	default:
 	}
-	return s.inner.Chat(ctx, model, msgs, tools, onChunk)
+	return s.inner.Chat(ctx, model, msgs, tools, opts, onChunk)
 }
 
 func (s *spyLLM) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
@@ -266,7 +266,7 @@ func TestSimpleSuccess(t *testing.T) {
 	}
 
 	tk := fx.task("t1")
-	if tk.State != domain.TaskSucceeded || tk.Verdict != "SUCCESS" {
+	if tk.State != domain.TaskSucceededUnverified || tk.Verdict != "SUCCESS" {
 		t.Fatalf("state=%s verdict=%q, want succeeded/SUCCESS", tk.State, tk.Verdict)
 	}
 	if !strings.Contains(tk.Result, "Listed the files.") || tk.Steps != 1 {
@@ -330,7 +330,7 @@ func TestSimpleSuccess(t *testing.T) {
 	if s, f, _ := fx.hooks.counts(); s != 1 || f != 1 {
 		t.Fatalf("hooks: steps=%d finished=%d, want 1 and 1", s, f)
 	}
-	if fx.hooks.states[0] != domain.TaskSucceeded {
+	if fx.hooks.states[0] != domain.TaskSucceededUnverified {
 		t.Fatalf("OnTaskFinished state = %s", fx.hooks.states[0])
 	}
 }
@@ -386,7 +386,7 @@ func TestModelWithoutToolsAndWithVerdict(t *testing.T) {
 	fx.addTask("t1", "", 0)
 	must(t, runOnce(fx))
 	tk := fx.task("t1")
-	if tk.State != domain.TaskSucceeded || tk.Steps != 0 || fx.vm.startCount() != 0 {
+	if tk.State != domain.TaskSucceededUnverified || tk.Steps != 0 || fx.vm.startCount() != 0 {
 		t.Fatalf("state=%s steps=%d starts=%d", tk.State, tk.Steps, fx.vm.startCount())
 	}
 }
@@ -453,7 +453,7 @@ func TestStepLimit(t *testing.T) {
 
 func TestInvalidToolCallsAreRefused(t *testing.T) {
 	fx := newFixture(t, llm.FakeReply{Message: llm.Message{Role: "assistant", ToolCalls: []llm.ToolCall{
-		{Name: "python", Arguments: map[string]any{"command": "print(1)"}},
+		{Name: "browser", Arguments: map[string]any{"command": "ls"}},
 		{Name: "bash", Arguments: map[string]any{}},
 		{Name: "bash", Arguments: map[string]any{"command": 42}},
 	}}}, say("Gave up on tools.\nVERDICT: SUCCESS"))
@@ -478,7 +478,7 @@ func TestInvalidToolCallsAreRefused(t *testing.T) {
 			t.Fatalf("tool result %q does not start with 'error: '", e)
 		}
 	}
-	if tk := fx.task("t1"); tk.Steps != 0 || tk.State != domain.TaskSucceeded {
+	if tk := fx.task("t1"); tk.Steps != 0 || tk.State != domain.TaskSucceededUnverified {
 		t.Fatalf("steps=%d state=%s", tk.Steps, tk.State)
 	}
 }
@@ -561,7 +561,7 @@ func TestSanitisesOutputAndCommand(t *testing.T) {
 	}
 	tk := fx.task("t1")
 	checkClean("result", tk.Result)
-	if tk.State != domain.TaskSucceeded {
+	if tk.State != domain.TaskSucceededUnverified {
 		t.Fatalf("state = %s", tk.State)
 	}
 }
@@ -740,7 +740,7 @@ func TestCrashResumesFromStoredConversation(t *testing.T) {
 	}
 
 	tk := fx.task("t1")
-	if tk.State != domain.TaskSucceeded || tk.Attempts != 1 || tk.Steps != 1 {
+	if tk.State != domain.TaskSucceededUnverified || tk.Attempts != 1 || tk.Steps != 1 {
 		t.Fatalf("state=%s attempts=%d steps=%d, want succeeded/1/1", tk.State, tk.Attempts, tk.Steps)
 	}
 	if n := fx.vm.startCount(); n != 1 {
@@ -782,7 +782,7 @@ func TestResumeRunsOnlyMissingToolCalls(t *testing.T) {
 	if len(reqs) != 1 || reqs[0].Command != "echo two" || reqs[0].IdempotencyKey != "t1-2" {
 		t.Fatalf("StartJob calls = %v, want only echo two as t1-2", reqs)
 	}
-	if tk := fx.task("t1"); tk.State != domain.TaskSucceeded || tk.Steps != 2 {
+	if tk := fx.task("t1"); tk.State != domain.TaskSucceededUnverified || tk.Steps != 2 {
 		t.Fatalf("state=%s steps=%d", tk.State, tk.Steps)
 	}
 }
@@ -862,7 +862,7 @@ func TestVMUnavailableRequeuesThenSucceeds(t *testing.T) {
 		t.Fatalf("after unavailable: state=%s attempts=%d owner=%q", tk.State, tk.Attempts, tk.LeaseOwner)
 	}
 	must(t, runOnceWith(r, fx))
-	if tk := fx.task("t1"); tk.State != domain.TaskSucceeded {
+	if tk := fx.task("t1"); tk.State != domain.TaskSucceededUnverified {
 		t.Fatalf("state after retry = %s", tk.State)
 	}
 }
@@ -918,7 +918,7 @@ func TestConcurrentWorkersFinishEachTaskOnce(t *testing.T) {
 	}()
 
 	waitFor(t, "all tasks to finish", func() bool {
-		done, err := fx.st.ListTasks(fx.ctx, "", "p1", domain.TaskSucceeded, "", 0)
+		done, err := fx.st.ListTasks(fx.ctx, "", "p1", domain.TaskSucceededUnverified, "", 0)
 		must(t, err)
 		return len(done) == n
 	})

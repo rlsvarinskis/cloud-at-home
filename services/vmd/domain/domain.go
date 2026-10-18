@@ -136,13 +136,12 @@ type Node struct {
 	LastHeartbeat                 time.Time
 }
 
-// Effective is what scheduling should act on: down beats draining beats ready. (A legacy row whose State is
-// "draining" counts as drained.)
+// Effective is what scheduling should act on: down beats draining beats ready.
 func (n *Node) Effective() NodeState {
 	switch {
 	case n.State == NodeDown:
 		return NodeDown
-	case n.Drain || n.State == NodeDraining:
+	case n.Drain:
 		return NodeDraining
 	}
 	return NodeReady

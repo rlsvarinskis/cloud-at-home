@@ -56,5 +56,3 @@ roles, TTL limits, token inspection (including a token from another key and toke
   visible in the shell history and the process list. Use `-` to read it from stdin.
 - `token mint` rejects a `-ttl` longer than `-max-ttl`, and a non-positive TTL, as a usage error.
 - There is no command to revoke a token. Revocation is a file that the daemons read (see `libs/authz`).
-- The comment on `knownRoles` in `main.go` refers to `internal/auth`, a path that no longer exists; the roles come
-  from `libs/authz`.

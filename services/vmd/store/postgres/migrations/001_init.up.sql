@@ -9,7 +9,8 @@
 CREATE TABLE nodes (
     id               text COLLATE "C" PRIMARY KEY,
     address          text NOT NULL,
-    state            text NOT NULL,
+    state            text NOT NULL, -- observed health: ready or down
+    drain            boolean NOT NULL, -- the operator's drain decision, kept apart from state so an outage cannot erase it
     cpus             integer NOT NULL,
     memory_mb        bigint NOT NULL,
     disk_bytes_total bigint NOT NULL,
@@ -76,6 +77,7 @@ CREATE TABLE vms (
     lease_owner     text NOT NULL,
     lease_until     timestamptz NOT NULL DEFAULT 'epoch'::timestamptz,
     failures        integer NOT NULL,
+    crashes         integer NOT NULL, -- unexpected exits; decays while healthy, so flapping VMs back off
     created_at      timestamptz NOT NULL,
     updated_at      timestamptz NOT NULL,
     UNIQUE (project_id, name)

@@ -3,16 +3,15 @@ package service_test
 import (
 	"context"
 	"errors"
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
-	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
-
 	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/agentd/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
+	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/libs/server/obs"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/service"
 )

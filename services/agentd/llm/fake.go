@@ -8,16 +8,28 @@ import (
 
 var _ Client = (*Fake)(nil)
 
+// maxEndlessChunks bounds an Endless reply that is never cancelled.
+const maxEndlessChunks = 200000
+
 // FakeReply is one scripted response consumed by a Fake.Chat call.
 type FakeReply struct {
 	// Message is returned when Err is nil.
 	Message Message
 	// Chunks are delivered to onChunk, in order, before the reply completes.
 	Chunks []Chunk
-	// Err, if set, is returned instead of Message (after Chunks are delivered).
+	// Err, if set, is returned instead of Message (after Chunks are delivered). A *llm.ToolParseError
+	// here models Ollama's parse error for a malformed tool call.
 	Err error
-	// Block, if non-nil, makes Chat wait until it is closed or the context is done.
+	// Block, if non-nil, makes Chat wait until it is closed or the context is done. Chunks are delivered first, so
+	// a test can observe a reply while it streams.
 	Block <-chan struct{}
+	// Endless, if non-nil, is delivered to onChunk over and over until the context is done, which then
+	// makes Chat return ctx.Err(). It models a model stuck in a loop.
+	Endless *Chunk
+	// DoneReason is the done_reason of a completed reply (default "stop"), sent on a final Done chunk.
+	DoneReason string
+	// PromptTokens and GenTokens are the counts reported on the final Done chunk of a completed reply.
+	PromptTokens, GenTokens int64
 }
 
 // FakeCall records one Fake.Chat invocation.
@@ -25,6 +37,7 @@ type FakeCall struct {
 	Model    string
 	Messages []Message
 	Tools    []Tool
+	Opts     ChatOptions
 }
 
 // Fake is a scripted Client for tests. Each Chat call consumes the next entry of Script and is recorded
@@ -55,13 +68,13 @@ func CallTool(name string, args map[string]any) FakeReply {
 // Chat consumes the next scripted reply. It fails if the script is exhausted, and returns ctx.Err() without
 // consuming a reply or recording a call if ctx is already cancelled. A blocked reply returns ctx.Err() if
 // the context ends before the block is released.
-func (f *Fake) Chat(ctx context.Context, model string, msgs []Message, tools []Tool, onChunk func(Chunk)) (Message, error) {
+func (f *Fake) Chat(ctx context.Context, model string, msgs []Message, tools []Tool, opts ChatOptions, onChunk func(Chunk)) (Message, error) {
 	if err := ctx.Err(); err != nil {
 		return Message{}, err
 	}
 
 	f.mu.Lock()
-	f.Calls = append(f.Calls, FakeCall{Model: model, Messages: cloneMessages(msgs), Tools: cloneTools(tools)})
+	f.Calls = append(f.Calls, FakeCall{Model: model, Messages: cloneMessages(msgs), Tools: cloneTools(tools), Opts: opts})
 	if len(f.Script) == 0 {
 		f.mu.Unlock()
 		return Message{}, errors.New("fake: script exhausted")
@@ -70,6 +83,11 @@ func (f *Fake) Chat(ctx context.Context, model string, msgs []Message, tools []T
 	f.Script = f.Script[1:]
 	f.mu.Unlock()
 
+	if onChunk != nil {
+		for _, c := range reply.Chunks {
+			onChunk(c)
+		}
+	}
 	if reply.Block != nil {
 		select {
 		case <-reply.Block:
@@ -77,13 +95,30 @@ func (f *Fake) Chat(ctx context.Context, model string, msgs []Message, tools []T
 			return Message{}, ctx.Err()
 		}
 	}
-	if onChunk != nil {
-		for _, c := range reply.Chunks {
-			onChunk(c)
+	if reply.Endless != nil {
+		// A cancelled context ends the stream. The bound keeps a test whose cancel never comes from hanging: the
+		// stream then fails with an error the test can report.
+		for i := 0; ; i++ {
+			if err := ctx.Err(); err != nil {
+				return Message{}, err
+			}
+			if i == maxEndlessChunks {
+				return Message{}, errors.New("fake: endless stream was not cancelled")
+			}
+			if onChunk != nil {
+				onChunk(*reply.Endless)
+			}
 		}
 	}
 	if reply.Err != nil {
 		return Message{}, reply.Err
+	}
+	if onChunk != nil {
+		reason := reply.DoneReason
+		if reason == "" {
+			reason = "stop"
+		}
+		onChunk(Chunk{Done: true, DoneReason: reason, PromptTokens: reply.PromptTokens, GenTokens: reply.GenTokens})
 	}
 	return cloneMessage(reply.Message), nil
 }

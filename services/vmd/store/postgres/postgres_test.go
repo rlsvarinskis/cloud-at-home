@@ -94,8 +94,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	must(t, pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations_vmd").Scan(&applied))
 	files, err := fs.Glob(migrations, "migrations/*.up.sql")
 	must(t, err)
-	if applied != len(files) { // every migration applied exactly once, however many replicas raced
-		t.Fatalf("schema_migrations_vmd has %d rows, want %d (one per migration file)", applied, len(files))
+	if len(files) != 1 || applied != 1 { // one initial migration, applied exactly once however many replicas raced
+		t.Fatalf("schema_migrations_vmd has %d rows for %d migration files, want 1 and 1", applied, len(files))
 	}
 }
 

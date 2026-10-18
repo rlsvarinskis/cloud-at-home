@@ -50,6 +50,21 @@ func (s *TaskServer) CreateTask(ctx context.Context, req *connect.Request[agentd
 		maxSteps = maxMaxSteps
 	}
 
+	checkEach := true
+	if m.CheckEachStep != nil {
+		checkEach = *m.CheckEachStep
+	}
+	switch {
+	case m.MaxMinutes < 0:
+		return nil, errs.Invalid("max_minutes must not be negative (0 means no limit)")
+	case m.MaxCallTokens != nil && *m.MaxCallTokens < 0:
+		return nil, errs.Invalid("max_call_tokens must not be negative (0 means no cap)")
+	}
+	maxCallTokens := defaultMaxCallTokens
+	if m.MaxCallTokens != nil {
+		maxCallTokens = int(*m.MaxCallTokens)
+	}
+
 	a, err := s.st.GetAgent(ctx, m.AgentId)
 	if err != nil {
 		return nil, err
@@ -69,6 +84,7 @@ func (s *TaskServer) CreateTask(ctx context.Context, req *connect.Request[agentd
 	t := &domain.Task{
 		ID: ids.New("task"), AgentID: a.ID, ProjectID: a.ProjectID, Prompt: m.Prompt, CheckCommand: m.CheckCommand,
 		MaxSteps: maxSteps, State: domain.TaskQueued, IdempotencyKey: m.IdempotencyKey, CreatedAt: s.now(),
+		CheckEachStep: checkEach, MaxMinutes: int(m.MaxMinutes), MaxCallTokens: maxCallTokens,
 	}
 	if err := s.st.CreateTask(ctx, t); err != nil {
 		if m.IdempotencyKey != "" && errors.Is(err, errs.ErrAlreadyExists) {

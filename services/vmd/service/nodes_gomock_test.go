@@ -136,24 +136,6 @@ func TestGMDrainingSurvivesOutage(t *testing.T) {
 	}
 }
 
-// Rows written before drain had its own column stored the decision as State "draining". Polling migrates them.
-func TestGMLegacyDrainingStateIsMigrated(t *testing.T) {
-	m, drv, st, _ := gmNodeFixture(t)
-	ctx := context.Background()
-	drv.EXPECT().GetCapacity(gomock.Any(), gomock.Any()).Return(gmCapacity(), nil).Times(2)
-	m.Poll(ctx)
-	n, _ := st.GetNode(ctx, "n1")
-	n.State = domain.NodeDraining
-	if err := st.UpsertNode(ctx, n); err != nil {
-		t.Fatal(err)
-	}
-	m.Poll(ctx)
-	got, _ := st.GetNode(ctx, "n1")
-	if got.State != domain.NodeReady || !got.Drain || got.Effective() != domain.NodeDraining {
-		t.Fatalf("legacy draining row not migrated: state=%s drain=%v", got.State, got.Drain)
-	}
-}
-
 // TestGMInfoSumsDesiredRunningOnly: Info counts the CPU and memory of VMs that should be running, per node,
 // and ignores stopped, deleting and wrong-node VMs.
 func TestGMInfoSumsDesiredRunningOnly(t *testing.T) {

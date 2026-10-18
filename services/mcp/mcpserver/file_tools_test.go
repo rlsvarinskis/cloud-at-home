@@ -1,10 +1,16 @@
 package mcpserver
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"math/rand"
 	"os/exec"
 	"strings"
 	"testing"
@@ -509,12 +515,28 @@ func TestFilUploadDownstreamErrors(t *testing.T) {
 	})
 }
 
+// filDownloaded decodes the JSON reply of agent_download.
+func filDownloaded(t *testing.T, text string) filDownloadResult {
+	t.Helper()
+	var r filDownloadResult
+	if err := json.Unmarshal([]byte(text), &r); err != nil {
+		t.Fatalf("reply is not JSON: %v\n%s", err, text)
+	}
+	return r
+}
+
 func TestFilDownloadText(t *testing.T) {
 	v := filDefaultVMs()
 	e := &filExec{getRes: &vmdv1.GetFileResponse{Content: []byte("héllo\n")}}
 	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/home/agent/a.txt"})
-	if isErr || text != "héllo\n" {
-		t.Fatalf("text=%q isErr=%v", text, isErr)
+	if isErr {
+		t.Fatalf("text=%q", text)
+	}
+	r := filDownloaded(t, text)
+	sum := sha256.Sum256([]byte("héllo\n"))
+	if r.Path != "/home/agent/a.txt" || r.Encoding != "utf-8" || r.Content != "héllo\n" || r.Size != 7 ||
+		r.SHA256 != hex.EncodeToString(sum[:]) || r.Truncated {
+		t.Fatalf("result = %+v", r)
 	}
 	g := e.gets[0]
 	if g.VmId != "vm-1" || g.Path != "/home/agent/a.txt" || g.MaxBytes != 1<<20 {
@@ -533,23 +555,49 @@ func TestFilDownloadMaxBytes(t *testing.T) {
 	}
 }
 
-func TestFilDownloadBase64(t *testing.T) {
+func TestFilDownloadBinaryAutoIsBase64(t *testing.T) {
 	v := filDefaultVMs()
 	e := &filExec{getRes: &vmdv1.GetFileResponse{Content: []byte{0, 255}}}
-	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a", "base64": true, "max_bytes": 2 << 20})
-	if isErr || text != "AP8=" {
-		t.Fatalf("text=%q isErr=%v", text, isErr)
+	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a", "max_bytes": 2 << 20})
+	if isErr {
+		t.Fatalf("text=%q", text)
+	}
+	r := filDownloaded(t, text)
+	if r.Encoding != "base64" || r.Content != "AP8=" || r.Size != 2 {
+		t.Fatalf("result = %+v", r)
 	}
 	if e.gets[0].MaxBytes != 2<<20 {
-		t.Errorf("MaxBytes sent = %d, want 2 MiB (base64 may go up to 8 MiB)", e.gets[0].MaxBytes)
+		t.Errorf("MaxBytes sent = %d, want 2 MiB (auto may read up to 8 MiB)", e.gets[0].MaxBytes)
+	}
+}
+
+func TestFilDownloadExplicitEncodings(t *testing.T) {
+	v := filDefaultVMs()
+	// Valid UTF-8, asked for as base64: the bytes come back base64 encoded.
+	e := &filExec{getRes: &vmdv1.GetFileResponse{Content: []byte("abc")}}
+	text, _ := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a", "encoding": "base64"})
+	if r := filDownloaded(t, text); r.Encoding != "base64" || r.Content != "YWJj" {
+		t.Fatalf("base64: %+v", r)
+	}
+	// The deprecated flag means the same as encoding=base64.
+	text, _ = filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a", "base64": true})
+	if r := filDownloaded(t, text); r.Encoding != "base64" {
+		t.Fatalf("base64 flag: %+v", r)
+	}
+	// An unknown encoding is refused before any downstream call.
+	n := filCalls(v, e)
+	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a", "encoding": "latin1"})
+	filWantErr(t, text, isErr, "encoding must be auto, utf-8 or base64")
+	if filCalls(v, e) != n {
+		t.Error("an invalid encoding made a downstream call")
 	}
 }
 
 func TestFilDownloadNotUTF8(t *testing.T) {
 	v := filDefaultVMs()
 	e := &filExec{getRes: &vmdv1.GetFileResponse{Content: []byte{0xff, 'a'}}}
-	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a"})
-	filWantErr(t, text, isErr, "base64=true")
+	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a", "encoding": "utf-8"})
+	filWantErr(t, text, isErr, "encoding=base64")
 }
 
 func TestFilDownloadTruncatedText(t *testing.T) {
@@ -557,17 +605,61 @@ func TestFilDownloadTruncatedText(t *testing.T) {
 	// The cut fell inside a two-byte character: the incomplete first byte must not make the file look binary.
 	e := &filExec{getRes: &vmdv1.GetFileResponse{Content: []byte("abc\xc3"), Truncated: true}}
 	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a", "max_bytes": 4})
-	if isErr || text != "abc\n[truncated: file is larger than max_bytes]" {
-		t.Fatalf("text=%q isErr=%v", text, isErr)
+	if isErr {
+		t.Fatalf("text=%q", text)
+	}
+	if r := filDownloaded(t, text); r.Content != "abc" || !r.Truncated || r.Encoding != "utf-8" || r.Size != 3 {
+		t.Fatalf("result = %+v", r)
 	}
 }
 
-func TestFilDownloadTruncatedBase64(t *testing.T) {
+func TestFilDownloadTruncatedBinary(t *testing.T) {
 	v := filDefaultVMs()
-	e := &filExec{getRes: &vmdv1.GetFileResponse{Content: []byte{1, 2}, Truncated: true}}
-	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a", "base64": true})
-	if isErr || text != "AQI=\n[truncated: file is larger than max_bytes]" {
-		t.Fatalf("text=%q isErr=%v", text, isErr)
+	e := &filExec{getRes: &vmdv1.GetFileResponse{Content: []byte{0xff, 1}, Truncated: true}}
+	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a"})
+	if isErr {
+		t.Fatalf("text=%q", text)
+	}
+	if r := filDownloaded(t, text); r.Content != "/wE=" || !r.Truncated || r.Encoding != "base64" {
+		t.Fatalf("result = %+v", r)
+	}
+}
+
+// TestFilDownloadTarGzRoundTrip reads a real 200 KB tar.gz, as a binary file, and checks that the bytes, the size
+// and the sha256 all survive the trip through the reply.
+func TestFilDownloadTarGzRoundTrip(t *testing.T) {
+	var archive bytes.Buffer
+	gz := gzip.NewWriter(&archive)
+	tw := tar.NewWriter(gz)
+	payload := make([]byte, 200<<10)
+	rand.New(rand.NewSource(1)).Read(payload)
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(tw.WriteHeader(&tar.Header{Name: "data.bin", Mode: 0o644, Size: int64(len(payload))}))
+	_, err := tw.Write(payload)
+	must(err)
+	must(tw.Close())
+	must(gz.Close())
+	raw := archive.Bytes()
+
+	v := filDefaultVMs()
+	e := &filExec{getRes: &vmdv1.GetFileResponse{Content: raw}}
+	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/home/agent/x.tar.gz"})
+	if isErr {
+		t.Fatalf("text=%q", text)
+	}
+	r := filDownloaded(t, text)
+	got, err := base64.StdEncoding.DecodeString(r.Content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(raw)
+	if r.Encoding != "base64" || !bytes.Equal(got, raw) || r.Size != len(raw) || r.SHA256 != hex.EncodeToString(sum[:]) {
+		t.Fatalf("round trip: encoding=%s size=%d sha=%s, bytes equal=%v", r.Encoding, r.Size, r.SHA256, bytes.Equal(got, raw))
 	}
 }
 
@@ -581,8 +673,8 @@ func TestFilDownloadValidation(t *testing.T) {
 		{"no path", map[string]any{"name": "box", "path": ""}, "path is required"},
 		{"NUL in path", map[string]any{"name": "box", "path": "/a\x00"}, "NUL"},
 		{"zero max", map[string]any{"name": "box", "path": "/a", "max_bytes": 0}, "max_bytes must be between 1"},
-		{"text above 1 MiB", map[string]any{"name": "box", "path": "/a", "max_bytes": 2 << 20}, "max_bytes must be between 1 and 1048576"},
-		{"base64 above 8 MiB", map[string]any{"name": "box", "path": "/a", "base64": true, "max_bytes": 9 << 20}, "max_bytes must be between 1 and 8388608"},
+		{"base64 above 8 MiB", map[string]any{"name": "box", "path": "/a", "encoding": "base64", "max_bytes": 9 << 20}, "max_bytes must be between 1 and 8388608"},
+		{"utf-8 above 1 MiB", map[string]any{"name": "box", "path": "/a", "encoding": "utf-8", "max_bytes": 2 << 20}, "max_bytes must be between 1 and 1048576"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

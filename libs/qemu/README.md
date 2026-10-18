@@ -65,6 +65,4 @@ builder (`genisoimage` or `xorriso`) is missing.
 - `sshrunner.LoadSigner` accepts unencrypted OpenSSH or PKCS#8 keys only; an encrypted key makes it return a parse error.
 - The `guestexec` package comment says it is a port of `local-agent/gateway/gateway.py`. That file is not in this
   repository, so the claim cannot be checked here.
-- The `remote` package comment says the server half is `internal/vmd/node/nodeserver`. The actual package is
-  `libs/qemu/nodeserver`. The comment predates the module split.
 - `fake` runs `Exec` under its lock, so an `Exec` implementation must not call back into the driver.

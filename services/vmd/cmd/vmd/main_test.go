@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"io"
 	"net"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/pg/pgtest"
 )
@@ -206,9 +206,9 @@ func TestVMDShardsAcrossSeveralDatabases(t *testing.T) {
 		p := fmt.Sprintf("proj-%02d", i)
 		var code int
 		var body string
-		for range 50 { // wait for the node to register
+		for range 50 { // wait for the node to register and report its free space (412 / 429 until it has)
 			code, body = call(t, create, k.token(t, authz.RoleEditor, p), `{"projectId":"`+p+`","name":"data","sizeGb":1}`)
-			if code != 412 {
+			if code != 412 && code != 429 {
 				break
 			}
 			time.Sleep(100 * time.Millisecond)

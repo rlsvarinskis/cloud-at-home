@@ -24,7 +24,7 @@ func (s *ModelServer) ListModels(ctx context.Context, _ *connect.Request[agentdv
 	}
 	res := &agentdv1.ListModelsResponse{}
 	for _, m := range installed {
-		res.Models = append(res.Models, modelToProto(m))
+		res.Models = append(res.Models, modelToProto(m, s.cfg.VRAMGiB))
 	}
 	return connect.NewResponse(res), nil
 }

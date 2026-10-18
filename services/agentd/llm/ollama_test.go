@@ -30,7 +30,7 @@ func ndjsonServer(t *testing.T, lines ...string) *Ollama {
 
 // chatOnce runs one Chat with a single user message and no tools.
 func chatOnce(o *Ollama, onChunk func(Chunk)) (Message, error) {
-	return o.Chat(context.Background(), "gemma4:12b", []Message{{Role: "user", Content: "hi"}}, nil, onChunk)
+	return o.Chat(context.Background(), "gemma4:12b", []Message{{Role: "user", Content: "hi"}}, nil, ChatOptions{}, onChunk)
 }
 
 func TestChatStreamsContent(t *testing.T) {
@@ -40,7 +40,11 @@ func TestChatStreamsContent(t *testing.T) {
 		`{"message":{"role":"assistant","content":"!"},"done":true}`,
 	)
 	var got []Chunk
-	msg, err := chatOnce(o, func(c Chunk) { got = append(got, c) })
+	msg, err := chatOnce(o, func(c Chunk) {
+		if !c.Done {
+			got = append(got, c)
+		}
+	})
 	if err != nil {
 		t.Fatalf("Chat: %v", err)
 	}
@@ -61,7 +65,11 @@ func TestChatThinkingAndContent(t *testing.T) {
 		`{"message":{"role":"assistant","content":"Answer"},"done":true}`,
 	)
 	var got []Chunk
-	msg, err := chatOnce(o, func(c Chunk) { got = append(got, c) })
+	msg, err := chatOnce(o, func(c Chunk) {
+		if !c.Done {
+			got = append(got, c)
+		}
+	})
 	if err != nil {
 		t.Fatalf("Chat: %v", err)
 	}
@@ -81,7 +89,11 @@ func TestChatToolCallInMiddleChunk(t *testing.T) {
 		`{"message":{"role":"assistant","content":"done"},"done":true}`,
 	)
 	var got []Chunk
-	msg, err := chatOnce(o, func(c Chunk) { got = append(got, c) })
+	msg, err := chatOnce(o, func(c Chunk) {
+		if !c.Done {
+			got = append(got, c)
+		}
+	})
 	if err != nil {
 		t.Fatalf("Chat: %v", err)
 	}
@@ -215,11 +227,11 @@ func TestChatRequestBody(t *testing.T) {
 	}}
 
 	o := NewOllama(srv.URL)
-	if _, err := o.Chat(context.Background(), "gemma4:12b", msgs, tools, nil); err != nil {
+	if _, err := o.Chat(context.Background(), "gemma4:12b", msgs, tools, ChatOptions{}, nil); err != nil {
 		t.Fatalf("Chat (default num_ctx): %v", err)
 	}
 	o.NumCtx = 4096
-	if _, err := o.Chat(context.Background(), "gemma4:12b", msgs, tools, nil); err != nil {
+	if _, err := o.Chat(context.Background(), "gemma4:12b", msgs, tools, ChatOptions{}, nil); err != nil {
 		t.Fatalf("Chat (custom num_ctx): %v", err)
 	}
 
@@ -267,7 +279,7 @@ func TestChatCancelledBeforeStart(t *testing.T) {
 	o := ndjsonServer(t, `{"message":{"role":"assistant","content":"x"},"done":true}`)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := o.Chat(ctx, "m", nil, nil, nil)
+	_, err := o.Chat(ctx, "m", nil, nil, ChatOptions{}, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
@@ -291,7 +303,7 @@ func TestChatCancelMidStream(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	start := time.Now()
-	_, err := NewOllama(srv.URL).Chat(ctx, "m", nil, nil, func(Chunk) { cancel() })
+	_, err := NewOllama(srv.URL).Chat(ctx, "m", nil, nil, ChatOptions{}, func(Chunk) { cancel() })
 	elapsed := time.Since(start)
 
 	if !errors.Is(err, context.Canceled) {
@@ -309,10 +321,28 @@ func TestChatCancelMidStream(t *testing.T) {
 
 func TestListModels(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/api/tags" {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/tags":
+			io.WriteString(w, `{"models":[`+
+				`{"name":"gemma4:12b","size":7516192768,"details":{"parameter_size":"12.0B","quantization_level":"Q4_K_M"}},`+
+				`{"name":"tiny","size":1},`+
+				`{"name":"broken","size":2}]}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/show":
+			var req struct {
+				Model string `json:"model"`
+			}
+			json.NewDecoder(r.Body).Decode(&req)
+			switch req.Model {
+			case "gemma4:12b":
+				io.WriteString(w, `{"model_info":{"general.architecture":"gemma","gemma.context_length":131072}}`)
+			case "tiny":
+				io.WriteString(w, `{"model_info":{}}`)
+			default:
+				http.Error(w, "no such model", http.StatusNotFound)
+			}
+		default:
 			t.Errorf("request = %s %s", r.Method, r.URL.Path)
 		}
-		io.WriteString(w, `{"models":[{"name":"gemma4:12b","size":7516192768},{"name":"tiny","size":1}]}`)
 	}))
 	t.Cleanup(srv.Close)
 
@@ -320,9 +350,91 @@ func TestListModels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}
-	want := []ModelInfo{{Name: "gemma4:12b", SizeBytes: 7516192768}, {Name: "tiny", SizeBytes: 1}}
+	want := []ModelInfo{
+		{Name: "gemma4:12b", SizeBytes: 7516192768, Params: "12.0B", Quant: "Q4_K_M", ContextLength: 131072},
+		{Name: "tiny", SizeBytes: 1},
+		{Name: "broken", SizeBytes: 2},
+	}
 	if !reflect.DeepEqual(models, want) {
 		t.Errorf("models = %+v, want %+v", models, want)
+	}
+}
+
+func TestChatSendsNumPredictOnlyWhenCapped(t *testing.T) {
+	for _, tc := range []struct {
+		max  int
+		want string
+	}{{0, `"num_predict"`}, {512, `"num_predict":512`}} {
+		var body string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, _ := io.ReadAll(r.Body)
+			body = string(b)
+			io.WriteString(w, `{"message":{"role":"assistant","content":"x"},"done":true,"done_reason":"stop"}`)
+		}))
+		o := NewOllama(srv.URL)
+		if _, err := o.Chat(context.Background(), "m", nil, nil, ChatOptions{MaxTokens: tc.max}, nil); err != nil {
+			t.Fatal(err)
+		}
+		srv.Close()
+		if has := strings.Contains(body, tc.want); has != (tc.max > 0) {
+			t.Errorf("max %d: body %s, contains %s = %v", tc.max, body, tc.want, has)
+		}
+	}
+}
+
+func TestChatDoneChunkCarriesReasonAndCounts(t *testing.T) {
+	o := ndjsonServer(t,
+		`{"message":{"role":"assistant","content":"x"},"done":false}`,
+		`{"message":{"role":"assistant","content":""},"done":true,"done_reason":"length","prompt_eval_count":11,"eval_count":22}`,
+	)
+	var done []Chunk
+	if _, err := chatOnce(o, func(c Chunk) {
+		if c.Done {
+			done = append(done, c)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := []Chunk{{Done: true, DoneReason: "length", PromptTokens: 11, GenTokens: 22}}
+	if !reflect.DeepEqual(done, want) {
+		t.Fatalf("done chunks = %+v, want %+v", done, want)
+	}
+}
+
+func TestToolParseErrorFromStatusAndStream(t *testing.T) {
+	// Ollama's HTTP 500 body: {"error": "..."} with the raw call text inside the message.
+	status := `{"error":"error parsing tool call: raw='{\"command\": \"a\nb\"}', err=invalid character"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, status)
+	}))
+	t.Cleanup(srv.Close)
+	_, err := chatOnce(NewOllama(srv.URL), nil)
+	var pe *ToolParseError
+	if !errors.As(err, &pe) {
+		t.Fatalf("status err = %v, want a *ToolParseError", err)
+	}
+	if pe.Raw != "{\"command\": \"a\nb\"}" {
+		t.Errorf("Raw = %q", pe.Raw)
+	}
+
+	// The same error arriving as an error line inside the stream.
+	o := ndjsonServer(t, `{"error":"error parsing tool call: raw='{\"a\": 1', err=boom"}`)
+	_, err = chatOnce(o, nil)
+	if !errors.As(err, &pe) || pe.Raw != `{"a": 1` {
+		t.Fatalf("stream err = %v (raw %v)", err, pe)
+	}
+}
+
+func TestNon200ErrorTextIsKept(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"error":"model crashed"}`)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+	_, err := chatOnce(NewOllama(srv.URL), nil)
+	if err == nil || !strings.Contains(err.Error(), "model crashed") {
+		t.Fatalf("err = %v", err)
 	}
 }
 

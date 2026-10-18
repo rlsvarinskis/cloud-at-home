@@ -56,8 +56,22 @@ func taskToProto(t *domain.Task) *agentdv1.Task {
 		CheckCommand: t.CheckCommand, MaxSteps: int32(t.MaxSteps), State: taskStateToProto(t.State),
 		Verdict: t.Verdict, Result: t.Result, Steps: int32(t.Steps), Attempts: int32(t.Attempts),
 		CancelRequested: t.CancelRequested, CreatedAt: tsp(t.CreatedAt), StartedAt: tsp(t.StartedAt),
-		FinishedAt: tsp(t.FinishedAt),
+		FinishedAt: tsp(t.FinishedAt), Reason: t.Reason, VerdictSource: t.VerdictSource,
+		PromptTokens: t.PromptTokens, CompletionTokens: t.CompletionTokens, ModelCalls: int32(t.ModelCalls),
+		PartialCalls: int32(t.PartialCalls), FirstTokenSeconds: t.FirstTokenSeconds,
+		FirstCommandSeconds: t.FirstCommandSeconds, LiveAnswer: t.LiveAnswer, LiveReasoning: t.LiveReasoning,
+		Calls: callsToProto(t.Calls), CheckEachStep: t.CheckEachStep, MaxMinutes: int32(t.MaxMinutes),
+		MaxCallTokens: int32(t.MaxCallTokens),
 	}
+}
+
+func callsToProto(calls []domain.CallRecord) []*agentdv1.CallStat {
+	out := make([]*agentdv1.CallStat, 0, len(calls))
+	for _, c := range calls {
+		out = append(out, &agentdv1.CallStat{Index: int32(c.Index), Seconds: c.Seconds,
+			PromptTokens: c.PromptTokens, GenTokens: c.GenTokens, End: c.End, Partial: c.Partial, Note: c.Note})
+	}
+	return out
 }
 
 func taskStateToProto(s domain.TaskState) agentdv1.TaskState {
@@ -68,6 +82,8 @@ func taskStateToProto(s domain.TaskState) agentdv1.TaskState {
 		return agentdv1.TaskState_TASK_STATE_RUNNING
 	case domain.TaskSucceeded:
 		return agentdv1.TaskState_TASK_STATE_SUCCEEDED
+	case domain.TaskSucceededUnverified:
+		return agentdv1.TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED
 	case domain.TaskFailed:
 		return agentdv1.TaskState_TASK_STATE_FAILED
 	case domain.TaskGaveUp:
@@ -84,7 +100,7 @@ func taskStateToProto(s domain.TaskState) agentdv1.TaskState {
 // callers read as "no state given".
 func taskStateFromProto(s agentdv1.TaskState) domain.TaskState {
 	for _, d := range []domain.TaskState{domain.TaskQueued, domain.TaskRunning, domain.TaskSucceeded,
-		domain.TaskFailed, domain.TaskGaveUp, domain.TaskCancelled, domain.TaskError} {
+		domain.TaskSucceededUnverified, domain.TaskFailed, domain.TaskGaveUp, domain.TaskCancelled, domain.TaskError} {
 		if taskStateToProto(d) == s {
 			return d
 		}
@@ -101,6 +117,10 @@ func stepToProto(s *domain.Step) *agentdv1.Step {
 	return out
 }
 
-func modelToProto(m llm.ModelInfo) *agentdv1.Model {
-	return &agentdv1.Model{Name: m.Name, SizeBytes: m.SizeBytes}
+// modelToProto converts an installed model. The size is also given in GiB, and fits_vram compares the weights
+// with the budget less the headroom.
+func modelToProto(m llm.ModelInfo, vramGiB float64) *agentdv1.Model {
+	sizeGiB := float64(m.SizeBytes) / (1 << 30)
+	return &agentdv1.Model{Name: m.Name, SizeBytes: m.SizeBytes, SizeGib: sizeGiB, Params: m.Params,
+		Quant: m.Quant, ContextLength: m.ContextLength, FitsVram: sizeGiB <= vramGiB-vramHeadroomGiB}
 }

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"log/slog"
 	"net"
@@ -37,6 +36,7 @@ import (
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/store"
 	pgstore "github.com/rlsvarinskis/cloud-at-home/services/vmd/store/postgres"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/store/shard"
+	"golang.org/x/crypto/ssh"
 )
 
 var version = "dev" // set with -ldflags "-X main.version=..."

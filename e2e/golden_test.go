@@ -63,7 +63,8 @@ func goldenPath(t *testing.T, backend string, checkExit int, opts ...worldOption
 		t.Errorf("VM holds %v, want [agentd/%s]", got, agent.Id)
 	}
 
-	task := w.createTask(ed, agent.Id, "write hello to out.txt", check)
+	// check_each_step is off so that the scenario keeps its shape: the model's reply is followed by the check.
+	task := w.createTaskEach(ed, agent.Id, "write hello to out.txt", check, false)
 	w.runTasks()
 
 	got := w.getTask(ed, task.Id)
@@ -151,8 +152,9 @@ func manyAgentsOneVM(t *testing.T, backend string, opts ...worldOption) {
 	w.runWorkers(3, taskIDs...)
 
 	for _, r := range runs {
-		if got := w.getTask(ed, r.task.Id); got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED {
-			t.Errorf("task of %s: state %v (result %q), want SUCCEEDED", r.agent.Name, got.State, got.Result)
+		// No check command: the model's claimed success is reported as unverified.
+		if got := w.getTask(ed, r.task.Id); got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED {
+			t.Errorf("task of %s: state %v (result %q), want SUCCEEDED_UNVERIFIED", r.agent.Name, got.State, got.Result)
 		}
 		execs := w.commandRuns(r.cmd)
 		if len(execs) != 1 {

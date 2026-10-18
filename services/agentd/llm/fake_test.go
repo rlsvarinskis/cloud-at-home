@@ -35,7 +35,7 @@ func TestFakeScriptedReplies(t *testing.T) {
 	}}
 	ctx := context.Background()
 
-	m1, err := f.Chat(ctx, "m1", []Message{{Role: "user", Content: "hello"}}, nil, nil)
+	m1, err := f.Chat(ctx, "m1", []Message{{Role: "user", Content: "hello"}}, nil, ChatOptions{}, nil)
 	if err != nil {
 		t.Fatalf("first Chat: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestFakeScriptedReplies(t *testing.T) {
 		t.Errorf("first reply = %+v", m1)
 	}
 
-	m2, err := f.Chat(ctx, "m1", nil, nil, nil)
+	m2, err := f.Chat(ctx, "m1", nil, nil, ChatOptions{}, nil)
 	if err != nil {
 		t.Fatalf("second Chat: %v", err)
 	}
@@ -62,7 +62,11 @@ func TestFakeDeliversChunksInOrder(t *testing.T) {
 		Chunks:  []Chunk{{Content: "a"}, {Thinking: "t"}, {Content: "b"}},
 	}}}
 	var got []Chunk
-	msg, err := f.Chat(context.Background(), "m", nil, nil, func(c Chunk) { got = append(got, c) })
+	msg, err := f.Chat(context.Background(), "m", nil, nil, ChatOptions{}, func(c Chunk) {
+		if !c.Done {
+			got = append(got, c)
+		}
+	})
 	if err != nil {
 		t.Fatalf("Chat: %v", err)
 	}
@@ -77,7 +81,7 @@ func TestFakeDeliversChunksInOrder(t *testing.T) {
 
 func TestFakeNilOnChunkAccepted(t *testing.T) {
 	f := &Fake{Script: []FakeReply{{Chunks: []Chunk{{Content: "x"}}, Message: Message{Content: "x"}}}}
-	if _, err := f.Chat(context.Background(), "m", nil, nil, nil); err != nil {
+	if _, err := f.Chat(context.Background(), "m", nil, nil, ChatOptions{}, nil); err != nil {
 		t.Fatalf("Chat with nil onChunk: %v", err)
 	}
 }
@@ -85,10 +89,10 @@ func TestFakeNilOnChunkAccepted(t *testing.T) {
 func TestFakeExhausted(t *testing.T) {
 	f := &Fake{Script: []FakeReply{Say("only one")}}
 	ctx := context.Background()
-	if _, err := f.Chat(ctx, "m", nil, nil, nil); err != nil {
+	if _, err := f.Chat(ctx, "m", nil, nil, ChatOptions{}, nil); err != nil {
 		t.Fatalf("first Chat: %v", err)
 	}
-	if _, err := f.Chat(ctx, "m", nil, nil, nil); err == nil {
+	if _, err := f.Chat(ctx, "m", nil, nil, ChatOptions{}, nil); err == nil {
 		t.Fatal("second Chat on exhausted script: expected error")
 	}
 	if n := len(f.Calls); n != 2 {
@@ -108,7 +112,7 @@ func TestFakeRecordsCallsWithDeepCopies(t *testing.T) {
 	}
 	tools := []Tool{{Name: "bash", Description: "d", Parameters: map[string]any{"type": "object"}}}
 
-	if _, err := f.Chat(context.Background(), "model-x", msgs, tools, nil); err != nil {
+	if _, err := f.Chat(context.Background(), "model-x", msgs, tools, ChatOptions{}, nil); err != nil {
 		t.Fatalf("Chat: %v", err)
 	}
 
@@ -150,7 +154,11 @@ func TestFakeErrReply(t *testing.T) {
 		Err:    boom,
 	}}}
 	var got []Chunk
-	_, err := f.Chat(context.Background(), "m", nil, nil, func(c Chunk) { got = append(got, c) })
+	_, err := f.Chat(context.Background(), "m", nil, nil, ChatOptions{}, func(c Chunk) {
+		if !c.Done {
+			got = append(got, c)
+		}
+	})
 	if !errors.Is(err, boom) {
 		t.Fatalf("err = %v, want boom", err)
 	}
@@ -167,7 +175,7 @@ func TestFakeBlockCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() {
-		_, err := f.Chat(ctx, "m", nil, nil, nil)
+		_, err := f.Chat(ctx, "m", nil, nil, ChatOptions{}, nil)
 		errCh <- err
 	}()
 	waitForCalls(t, f, 1) // the call is now blocked inside Chat
@@ -193,7 +201,7 @@ func TestFakeBlockReleased(t *testing.T) {
 	}
 	resCh := make(chan result, 1)
 	go func() {
-		msg, err := f.Chat(context.Background(), "m", nil, nil, nil)
+		msg, err := f.Chat(context.Background(), "m", nil, nil, ChatOptions{}, nil)
 		resCh <- result{msg, err}
 	}()
 	waitForCalls(t, f, 1)
@@ -213,7 +221,7 @@ func TestFakeCancelledBeforeCallConsumesNothing(t *testing.T) {
 	f := &Fake{Script: []FakeReply{Say("kept")}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := f.Chat(ctx, "m", nil, nil, nil); !errors.Is(err, context.Canceled) {
+	if _, err := f.Chat(ctx, "m", nil, nil, ChatOptions{}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 	if len(f.Script) != 1 || len(f.Calls) != 0 {
@@ -250,7 +258,7 @@ func TestFakeConcurrentUse(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			msg, err := f.Chat(context.Background(), "m", []Message{{Role: "user", Content: "x"}}, nil, func(Chunk) {})
+			msg, err := f.Chat(context.Background(), "m", []Message{{Role: "user", Content: "x"}}, nil, ChatOptions{}, func(Chunk) {})
 			if err != nil {
 				t.Errorf("Chat: %v", err)
 				return

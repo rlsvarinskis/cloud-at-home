@@ -39,6 +39,8 @@ func Run(t *testing.T, newStore func(t *testing.T) store.Store) {
 	run("task/idempotency-key", testTaskIdempotencyKey)
 	run("task/update-cas", testTaskUpdateCAS)
 	run("task/list-filters-and-paging", testTaskListFilters)
+	run("task/progress-fields-round-trip", testTaskProgressRoundTrip)
+	run("task/succeeded-unverified-state", testTaskSucceededUnverifiedState)
 
 	run("claim/order-limit-and-fields", testClaimOrderLimitAndFields)
 	run("claim/lease-respected-and-takeover", testClaimLeaseAndTakeover)
@@ -472,6 +474,56 @@ func testTaskListFilters(t *testing.T, s store.Store) {
 }
 
 // ---- claiming ----
+
+func testTaskProgressRoundTrip(t *testing.T, s store.Store) {
+	tk := newTask("t1", "a1", "p1", domain.TaskRunning)
+	tk.CheckEachStep = false
+	tk.MaxMinutes = 5
+	tk.MaxCallTokens = 0
+	must(t, s.CreateTask(bg, tk))
+
+	tk.Reason = "repetition"
+	tk.VerdictSource = domain.VerdictFromCheck
+	tk.PromptTokens, tk.CompletionTokens = 1200, 3400
+	tk.ModelCalls, tk.PartialCalls = 3, 1
+	tk.FirstTokenSeconds, tk.FirstCommandSeconds = 0.25, 1.5
+	tk.LiveAnswer, tk.LiveReasoning = "half an answer", "some thinking"
+	tk.Calls = []domain.CallRecord{
+		{Index: 1, Seconds: 2.5, PromptTokens: 1000, GenTokens: 40, End: "ok"},
+		{Index: 2, Seconds: 1.25, GenTokens: 17, End: "repetition", Partial: true, Note: "repaired a malformed tool call"},
+	}
+	must(t, s.UpdateTask(bg, tk))
+	got, err := s.GetTask(bg, "t1")
+	must(t, err)
+	if !reflect.DeepEqual(got, tk) {
+		t.Fatalf("GetTask = %+v, want %+v", got, tk)
+	}
+
+	// Clearing the live fields and the calls is also a plain update.
+	tk.LiveAnswer, tk.LiveReasoning, tk.Calls = "", "", nil
+	must(t, s.UpdateTask(bg, tk))
+	got, err = s.GetTask(bg, "t1")
+	must(t, err)
+	if got.LiveAnswer != "" || got.LiveReasoning != "" || len(got.Calls) != 0 {
+		t.Fatalf("after clearing: %+v", got)
+	}
+}
+
+func testTaskSucceededUnverifiedState(t *testing.T, s store.Store) {
+	tk := newTask("t1", "a1", "p1", domain.TaskRunning)
+	must(t, s.CreateTask(bg, tk))
+	tk.State = domain.TaskSucceededUnverified
+	tk.VerdictSource = domain.VerdictFromModel
+	must(t, s.UpdateTask(bg, tk))
+	got, err := s.GetTask(bg, "t1")
+	must(t, err)
+	if got.State != domain.TaskSucceededUnverified || !got.State.Succeeded() {
+		t.Fatalf("state = %q", got.State)
+	}
+	if !got.State.Final() {
+		t.Fatalf("succeeded_unverified should be final")
+	}
+}
 
 func testClaimOrderLimitAndFields(t *testing.T, s store.Store) {
 	// Created out of ID order: claims must follow ID order, not creation order.

@@ -42,18 +42,18 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // Chat mocks base method.
-func (m *MockClient) Chat(ctx context.Context, model string, msgs []llm.Message, tools []llm.Tool, onChunk func(llm.Chunk)) (llm.Message, error) {
+func (m *MockClient) Chat(ctx context.Context, model string, msgs []llm.Message, tools []llm.Tool, opts llm.ChatOptions, onChunk func(llm.Chunk)) (llm.Message, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Chat", ctx, model, msgs, tools, onChunk)
+	ret := m.ctrl.Call(m, "Chat", ctx, model, msgs, tools, opts, onChunk)
 	ret0, _ := ret[0].(llm.Message)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Chat indicates an expected call of Chat.
-func (mr *MockClientMockRecorder) Chat(ctx, model, msgs, tools, onChunk any) *gomock.Call {
+func (mr *MockClientMockRecorder) Chat(ctx, model, msgs, tools, opts, onChunk any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Chat", reflect.TypeOf((*MockClient)(nil).Chat), ctx, model, msgs, tools, onChunk)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Chat", reflect.TypeOf((*MockClient)(nil).Chat), ctx, model, msgs, tools, opts, onChunk)
 }
 
 // ListModels mocks base method.

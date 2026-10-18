@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
@@ -72,7 +74,8 @@ type ollamaToolDef struct {
 }
 
 type ollamaOptions struct {
-	NumCtx int `json:"num_ctx"`
+	NumCtx     int `json:"num_ctx"`
+	NumPredict int `json:"num_predict,omitempty"`
 }
 
 type ollamaChatRequest struct {
@@ -84,9 +87,12 @@ type ollamaChatRequest struct {
 }
 
 type ollamaStreamChunk struct {
-	Message ollamaStreamMessage `json:"message"`
-	Done    bool                `json:"done"`
-	Error   *string             `json:"error"`
+	Message         ollamaStreamMessage `json:"message"`
+	Done            bool                `json:"done"`
+	DoneReason      string              `json:"done_reason"`
+	PromptEvalCount int64               `json:"prompt_eval_count"`
+	EvalCount       int64               `json:"eval_count"`
+	Error           *string             `json:"error"`
 }
 
 type ollamaStreamMessage struct {
@@ -97,15 +103,37 @@ type ollamaStreamMessage struct {
 
 type ollamaTags struct {
 	Models []struct {
-		Name string `json:"name"`
-		Size int64  `json:"size"`
+		Name    string `json:"name"`
+		Size    int64  `json:"size"`
+		Details struct {
+			ParameterSize     string `json:"parameter_size"`
+			QuantizationLevel string `json:"quantization_level"`
+		} `json:"details"`
 	} `json:"models"`
 }
 
+type ollamaShow struct {
+	ModelInfo map[string]any `json:"model_info"`
+}
+
+// toolParseRE matches the error Ollama returns when it cannot parse a tool call the model emitted. The raw call
+// text is the group. The pattern is the one the Python gateway uses.
+var toolParseRE = regexp.MustCompile(`(?s)error parsing tool call: raw='(.*)', err=`)
+
+// toolParseError returns a *ToolParseError when msg is Ollama's tool-call parse error, else nil.
+func toolParseError(msg string) *ToolParseError {
+	m := toolParseRE.FindStringSubmatch(msg)
+	if m == nil {
+		return nil
+	}
+	return &ToolParseError{Raw: m[1], Msg: strings.TrimSpace(msg)}
+}
+
 // Chat streams one reply from /api/chat. Content, thinking and tool calls are accumulated across chunks.
-// onChunk (may be nil) is called for every chunk carrying content or thinking. If ctx is cancelled the
-// request is aborted, which closes the connection so Ollama stops generating, and ctx.Err() is returned.
-func (o *Ollama) Chat(ctx context.Context, model string, msgs []Message, tools []Tool, onChunk func(Chunk)) (Message, error) {
+// onChunk (may be nil) is called for every chunk carrying content or thinking, and for the final Done chunk.
+// If ctx is cancelled the request is aborted, which closes the connection so Ollama stops generating, and
+// ctx.Err() is returned. A tool call Ollama cannot parse is returned as a *ToolParseError.
+func (o *Ollama) Chat(ctx context.Context, model string, msgs []Message, tools []Tool, opts ChatOptions, onChunk func(Chunk)) (Message, error) {
 	numCtx := o.NumCtx
 	if numCtx == 0 {
 		numCtx = defaultNumCtx
@@ -115,7 +143,7 @@ func (o *Ollama) Chat(ctx context.Context, model string, msgs []Message, tools [
 		Messages: toOllamaMessages(msgs),
 		Tools:    toOllamaTools(tools),
 		Stream:   true,
-		Options:  ollamaOptions{NumCtx: numCtx},
+		Options:  ollamaOptions{NumCtx: numCtx, NumPredict: max(opts.MaxTokens, 0)},
 	})
 	if err != nil {
 		return Message{}, fmt.Errorf("ollama chat: encode request: %w", err)
@@ -131,12 +159,18 @@ func (o *Ollama) Chat(ctx context.Context, model string, msgs []Message, tools [
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return Message{}, statusErr("ollama chat", resp)
+		text := errorBody(resp)
+		if pe := toolParseError(text); pe != nil {
+			return Message{}, pe
+		}
+		return Message{}, statusErr("ollama chat", resp.StatusCode, text)
 	}
 	return readStream(ctx, resp.Body, onChunk)
 }
 
-// ListModels returns the models installed on the server, from GET /api/tags.
+// ListModels returns the models installed on the server: GET /api/tags for names, sizes and details, then
+// POST /api/show for each model's context length. The show calls run concurrently and a failed one only
+// leaves ContextLength zero.
 func (o *Ollama) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.endpoint("/api/tags"), nil)
 	if err != nil {
@@ -148,17 +182,57 @@ func (o *Ollama) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, statusErr("ollama list models", resp)
+		return nil, statusErr("ollama list models", resp.StatusCode, errorBody(resp))
 	}
 	var tags ollamaTags
 	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
 		return nil, fmt.Errorf("ollama list models: decode response: %w", err)
 	}
-	out := make([]ModelInfo, 0, len(tags.Models))
-	for _, m := range tags.Models {
-		out = append(out, ModelInfo{Name: m.Name, SizeBytes: m.Size})
+	out := make([]ModelInfo, len(tags.Models))
+	var wg sync.WaitGroup
+	for i, m := range tags.Models {
+		out[i] = ModelInfo{Name: m.Name, SizeBytes: m.Size, Params: m.Details.ParameterSize,
+			Quant: m.Details.QuantizationLevel}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			out[i].ContextLength = o.contextLength(ctx, m.Name)
+		}()
 	}
+	wg.Wait()
 	return out, nil
+}
+
+// contextLength asks /api/show for the model's context length: the value of its "<arch>.context_length" key.
+// It returns zero on any failure.
+func (o *Ollama) contextLength(ctx context.Context, model string) int64 {
+	body, err := json.Marshal(map[string]string{"model": model})
+	if err != nil {
+		return 0
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.endpoint("/api/show"), bytes.NewReader(body))
+	if err != nil {
+		return 0
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := o.client().Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0
+	}
+	var show ollamaShow
+	if err := json.NewDecoder(resp.Body).Decode(&show); err != nil {
+		return 0
+	}
+	for k, v := range show.ModelInfo {
+		if f, ok := v.(float64); ok && strings.HasSuffix(k, ".context_length") {
+			return int64(f)
+		}
+	}
+	return 0
 }
 
 func (o *Ollama) endpoint(path string) string {
@@ -196,6 +270,9 @@ func readStream(ctx context.Context, body io.Reader, onChunk func(Chunk)) (Messa
 				return Message{}, fmt.Errorf("ollama chat: decode stream chunk: %w", err)
 			}
 			if chunk.Error != nil {
+				if pe := toolParseError(*chunk.Error); pe != nil {
+					return Message{}, pe
+				}
 				return Message{}, fmt.Errorf("ollama chat: server error: %s", *chunk.Error)
 			}
 			m := chunk.Message
@@ -208,6 +285,10 @@ func readStream(ctx context.Context, body io.Reader, onChunk func(Chunk)) (Messa
 			}
 			for _, tc := range m.ToolCalls {
 				calls = append(calls, ToolCall{Name: tc.Function.Name, Arguments: tc.Function.Arguments})
+			}
+			if chunk.Done && onChunk != nil {
+				onChunk(Chunk{Done: true, DoneReason: chunk.DoneReason,
+					PromptTokens: chunk.PromptEvalCount, GenTokens: chunk.EvalCount})
 			}
 			done = chunk.Done
 		}
@@ -235,14 +316,29 @@ func transportErr(ctx context.Context, op string, err error) error {
 	return errs.Unavailable("%s: %v", op, err)
 }
 
-// statusErr reports a non-200 response with its status and a trimmed prefix of the body.
-func statusErr(op string, resp *http.Response) error {
+// errorBody returns the trimmed, bounded text of an error response. Ollama sends {"error": "..."}; that
+// message is returned when present. It reads the body, so call it once per response.
+func errorBody(resp *http.Response) string {
 	snippet, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
-	text := strings.TrimSpace(string(snippet))
-	if text == "" {
-		return fmt.Errorf("%s: status %d", op, resp.StatusCode)
+	var e struct {
+		Error string `json:"error"`
 	}
-	return fmt.Errorf("%s: status %d: %s", op, resp.StatusCode, text)
+	if json.Unmarshal(snippet, &e) == nil && e.Error != "" {
+		return e.Error
+	}
+	return strings.TrimSpace(string(snippet))
+}
+
+// statusErr reports a non-200 response with its status and the trimmed error text.
+func statusErr(op string, code int, text string) error {
+	text = strings.TrimSpace(text)
+	if len(text) > maxErrorBody {
+		text = text[:maxErrorBody]
+	}
+	if text == "" {
+		return fmt.Errorf("%s: status %d", op, code)
+	}
+	return fmt.Errorf("%s: status %d: %s", op, code, text)
 }
 
 func toOllamaMessages(msgs []Message) []ollamaWireMessage {

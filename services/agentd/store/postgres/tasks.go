@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -13,18 +14,68 @@ import (
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 )
 
+// taskCols lists the columns read back for a task, in the order scanTask reads them.
 const taskCols = "id, agent_id, project_id, prompt, check_command, max_steps, state, verdict, result, " +
 	"steps, attempts, cancel_requested, idempotency_key, lease_owner, lease_until, version, " +
-	"created_at, started_at, finished_at"
+	"created_at, started_at, finished_at, check_each_step, max_minutes, max_call_tokens, reason, " +
+	"verdict_source, prompt_tokens, completion_tokens, model_calls, partial_calls, first_token_seconds, " +
+	"first_command_seconds, live_answer, live_reasoning, calls"
+
+// taskWriteCols lists the columns INSERT and UPDATE write: every column except version, which the store
+// manages. taskArgs returns the values in the same order.
+const taskWriteCols = "id, agent_id, project_id, prompt, check_command, max_steps, state, verdict, result, " +
+	"steps, attempts, cancel_requested, idempotency_key, lease_owner, lease_until, " +
+	"created_at, started_at, finished_at, check_each_step, max_minutes, max_call_tokens, reason, " +
+	"verdict_source, prompt_tokens, completion_tokens, model_calls, partial_calls, first_token_seconds, " +
+	"first_command_seconds, live_answer, live_reasoning, calls"
+
+// taskArgs returns the values of taskWriteCols for t.
+func taskArgs(t *domain.Task) ([]any, error) {
+	calls, err := encodeCalls(t.Calls)
+	if err != nil {
+		return nil, err
+	}
+	return []any{t.ID, t.AgentID, t.ProjectID, t.Prompt, t.CheckCommand, t.MaxSteps, string(t.State), t.Verdict,
+		t.Result, t.Steps, t.Attempts, t.CancelRequested, t.IdempotencyKey, t.LeaseOwner, t.LeaseUntil,
+		t.CreatedAt, nullTime(t.StartedAt), nullTime(t.FinishedAt), t.CheckEachStep, t.MaxMinutes,
+		t.MaxCallTokens, t.Reason, t.VerdictSource, t.PromptTokens, t.CompletionTokens, t.ModelCalls,
+		t.PartialCalls, t.FirstTokenSeconds, t.FirstCommandSeconds, t.LiveAnswer, t.LiveReasoning, calls}, nil
+}
+
+// encodeCalls stores the call records as a JSON array ("[]" when there are none).
+func encodeCalls(calls []domain.CallRecord) (string, error) {
+	if len(calls) == 0 {
+		return "[]", nil
+	}
+	raw, err := json.Marshal(calls)
+	if err != nil {
+		return "", fmt.Errorf("postgres: encode calls: %w", err)
+	}
+	return string(raw), nil
+}
+
+// decodeCalls reads the JSON array written by encodeCalls; an empty array decodes to nil.
+func decodeCalls(raw []byte) ([]domain.CallRecord, error) {
+	if len(raw) == 0 || string(raw) == "[]" {
+		return nil, nil
+	}
+	var calls []domain.CallRecord
+	if err := json.Unmarshal(raw, &calls); err != nil {
+		return nil, fmt.Errorf("postgres: decode calls: %w", err)
+	}
+	return calls, nil
+}
 
 // CreateTask inserts t. A duplicate ID, or an idempotency key already used in t's project, yields
 // errs.ErrAlreadyExists. On success t.Version is set to 1. The agent is not checked for existence.
 func (s *Store) CreateTask(ctx context.Context, t *domain.Task) error {
-	_, err := s.q.Exec(ctx,
-		"INSERT INTO tasks ("+taskCols+") VALUES ("+pg.Placeholders(1, 19)+")",
-		t.ID, t.AgentID, t.ProjectID, t.Prompt, t.CheckCommand, t.MaxSteps, string(t.State), t.Verdict,
-		t.Result, t.Steps, t.Attempts, t.CancelRequested, t.IdempotencyKey, t.LeaseOwner, t.LeaseUntil,
-		int64(1), t.CreatedAt, nullTime(t.StartedAt), nullTime(t.FinishedAt))
+	args, err := taskArgs(t)
+	if err != nil {
+		return err
+	}
+	_, err = s.q.Exec(ctx,
+		"INSERT INTO tasks ("+taskWriteCols+", version) VALUES ("+pg.Placeholders(1, len(args)+1)+")",
+		append(args, int64(1))...)
 	if err != nil {
 		return uniqueErr(err, "task %s", t.ID)
 	}
@@ -80,17 +131,22 @@ func (s *Store) ListTasks(ctx context.Context, agentID, project string, state do
 // UpdateTask replaces the stored task with t if t.Version matches the stored version (errs.ErrConflict
 // otherwise). On success t.Version is incremented.
 func (s *Store) UpdateTask(ctx context.Context, t *domain.Task) error {
+	args, err := taskArgs(t)
+	if err != nil {
+		return err
+	}
 	var version int64
-	err := s.q.QueryRow(ctx, `
+	err = s.q.QueryRow(ctx, `
 		UPDATE tasks SET agent_id = $2, project_id = $3, prompt = $4, check_command = $5, max_steps = $6,
 			state = $7, verdict = $8, result = $9, steps = $10, attempts = $11, cancel_requested = $12,
 			idempotency_key = $13, lease_owner = $14, lease_until = $15, created_at = $16,
-			started_at = $17, finished_at = $18, version = version + 1
-		WHERE id = $1 AND version = $19
-		RETURNING version`,
-		t.ID, t.AgentID, t.ProjectID, t.Prompt, t.CheckCommand, t.MaxSteps, string(t.State), t.Verdict,
-		t.Result, t.Steps, t.Attempts, t.CancelRequested, t.IdempotencyKey, t.LeaseOwner, t.LeaseUntil,
-		t.CreatedAt, nullTime(t.StartedAt), nullTime(t.FinishedAt), t.Version).Scan(&version)
+			started_at = $17, finished_at = $18, check_each_step = $19, max_minutes = $20,
+			max_call_tokens = $21, reason = $22, verdict_source = $23, prompt_tokens = $24,
+			completion_tokens = $25, model_calls = $26, partial_calls = $27, first_token_seconds = $28,
+			first_command_seconds = $29, live_answer = $30, live_reasoning = $31, calls = $32::jsonb,
+			version = version + 1
+		WHERE id = $1 AND version = $33
+		RETURNING version`, append(args, t.Version)...).Scan(&version)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return s.casMiss(ctx, "tasks", "task", t.ID)
@@ -189,10 +245,14 @@ func scanTask(r pgx.Row) (*domain.Task, error) {
 		leaseUntil          time.Time
 		startedAt, finished *time.Time
 		createdAt           time.Time
+		calls               []byte
 	)
 	err := r.Scan(&t.ID, &t.AgentID, &t.ProjectID, &t.Prompt, &t.CheckCommand, &t.MaxSteps, &state,
 		&t.Verdict, &t.Result, &t.Steps, &t.Attempts, &t.CancelRequested, &t.IdempotencyKey,
-		&t.LeaseOwner, &leaseUntil, &t.Version, &createdAt, &startedAt, &finished)
+		&t.LeaseOwner, &leaseUntil, &t.Version, &createdAt, &startedAt, &finished,
+		&t.CheckEachStep, &t.MaxMinutes, &t.MaxCallTokens, &t.Reason, &t.VerdictSource,
+		&t.PromptTokens, &t.CompletionTokens, &t.ModelCalls, &t.PartialCalls, &t.FirstTokenSeconds,
+		&t.FirstCommandSeconds, &t.LiveAnswer, &t.LiveReasoning, &calls)
 	if err != nil {
 		return nil, err
 	}
@@ -204,6 +264,10 @@ func scanTask(r pgx.Row) (*domain.Task, error) {
 	}
 	if finished != nil {
 		t.FinishedAt = finished.UTC()
+	}
+	t.Calls, err = decodeCalls(calls)
+	if err != nil {
+		return nil, err
 	}
 	return &t, nil
 }

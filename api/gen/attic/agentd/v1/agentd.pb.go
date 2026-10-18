@@ -79,14 +79,15 @@ func (AgentState) EnumDescriptor() ([]byte, []int) {
 type TaskState int32
 
 const (
-	TaskState_TASK_STATE_UNSPECIFIED TaskState = 0
-	TaskState_TASK_STATE_QUEUED      TaskState = 1
-	TaskState_TASK_STATE_RUNNING     TaskState = 2
-	TaskState_TASK_STATE_SUCCEEDED   TaskState = 3
-	TaskState_TASK_STATE_FAILED      TaskState = 4 // the agent (or check_command) says the goal was not met
-	TaskState_TASK_STATE_GAVE_UP     TaskState = 5 // no verdict / step limit reached
-	TaskState_TASK_STATE_CANCELLED   TaskState = 6
-	TaskState_TASK_STATE_ERROR       TaskState = 7 // infrastructure problem (VM gone, model error, ...)
+	TaskState_TASK_STATE_UNSPECIFIED          TaskState = 0
+	TaskState_TASK_STATE_QUEUED               TaskState = 1
+	TaskState_TASK_STATE_RUNNING              TaskState = 2
+	TaskState_TASK_STATE_SUCCEEDED            TaskState = 3
+	TaskState_TASK_STATE_FAILED               TaskState = 4 // the agent (or check_command) says the goal was not met
+	TaskState_TASK_STATE_GAVE_UP              TaskState = 5 // no verdict / step limit reached
+	TaskState_TASK_STATE_CANCELLED            TaskState = 6
+	TaskState_TASK_STATE_ERROR                TaskState = 7 // infrastructure problem (VM gone, model error, ...)
+	TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED TaskState = 8 // the model claimed success but no check_command verified it
 )
 
 // Enum value maps for TaskState.
@@ -100,16 +101,18 @@ var (
 		5: "TASK_STATE_GAVE_UP",
 		6: "TASK_STATE_CANCELLED",
 		7: "TASK_STATE_ERROR",
+		8: "TASK_STATE_SUCCEEDED_UNVERIFIED",
 	}
 	TaskState_value = map[string]int32{
-		"TASK_STATE_UNSPECIFIED": 0,
-		"TASK_STATE_QUEUED":      1,
-		"TASK_STATE_RUNNING":     2,
-		"TASK_STATE_SUCCEEDED":   3,
-		"TASK_STATE_FAILED":      4,
-		"TASK_STATE_GAVE_UP":     5,
-		"TASK_STATE_CANCELLED":   6,
-		"TASK_STATE_ERROR":       7,
+		"TASK_STATE_UNSPECIFIED":          0,
+		"TASK_STATE_QUEUED":               1,
+		"TASK_STATE_RUNNING":              2,
+		"TASK_STATE_SUCCEEDED":            3,
+		"TASK_STATE_FAILED":               4,
+		"TASK_STATE_GAVE_UP":              5,
+		"TASK_STATE_CANCELLED":            6,
+		"TASK_STATE_ERROR":                7,
+		"TASK_STATE_SUCCEEDED_UNVERIFIED": 8,
 	}
 )
 
@@ -685,8 +688,30 @@ type Task struct {
 	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	StartedAt       *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	FinishedAt      *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Why the task ended or stopped early, for example "repetition", "token_limit", "step_limit", "timeout",
+	// "check passed". Empty for an ordinary final report.
+	Reason string `protobuf:"bytes,16,opt,name=reason,proto3" json:"reason,omitempty"`
+	// Who decided the state: "check" (check_command ran) or "model" (the model's VERDICT line). Empty while the
+	// task is queued or running and when no decision was made.
+	VerdictSource       string  `protobuf:"bytes,17,opt,name=verdict_source,json=verdictSource,proto3" json:"verdict_source,omitempty"`
+	PromptTokens        int64   `protobuf:"varint,18,opt,name=prompt_tokens,json=promptTokens,proto3" json:"prompt_tokens,omitempty"`                         // prompt tokens the backend reported for completed model calls
+	CompletionTokens    int64   `protobuf:"varint,19,opt,name=completion_tokens,json=completionTokens,proto3" json:"completion_tokens,omitempty"`             // generated tokens; an aborted call counts one per streamed chunk
+	ModelCalls          int32   `protobuf:"varint,20,opt,name=model_calls,json=modelCalls,proto3" json:"model_calls,omitempty"`                               // model calls made so far (complete and aborted)
+	PartialCalls        int32   `protobuf:"varint,21,opt,name=partial_calls,json=partialCalls,proto3" json:"partial_calls,omitempty"`                         // model calls that were aborted before their final chunk
+	FirstTokenSeconds   float64 `protobuf:"fixed64,22,opt,name=first_token_seconds,json=firstTokenSeconds,proto3" json:"first_token_seconds,omitempty"`       // seconds from start to the first streamed model output (0 = none yet)
+	FirstCommandSeconds float64 `protobuf:"fixed64,23,opt,name=first_command_seconds,json=firstCommandSeconds,proto3" json:"first_command_seconds,omitempty"` // seconds from start to the first command (0 = none yet)
+	// The model's partial answer so far (last ~600 characters) and its raw reasoning (last ~300 characters).
+	// Set only while a model call is streaming, throttled to about one update per second, and cleared when
+	// the call ends. They are never part of result.
+	LiveAnswer    string `protobuf:"bytes,24,opt,name=live_answer,json=liveAnswer,proto3" json:"live_answer,omitempty"`
+	LiveReasoning string `protobuf:"bytes,25,opt,name=live_reasoning,json=liveReasoning,proto3" json:"live_reasoning,omitempty"`
+	// The most recent model calls (at most 50), oldest first.
+	Calls         []*CallStat `protobuf:"bytes,26,rep,name=calls,proto3" json:"calls,omitempty"`
+	CheckEachStep bool        `protobuf:"varint,27,opt,name=check_each_step,json=checkEachStep,proto3" json:"check_each_step,omitempty"` // run check_command after every batch of commands (default true at creation)
+	MaxMinutes    int32       `protobuf:"varint,28,opt,name=max_minutes,json=maxMinutes,proto3" json:"max_minutes,omitempty"`            // 0 = no time limit
+	MaxCallTokens int32       `protobuf:"varint,29,opt,name=max_call_tokens,json=maxCallTokens,proto3" json:"max_call_tokens,omitempty"` // per-reply token cap; 0 = no cap
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Task) Reset() {
@@ -824,6 +849,197 @@ func (x *Task) GetFinishedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Task) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *Task) GetVerdictSource() string {
+	if x != nil {
+		return x.VerdictSource
+	}
+	return ""
+}
+
+func (x *Task) GetPromptTokens() int64 {
+	if x != nil {
+		return x.PromptTokens
+	}
+	return 0
+}
+
+func (x *Task) GetCompletionTokens() int64 {
+	if x != nil {
+		return x.CompletionTokens
+	}
+	return 0
+}
+
+func (x *Task) GetModelCalls() int32 {
+	if x != nil {
+		return x.ModelCalls
+	}
+	return 0
+}
+
+func (x *Task) GetPartialCalls() int32 {
+	if x != nil {
+		return x.PartialCalls
+	}
+	return 0
+}
+
+func (x *Task) GetFirstTokenSeconds() float64 {
+	if x != nil {
+		return x.FirstTokenSeconds
+	}
+	return 0
+}
+
+func (x *Task) GetFirstCommandSeconds() float64 {
+	if x != nil {
+		return x.FirstCommandSeconds
+	}
+	return 0
+}
+
+func (x *Task) GetLiveAnswer() string {
+	if x != nil {
+		return x.LiveAnswer
+	}
+	return ""
+}
+
+func (x *Task) GetLiveReasoning() string {
+	if x != nil {
+		return x.LiveReasoning
+	}
+	return ""
+}
+
+func (x *Task) GetCalls() []*CallStat {
+	if x != nil {
+		return x.Calls
+	}
+	return nil
+}
+
+func (x *Task) GetCheckEachStep() bool {
+	if x != nil {
+		return x.CheckEachStep
+	}
+	return false
+}
+
+func (x *Task) GetMaxMinutes() int32 {
+	if x != nil {
+		return x.MaxMinutes
+	}
+	return 0
+}
+
+func (x *Task) GetMaxCallTokens() int32 {
+	if x != nil {
+		return x.MaxCallTokens
+	}
+	return 0
+}
+
+// CallStat describes one model call of a task.
+type CallStat struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         int32                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"` // 1-based, dense per task
+	Seconds       float64                `protobuf:"fixed64,2,opt,name=seconds,proto3" json:"seconds,omitempty"`
+	PromptTokens  int64                  `protobuf:"varint,3,opt,name=prompt_tokens,json=promptTokens,proto3" json:"prompt_tokens,omitempty"`
+	GenTokens     int64                  `protobuf:"varint,4,opt,name=gen_tokens,json=genTokens,proto3" json:"gen_tokens,omitempty"`
+	End           string                 `protobuf:"bytes,5,opt,name=end,proto3" json:"end,omitempty"`          // "ok", "cancel", "timeout", "repetition", "length", "parse", "error"
+	Partial       bool                   `protobuf:"varint,6,opt,name=partial,proto3" json:"partial,omitempty"` // aborted before its final chunk: gen_tokens counts streamed chunks
+	Note          string                 `protobuf:"bytes,7,opt,name=note,proto3" json:"note,omitempty"`        // what the loop did about the call, for example a repaired tool call
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CallStat) Reset() {
+	*x = CallStat{}
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CallStat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CallStat) ProtoMessage() {}
+
+func (x *CallStat) ProtoReflect() protoreflect.Message {
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CallStat.ProtoReflect.Descriptor instead.
+func (*CallStat) Descriptor() ([]byte, []int) {
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CallStat) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *CallStat) GetSeconds() float64 {
+	if x != nil {
+		return x.Seconds
+	}
+	return 0
+}
+
+func (x *CallStat) GetPromptTokens() int64 {
+	if x != nil {
+		return x.PromptTokens
+	}
+	return 0
+}
+
+func (x *CallStat) GetGenTokens() int64 {
+	if x != nil {
+		return x.GenTokens
+	}
+	return 0
+}
+
+func (x *CallStat) GetEnd() string {
+	if x != nil {
+		return x.End
+	}
+	return ""
+}
+
+func (x *CallStat) GetPartial() bool {
+	if x != nil {
+		return x.Partial
+	}
+	return false
+}
+
+func (x *CallStat) GetNote() string {
+	if x != nil {
+		return x.Note
+	}
+	return ""
+}
+
 type CreateTaskRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	AgentId        string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
@@ -831,13 +1047,16 @@ type CreateTaskRequest struct {
 	CheckCommand   string                 `protobuf:"bytes,3,opt,name=check_command,json=checkCommand,proto3" json:"check_command,omitempty"` // run in the VM afterwards; exit 0 decides SUCCEEDED
 	MaxSteps       int32                  `protobuf:"varint,4,opt,name=max_steps,json=maxSteps,proto3" json:"max_steps,omitempty"`            // default 40
 	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	CheckEachStep  *bool                  `protobuf:"varint,6,opt,name=check_each_step,json=checkEachStep,proto3,oneof" json:"check_each_step,omitempty"` // default true: run check_command after each batch of commands
+	MaxMinutes     int32                  `protobuf:"varint,7,opt,name=max_minutes,json=maxMinutes,proto3" json:"max_minutes,omitempty"`                  // 0 (default) = no time limit; otherwise the task is cancelled after it
+	MaxCallTokens  *int32                 `protobuf:"varint,8,opt,name=max_call_tokens,json=maxCallTokens,proto3,oneof" json:"max_call_tokens,omitempty"` // per-reply token cap, default 32768; 0 = no cap
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CreateTaskRequest) Reset() {
 	*x = CreateTaskRequest{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[9]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -849,7 +1068,7 @@ func (x *CreateTaskRequest) String() string {
 func (*CreateTaskRequest) ProtoMessage() {}
 
 func (x *CreateTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[9]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -862,7 +1081,7 @@ func (x *CreateTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTaskRequest.ProtoReflect.Descriptor instead.
 func (*CreateTaskRequest) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{9}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CreateTaskRequest) GetAgentId() string {
@@ -900,6 +1119,27 @@ func (x *CreateTaskRequest) GetIdempotencyKey() string {
 	return ""
 }
 
+func (x *CreateTaskRequest) GetCheckEachStep() bool {
+	if x != nil && x.CheckEachStep != nil {
+		return *x.CheckEachStep
+	}
+	return false
+}
+
+func (x *CreateTaskRequest) GetMaxMinutes() int32 {
+	if x != nil {
+		return x.MaxMinutes
+	}
+	return 0
+}
+
+func (x *CreateTaskRequest) GetMaxCallTokens() int32 {
+	if x != nil && x.MaxCallTokens != nil {
+		return *x.MaxCallTokens
+	}
+	return 0
+}
+
 type GetTaskRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -911,7 +1151,7 @@ type GetTaskRequest struct {
 
 func (x *GetTaskRequest) Reset() {
 	*x = GetTaskRequest{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[10]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -923,7 +1163,7 @@ func (x *GetTaskRequest) String() string {
 func (*GetTaskRequest) ProtoMessage() {}
 
 func (x *GetTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[10]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -936,7 +1176,7 @@ func (x *GetTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTaskRequest.ProtoReflect.Descriptor instead.
 func (*GetTaskRequest) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{10}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetTaskRequest) GetId() string {
@@ -973,7 +1213,7 @@ type ListTasksRequest struct {
 
 func (x *ListTasksRequest) Reset() {
 	*x = ListTasksRequest{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[11]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -985,7 +1225,7 @@ func (x *ListTasksRequest) String() string {
 func (*ListTasksRequest) ProtoMessage() {}
 
 func (x *ListTasksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[11]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -998,7 +1238,7 @@ func (x *ListTasksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTasksRequest.ProtoReflect.Descriptor instead.
 func (*ListTasksRequest) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{11}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListTasksRequest) GetAgentId() string {
@@ -1046,7 +1286,7 @@ type ListTasksResponse struct {
 
 func (x *ListTasksResponse) Reset() {
 	*x = ListTasksResponse{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[12]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1058,7 +1298,7 @@ func (x *ListTasksResponse) String() string {
 func (*ListTasksResponse) ProtoMessage() {}
 
 func (x *ListTasksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[12]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1071,7 +1311,7 @@ func (x *ListTasksResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTasksResponse.ProtoReflect.Descriptor instead.
 func (*ListTasksResponse) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{12}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListTasksResponse) GetTasks() []*Task {
@@ -1097,7 +1337,7 @@ type CancelTaskRequest struct {
 
 func (x *CancelTaskRequest) Reset() {
 	*x = CancelTaskRequest{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[13]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1109,7 +1349,7 @@ func (x *CancelTaskRequest) String() string {
 func (*CancelTaskRequest) ProtoMessage() {}
 
 func (x *CancelTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[13]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1122,7 +1362,7 @@ func (x *CancelTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelTaskRequest.ProtoReflect.Descriptor instead.
 func (*CancelTaskRequest) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{13}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CancelTaskRequest) GetId() string {
@@ -1145,7 +1385,7 @@ type Step struct {
 
 func (x *Step) Reset() {
 	*x = Step{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[14]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1157,7 +1397,7 @@ func (x *Step) String() string {
 func (*Step) ProtoMessage() {}
 
 func (x *Step) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[14]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1170,7 +1410,7 @@ func (x *Step) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Step.ProtoReflect.Descriptor instead.
 func (*Step) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{14}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Step) GetSeq() int32 {
@@ -1211,15 +1451,15 @@ func (x *Step) GetAt() *timestamppb.Timestamp {
 type ListStepsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	AfterSeq      int32                  `protobuf:"varint,2,opt,name=after_seq,json=afterSeq,proto3" json:"after_seq,omitempty"`
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	AfterSeq      int32                  `protobuf:"varint,2,opt,name=after_seq,json=afterSeq,proto3" json:"after_seq,omitempty"` // return only steps with seq greater than this (the cursor; 0 = from the start)
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                       // page size; 0 = the server's default, the server caps it at 500
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListStepsRequest) Reset() {
 	*x = ListStepsRequest{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[15]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1231,7 +1471,7 @@ func (x *ListStepsRequest) String() string {
 func (*ListStepsRequest) ProtoMessage() {}
 
 func (x *ListStepsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[15]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1244,7 +1484,7 @@ func (x *ListStepsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListStepsRequest.ProtoReflect.Descriptor instead.
 func (*ListStepsRequest) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{15}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListStepsRequest) GetTaskId() string {
@@ -1277,7 +1517,7 @@ type ListStepsResponse struct {
 
 func (x *ListStepsResponse) Reset() {
 	*x = ListStepsResponse{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[16]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1289,7 +1529,7 @@ func (x *ListStepsResponse) String() string {
 func (*ListStepsResponse) ProtoMessage() {}
 
 func (x *ListStepsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[16]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1302,7 +1542,7 @@ func (x *ListStepsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListStepsResponse.ProtoReflect.Descriptor instead.
 func (*ListStepsResponse) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{16}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListStepsResponse) GetSteps() []*Step {
@@ -1316,13 +1556,20 @@ type Model struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	SizeBytes     int64                  `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	SizeGib       float64                `protobuf:"fixed64,3,opt,name=size_gib,json=sizeGib,proto3" json:"size_gib,omitempty"`                  // size_bytes in GiB
+	Params        string                 `protobuf:"bytes,4,opt,name=params,proto3" json:"params,omitempty"`                                     // parameter count as reported, for example "8.0B"; may be empty
+	Quant         string                 `protobuf:"bytes,5,opt,name=quant,proto3" json:"quant,omitempty"`                                       // quantisation, for example "Q4_K_M"; may be empty
+	ContextLength int64                  `protobuf:"varint,6,opt,name=context_length,json=contextLength,proto3" json:"context_length,omitempty"` // the model's context length; 0 when unknown
+	// Whether the weights fit the configured VRAM budget (see agentd -vram-gib). This is a rough, weights-only
+	// check: the KV cache and the runtime are not counted. A model that does not fit probably runs partly on the CPU.
+	FitsVram      bool `protobuf:"varint,7,opt,name=fits_vram,json=fitsVram,proto3" json:"fits_vram,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Model) Reset() {
 	*x = Model{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[17]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1334,7 +1581,7 @@ func (x *Model) String() string {
 func (*Model) ProtoMessage() {}
 
 func (x *Model) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[17]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1347,7 +1594,7 @@ func (x *Model) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Model.ProtoReflect.Descriptor instead.
 func (*Model) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{17}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Model) GetName() string {
@@ -1364,6 +1611,41 @@ func (x *Model) GetSizeBytes() int64 {
 	return 0
 }
 
+func (x *Model) GetSizeGib() float64 {
+	if x != nil {
+		return x.SizeGib
+	}
+	return 0
+}
+
+func (x *Model) GetParams() string {
+	if x != nil {
+		return x.Params
+	}
+	return ""
+}
+
+func (x *Model) GetQuant() string {
+	if x != nil {
+		return x.Quant
+	}
+	return ""
+}
+
+func (x *Model) GetContextLength() int64 {
+	if x != nil {
+		return x.ContextLength
+	}
+	return 0
+}
+
+func (x *Model) GetFitsVram() bool {
+	if x != nil {
+		return x.FitsVram
+	}
+	return false
+}
+
 type ListModelsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1372,7 +1654,7 @@ type ListModelsRequest struct {
 
 func (x *ListModelsRequest) Reset() {
 	*x = ListModelsRequest{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[18]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1384,7 +1666,7 @@ func (x *ListModelsRequest) String() string {
 func (*ListModelsRequest) ProtoMessage() {}
 
 func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[18]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1397,7 +1679,7 @@ func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsRequest.ProtoReflect.Descriptor instead.
 func (*ListModelsRequest) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{18}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{19}
 }
 
 type ListModelsResponse struct {
@@ -1409,7 +1691,7 @@ type ListModelsResponse struct {
 
 func (x *ListModelsResponse) Reset() {
 	*x = ListModelsResponse{}
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[19]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1421,7 +1703,7 @@ func (x *ListModelsResponse) String() string {
 func (*ListModelsResponse) ProtoMessage() {}
 
 func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[19]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1434,7 +1716,7 @@ func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsResponse.ProtoReflect.Descriptor instead.
 func (*ListModelsResponse) Descriptor() ([]byte, []int) {
-	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{19}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListModelsResponse) GetModels() []*Model {
@@ -1501,7 +1783,7 @@ const file_attic_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x0e_system_prompt\"$\n" +
 	"\x12DeleteAgentRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x15\n" +
-	"\x13DeleteAgentResponse\"\x9e\x04\n" +
+	"\x13DeleteAgentResponse\"\xc3\b\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x1d\n" +
@@ -1522,13 +1804,45 @@ const file_attic_agentd_v1_agentd_proto_rawDesc = "" +
 	"\n" +
 	"started_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
 	"\vfinished_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishedAt\"\xb1\x01\n" +
+	"finishedAt\x12\x16\n" +
+	"\x06reason\x18\x10 \x01(\tR\x06reason\x12%\n" +
+	"\x0everdict_source\x18\x11 \x01(\tR\rverdictSource\x12#\n" +
+	"\rprompt_tokens\x18\x12 \x01(\x03R\fpromptTokens\x12+\n" +
+	"\x11completion_tokens\x18\x13 \x01(\x03R\x10completionTokens\x12\x1f\n" +
+	"\vmodel_calls\x18\x14 \x01(\x05R\n" +
+	"modelCalls\x12#\n" +
+	"\rpartial_calls\x18\x15 \x01(\x05R\fpartialCalls\x12.\n" +
+	"\x13first_token_seconds\x18\x16 \x01(\x01R\x11firstTokenSeconds\x122\n" +
+	"\x15first_command_seconds\x18\x17 \x01(\x01R\x13firstCommandSeconds\x12\x1f\n" +
+	"\vlive_answer\x18\x18 \x01(\tR\n" +
+	"liveAnswer\x12%\n" +
+	"\x0elive_reasoning\x18\x19 \x01(\tR\rliveReasoning\x12/\n" +
+	"\x05calls\x18\x1a \x03(\v2\x19.attic.agentd.v1.CallStatR\x05calls\x12&\n" +
+	"\x0fcheck_each_step\x18\x1b \x01(\bR\rcheckEachStep\x12\x1f\n" +
+	"\vmax_minutes\x18\x1c \x01(\x05R\n" +
+	"maxMinutes\x12&\n" +
+	"\x0fmax_call_tokens\x18\x1d \x01(\x05R\rmaxCallTokens\"\xbe\x01\n" +
+	"\bCallStat\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x18\n" +
+	"\aseconds\x18\x02 \x01(\x01R\aseconds\x12#\n" +
+	"\rprompt_tokens\x18\x03 \x01(\x03R\fpromptTokens\x12\x1d\n" +
+	"\n" +
+	"gen_tokens\x18\x04 \x01(\x03R\tgenTokens\x12\x10\n" +
+	"\x03end\x18\x05 \x01(\tR\x03end\x12\x18\n" +
+	"\apartial\x18\x06 \x01(\bR\apartial\x12\x12\n" +
+	"\x04note\x18\a \x01(\tR\x04note\"\xd4\x02\n" +
 	"\x11CreateTaskRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x16\n" +
 	"\x06prompt\x18\x02 \x01(\tR\x06prompt\x12#\n" +
 	"\rcheck_command\x18\x03 \x01(\tR\fcheckCommand\x12\x1b\n" +
 	"\tmax_steps\x18\x04 \x01(\x05R\bmaxSteps\x12'\n" +
-	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"\x81\x01\n" +
+	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\x12+\n" +
+	"\x0fcheck_each_step\x18\x06 \x01(\bH\x00R\rcheckEachStep\x88\x01\x01\x12\x1f\n" +
+	"\vmax_minutes\x18\a \x01(\x05R\n" +
+	"maxMinutes\x12+\n" +
+	"\x0fmax_call_tokens\x18\b \x01(\x05H\x01R\rmaxCallTokens\x88\x01\x01B\x12\n" +
+	"\x10_check_each_stepB\x12\n" +
+	"\x10_max_call_tokens\"\x81\x01\n" +
 	"\x0eGetTaskRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12<\n" +
 	"\fwait_for_not\x18\x02 \x01(\x0e2\x1a.attic.agentd.v1.TaskStateR\n" +
@@ -1560,11 +1874,16 @@ const file_attic_agentd_v1_agentd_proto_rawDesc = "" +
 	"\tafter_seq\x18\x02 \x01(\x05R\bafterSeq\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\"@\n" +
 	"\x11ListStepsResponse\x12+\n" +
-	"\x05steps\x18\x01 \x03(\v2\x15.attic.agentd.v1.StepR\x05steps\":\n" +
+	"\x05steps\x18\x01 \x03(\v2\x15.attic.agentd.v1.StepR\x05steps\"\xc7\x01\n" +
 	"\x05Model\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\x02 \x01(\x03R\tsizeBytes\"\x13\n" +
+	"size_bytes\x18\x02 \x01(\x03R\tsizeBytes\x12\x19\n" +
+	"\bsize_gib\x18\x03 \x01(\x01R\asizeGib\x12\x16\n" +
+	"\x06params\x18\x04 \x01(\tR\x06params\x12\x14\n" +
+	"\x05quant\x18\x05 \x01(\tR\x05quant\x12%\n" +
+	"\x0econtext_length\x18\x06 \x01(\x03R\rcontextLength\x12\x1b\n" +
+	"\tfits_vram\x18\a \x01(\bR\bfitsVram\"\x13\n" +
 	"\x11ListModelsRequest\"D\n" +
 	"\x12ListModelsResponse\x12.\n" +
 	"\x06models\x18\x01 \x03(\v2\x16.attic.agentd.v1.ModelR\x06models*u\n" +
@@ -1573,7 +1892,7 @@ const file_attic_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x17AGENT_STATE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12AGENT_STATE_ACTIVE\x10\x01\x12\x18\n" +
 	"\x14AGENT_STATE_ORPHANED\x10\x02\x12\x18\n" +
-	"\x14AGENT_STATE_DELETING\x10\x03*\xcf\x01\n" +
+	"\x14AGENT_STATE_DELETING\x10\x03*\xf4\x01\n" +
 	"\tTaskState\x12\x1a\n" +
 	"\x16TASK_STATE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11TASK_STATE_QUEUED\x10\x01\x12\x16\n" +
@@ -1582,7 +1901,8 @@ const file_attic_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x11TASK_STATE_FAILED\x10\x04\x12\x16\n" +
 	"\x12TASK_STATE_GAVE_UP\x10\x05\x12\x18\n" +
 	"\x14TASK_STATE_CANCELLED\x10\x06\x12\x14\n" +
-	"\x10TASK_STATE_ERROR\x10\a2\x9d\x03\n" +
+	"\x10TASK_STATE_ERROR\x10\a\x12#\n" +
+	"\x1fTASK_STATE_SUCCEEDED_UNVERIFIED\x10\b2\x9d\x03\n" +
 	"\fAgentService\x12J\n" +
 	"\vCreateAgent\x12#.attic.agentd.v1.CreateAgentRequest\x1a\x16.attic.agentd.v1.Agent\x12D\n" +
 	"\bGetAgent\x12 .attic.agentd.v1.GetAgentRequest\x1a\x16.attic.agentd.v1.Agent\x12U\n" +
@@ -1615,7 +1935,7 @@ func file_attic_agentd_v1_agentd_proto_rawDescGZIP() []byte {
 }
 
 var file_attic_agentd_v1_agentd_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_attic_agentd_v1_agentd_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_attic_agentd_v1_agentd_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_attic_agentd_v1_agentd_proto_goTypes = []any{
 	(AgentState)(0),               // 0: attic.agentd.v1.AgentState
 	(TaskState)(0),                // 1: attic.agentd.v1.TaskState
@@ -1628,65 +1948,67 @@ var file_attic_agentd_v1_agentd_proto_goTypes = []any{
 	(*DeleteAgentRequest)(nil),    // 8: attic.agentd.v1.DeleteAgentRequest
 	(*DeleteAgentResponse)(nil),   // 9: attic.agentd.v1.DeleteAgentResponse
 	(*Task)(nil),                  // 10: attic.agentd.v1.Task
-	(*CreateTaskRequest)(nil),     // 11: attic.agentd.v1.CreateTaskRequest
-	(*GetTaskRequest)(nil),        // 12: attic.agentd.v1.GetTaskRequest
-	(*ListTasksRequest)(nil),      // 13: attic.agentd.v1.ListTasksRequest
-	(*ListTasksResponse)(nil),     // 14: attic.agentd.v1.ListTasksResponse
-	(*CancelTaskRequest)(nil),     // 15: attic.agentd.v1.CancelTaskRequest
-	(*Step)(nil),                  // 16: attic.agentd.v1.Step
-	(*ListStepsRequest)(nil),      // 17: attic.agentd.v1.ListStepsRequest
-	(*ListStepsResponse)(nil),     // 18: attic.agentd.v1.ListStepsResponse
-	(*Model)(nil),                 // 19: attic.agentd.v1.Model
-	(*ListModelsRequest)(nil),     // 20: attic.agentd.v1.ListModelsRequest
-	(*ListModelsResponse)(nil),    // 21: attic.agentd.v1.ListModelsResponse
-	nil,                           // 22: attic.agentd.v1.Agent.LabelsEntry
-	nil,                           // 23: attic.agentd.v1.CreateAgentRequest.LabelsEntry
-	(*timestamppb.Timestamp)(nil), // 24: google.protobuf.Timestamp
+	(*CallStat)(nil),              // 11: attic.agentd.v1.CallStat
+	(*CreateTaskRequest)(nil),     // 12: attic.agentd.v1.CreateTaskRequest
+	(*GetTaskRequest)(nil),        // 13: attic.agentd.v1.GetTaskRequest
+	(*ListTasksRequest)(nil),      // 14: attic.agentd.v1.ListTasksRequest
+	(*ListTasksResponse)(nil),     // 15: attic.agentd.v1.ListTasksResponse
+	(*CancelTaskRequest)(nil),     // 16: attic.agentd.v1.CancelTaskRequest
+	(*Step)(nil),                  // 17: attic.agentd.v1.Step
+	(*ListStepsRequest)(nil),      // 18: attic.agentd.v1.ListStepsRequest
+	(*ListStepsResponse)(nil),     // 19: attic.agentd.v1.ListStepsResponse
+	(*Model)(nil),                 // 20: attic.agentd.v1.Model
+	(*ListModelsRequest)(nil),     // 21: attic.agentd.v1.ListModelsRequest
+	(*ListModelsResponse)(nil),    // 22: attic.agentd.v1.ListModelsResponse
+	nil,                           // 23: attic.agentd.v1.Agent.LabelsEntry
+	nil,                           // 24: attic.agentd.v1.CreateAgentRequest.LabelsEntry
+	(*timestamppb.Timestamp)(nil), // 25: google.protobuf.Timestamp
 }
 var file_attic_agentd_v1_agentd_proto_depIdxs = []int32{
 	0,  // 0: attic.agentd.v1.Agent.state:type_name -> attic.agentd.v1.AgentState
-	22, // 1: attic.agentd.v1.Agent.labels:type_name -> attic.agentd.v1.Agent.LabelsEntry
-	24, // 2: attic.agentd.v1.Agent.created_at:type_name -> google.protobuf.Timestamp
-	24, // 3: attic.agentd.v1.Agent.updated_at:type_name -> google.protobuf.Timestamp
-	23, // 4: attic.agentd.v1.CreateAgentRequest.labels:type_name -> attic.agentd.v1.CreateAgentRequest.LabelsEntry
+	23, // 1: attic.agentd.v1.Agent.labels:type_name -> attic.agentd.v1.Agent.LabelsEntry
+	25, // 2: attic.agentd.v1.Agent.created_at:type_name -> google.protobuf.Timestamp
+	25, // 3: attic.agentd.v1.Agent.updated_at:type_name -> google.protobuf.Timestamp
+	24, // 4: attic.agentd.v1.CreateAgentRequest.labels:type_name -> attic.agentd.v1.CreateAgentRequest.LabelsEntry
 	2,  // 5: attic.agentd.v1.ListAgentsResponse.agents:type_name -> attic.agentd.v1.Agent
 	1,  // 6: attic.agentd.v1.Task.state:type_name -> attic.agentd.v1.TaskState
-	24, // 7: attic.agentd.v1.Task.created_at:type_name -> google.protobuf.Timestamp
-	24, // 8: attic.agentd.v1.Task.started_at:type_name -> google.protobuf.Timestamp
-	24, // 9: attic.agentd.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
-	1,  // 10: attic.agentd.v1.GetTaskRequest.wait_for_not:type_name -> attic.agentd.v1.TaskState
-	1,  // 11: attic.agentd.v1.ListTasksRequest.state:type_name -> attic.agentd.v1.TaskState
-	10, // 12: attic.agentd.v1.ListTasksResponse.tasks:type_name -> attic.agentd.v1.Task
-	24, // 13: attic.agentd.v1.Step.at:type_name -> google.protobuf.Timestamp
-	16, // 14: attic.agentd.v1.ListStepsResponse.steps:type_name -> attic.agentd.v1.Step
-	19, // 15: attic.agentd.v1.ListModelsResponse.models:type_name -> attic.agentd.v1.Model
-	3,  // 16: attic.agentd.v1.AgentService.CreateAgent:input_type -> attic.agentd.v1.CreateAgentRequest
-	4,  // 17: attic.agentd.v1.AgentService.GetAgent:input_type -> attic.agentd.v1.GetAgentRequest
-	5,  // 18: attic.agentd.v1.AgentService.ListAgents:input_type -> attic.agentd.v1.ListAgentsRequest
-	7,  // 19: attic.agentd.v1.AgentService.UpdateAgent:input_type -> attic.agentd.v1.UpdateAgentRequest
-	8,  // 20: attic.agentd.v1.AgentService.DeleteAgent:input_type -> attic.agentd.v1.DeleteAgentRequest
-	11, // 21: attic.agentd.v1.TaskService.CreateTask:input_type -> attic.agentd.v1.CreateTaskRequest
-	12, // 22: attic.agentd.v1.TaskService.GetTask:input_type -> attic.agentd.v1.GetTaskRequest
-	13, // 23: attic.agentd.v1.TaskService.ListTasks:input_type -> attic.agentd.v1.ListTasksRequest
-	15, // 24: attic.agentd.v1.TaskService.CancelTask:input_type -> attic.agentd.v1.CancelTaskRequest
-	17, // 25: attic.agentd.v1.TaskService.ListSteps:input_type -> attic.agentd.v1.ListStepsRequest
-	20, // 26: attic.agentd.v1.ModelService.ListModels:input_type -> attic.agentd.v1.ListModelsRequest
-	2,  // 27: attic.agentd.v1.AgentService.CreateAgent:output_type -> attic.agentd.v1.Agent
-	2,  // 28: attic.agentd.v1.AgentService.GetAgent:output_type -> attic.agentd.v1.Agent
-	6,  // 29: attic.agentd.v1.AgentService.ListAgents:output_type -> attic.agentd.v1.ListAgentsResponse
-	2,  // 30: attic.agentd.v1.AgentService.UpdateAgent:output_type -> attic.agentd.v1.Agent
-	9,  // 31: attic.agentd.v1.AgentService.DeleteAgent:output_type -> attic.agentd.v1.DeleteAgentResponse
-	10, // 32: attic.agentd.v1.TaskService.CreateTask:output_type -> attic.agentd.v1.Task
-	10, // 33: attic.agentd.v1.TaskService.GetTask:output_type -> attic.agentd.v1.Task
-	14, // 34: attic.agentd.v1.TaskService.ListTasks:output_type -> attic.agentd.v1.ListTasksResponse
-	10, // 35: attic.agentd.v1.TaskService.CancelTask:output_type -> attic.agentd.v1.Task
-	18, // 36: attic.agentd.v1.TaskService.ListSteps:output_type -> attic.agentd.v1.ListStepsResponse
-	21, // 37: attic.agentd.v1.ModelService.ListModels:output_type -> attic.agentd.v1.ListModelsResponse
-	27, // [27:38] is the sub-list for method output_type
-	16, // [16:27] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	25, // 7: attic.agentd.v1.Task.created_at:type_name -> google.protobuf.Timestamp
+	25, // 8: attic.agentd.v1.Task.started_at:type_name -> google.protobuf.Timestamp
+	25, // 9: attic.agentd.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
+	11, // 10: attic.agentd.v1.Task.calls:type_name -> attic.agentd.v1.CallStat
+	1,  // 11: attic.agentd.v1.GetTaskRequest.wait_for_not:type_name -> attic.agentd.v1.TaskState
+	1,  // 12: attic.agentd.v1.ListTasksRequest.state:type_name -> attic.agentd.v1.TaskState
+	10, // 13: attic.agentd.v1.ListTasksResponse.tasks:type_name -> attic.agentd.v1.Task
+	25, // 14: attic.agentd.v1.Step.at:type_name -> google.protobuf.Timestamp
+	17, // 15: attic.agentd.v1.ListStepsResponse.steps:type_name -> attic.agentd.v1.Step
+	20, // 16: attic.agentd.v1.ListModelsResponse.models:type_name -> attic.agentd.v1.Model
+	3,  // 17: attic.agentd.v1.AgentService.CreateAgent:input_type -> attic.agentd.v1.CreateAgentRequest
+	4,  // 18: attic.agentd.v1.AgentService.GetAgent:input_type -> attic.agentd.v1.GetAgentRequest
+	5,  // 19: attic.agentd.v1.AgentService.ListAgents:input_type -> attic.agentd.v1.ListAgentsRequest
+	7,  // 20: attic.agentd.v1.AgentService.UpdateAgent:input_type -> attic.agentd.v1.UpdateAgentRequest
+	8,  // 21: attic.agentd.v1.AgentService.DeleteAgent:input_type -> attic.agentd.v1.DeleteAgentRequest
+	12, // 22: attic.agentd.v1.TaskService.CreateTask:input_type -> attic.agentd.v1.CreateTaskRequest
+	13, // 23: attic.agentd.v1.TaskService.GetTask:input_type -> attic.agentd.v1.GetTaskRequest
+	14, // 24: attic.agentd.v1.TaskService.ListTasks:input_type -> attic.agentd.v1.ListTasksRequest
+	16, // 25: attic.agentd.v1.TaskService.CancelTask:input_type -> attic.agentd.v1.CancelTaskRequest
+	18, // 26: attic.agentd.v1.TaskService.ListSteps:input_type -> attic.agentd.v1.ListStepsRequest
+	21, // 27: attic.agentd.v1.ModelService.ListModels:input_type -> attic.agentd.v1.ListModelsRequest
+	2,  // 28: attic.agentd.v1.AgentService.CreateAgent:output_type -> attic.agentd.v1.Agent
+	2,  // 29: attic.agentd.v1.AgentService.GetAgent:output_type -> attic.agentd.v1.Agent
+	6,  // 30: attic.agentd.v1.AgentService.ListAgents:output_type -> attic.agentd.v1.ListAgentsResponse
+	2,  // 31: attic.agentd.v1.AgentService.UpdateAgent:output_type -> attic.agentd.v1.Agent
+	9,  // 32: attic.agentd.v1.AgentService.DeleteAgent:output_type -> attic.agentd.v1.DeleteAgentResponse
+	10, // 33: attic.agentd.v1.TaskService.CreateTask:output_type -> attic.agentd.v1.Task
+	10, // 34: attic.agentd.v1.TaskService.GetTask:output_type -> attic.agentd.v1.Task
+	15, // 35: attic.agentd.v1.TaskService.ListTasks:output_type -> attic.agentd.v1.ListTasksResponse
+	10, // 36: attic.agentd.v1.TaskService.CancelTask:output_type -> attic.agentd.v1.Task
+	19, // 37: attic.agentd.v1.TaskService.ListSteps:output_type -> attic.agentd.v1.ListStepsResponse
+	22, // 38: attic.agentd.v1.ModelService.ListModels:output_type -> attic.agentd.v1.ListModelsResponse
+	28, // [28:39] is the sub-list for method output_type
+	17, // [17:28] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_attic_agentd_v1_agentd_proto_init() }
@@ -1695,14 +2017,15 @@ func file_attic_agentd_v1_agentd_proto_init() {
 		return
 	}
 	file_attic_agentd_v1_agentd_proto_msgTypes[5].OneofWrappers = []any{}
-	file_attic_agentd_v1_agentd_proto_msgTypes[14].OneofWrappers = []any{}
+	file_attic_agentd_v1_agentd_proto_msgTypes[10].OneofWrappers = []any{}
+	file_attic_agentd_v1_agentd_proto_msgTypes[15].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_attic_agentd_v1_agentd_proto_rawDesc), len(file_attic_agentd_v1_agentd_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   22,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

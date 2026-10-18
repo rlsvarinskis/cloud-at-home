@@ -56,6 +56,15 @@ func (g *gmRun) inTx() *gomock.Call {
 		func(_ context.Context, fn func(store.Store) error) error { return fn(g.tx) })
 }
 
+// progress expects the write of a model call's progress, which happens before the reply is stored.
+func (g *gmRun) progress() []any {
+	return []any{
+		g.inTx(),
+		g.tx.EXPECT().GetTask(gomock.Any(), "task_1").Return(gmClaimed(), nil),
+		g.tx.EXPECT().UpdateTask(gomock.Any(), gomock.Any()).Return(nil),
+	}
+}
+
 // txMessage expects a transaction that reads the task and appends one conversation message.
 func (g *gmRun) txMessage(m gomock.Matcher) []any {
 	return []any{
@@ -134,9 +143,11 @@ func TestGMToolCallRequestAndOrder(t *testing.T) {
 			}),
 			gomock.Cond(func(ts []llm.Tool) bool { return len(ts) == 1 && ts[0].Name == "bash" }),
 			gomock.Any(),
+			gomock.Any(),
 		).Return(llm.Message{ToolCalls: []llm.ToolCall{{Name: "bash", Arguments: map[string]any{"command": "ls /home/agent"}}}}, nil),
 	)
 	// The assistant turn is persisted before its command runs.
+	seq = append(seq, g.progress()...) // the call's progress is stored before its reply
 	seq = append(seq, g.txMessage(gmBashCallMsg())...)
 	seq = append(seq,
 		g.vm.EXPECT().StartJob(gomock.Any(), gomock.Cond(func(q *vmdv1.StartJobRequest) bool {
@@ -162,13 +173,14 @@ func TestGMToolCallRequestAndOrder(t *testing.T) {
 	)
 	seq = append(seq, g.llm.EXPECT().Chat(gomock.Any(), "llama3",
 		gomock.Cond(func(m []llm.Message) bool { return len(m) == 4 && m[3].Role == "tool" }),
-		gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any(), gomock.Any(),
 	).Return(llm.Message{Content: "Listed the home directory.\nVERDICT: SUCCESS - a and b exist"}, nil))
+	seq = append(seq, g.progress()...) // the call's progress is stored before its reply
 	seq = append(seq, g.txMessage(gmFinalMsg())...)
 	seq = append(seq, g.inTx(),
 		g.tx.EXPECT().GetTask(gomock.Any(), "task_1").Return(gmClaimed(), nil),
 		g.tx.EXPECT().UpdateTask(gomock.Any(), gomock.Cond(func(t *domain.Task) bool {
-			return t.State == domain.TaskSucceeded && t.Verdict == "SUCCESS" && t.LeaseOwner == "" && !t.FinishedAt.IsZero()
+			return t.State == domain.TaskSucceededUnverified && t.Verdict == "SUCCESS" && t.LeaseOwner == "" && !t.FinishedAt.IsZero()
 		})).Return(nil),
 	)
 	gomock.InOrder(seq...)
@@ -196,8 +208,9 @@ func TestGMLeaseLossWritesNothingFinal(t *testing.T) {
 	seq := []any{}
 	seq = append(seq, g.txMessage(gmSystemMsg())...)
 	seq = append(seq, g.txMessage(gmUserMsg())...)
-	seq = append(seq, g.llm.EXPECT().Chat(gomock.Any(), "llama3", gomock.Any(), gomock.Any(), gomock.Any()).
+	seq = append(seq, g.llm.EXPECT().Chat(gomock.Any(), "llama3", gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(llm.Message{ToolCalls: []llm.ToolCall{{Name: "bash", Arguments: map[string]any{"command": "ls /home/agent"}}}}, nil))
+	seq = append(seq, g.progress()...) // the call's progress is stored before its reply
 	seq = append(seq, g.txMessage(gmBashCallMsg())...)
 	seq = append(seq,
 		g.vm.EXPECT().StartJob(gomock.Any(), gomock.Any()).Return(&vmdv1.JobOutput{Job: &vmdv1.Job{Id: "job_1", State: vmdv1.JobState_JOB_STATE_RUNNING}}, nil),

@@ -129,8 +129,9 @@ func TestMCPFullPath(t *testing.T) {
 			t.Fatalf("agent_exec: %q", out)
 		}
 		mustOK(t, cs, "agent_upload", map[string]any{"name": "box", "path": "/home/agent/a.txt", "content": "payload"})
-		if out := mustOK(t, cs, "agent_download", map[string]any{"name": "box", "path": "/home/agent/a.txt"}); out != "payload" {
-			t.Fatalf("download = %q, want the uploaded content", out)
+		if out := mustOK(t, cs, "agent_download", map[string]any{"name": "box", "path": "/home/agent/a.txt"}); !strings.Contains(out, `"content":"payload"`) ||
+			!strings.Contains(out, `"encoding":"utf-8"`) {
+			t.Fatalf("download = %q, want the uploaded content in JSON", out)
 		}
 
 		if out := mustOK(t, cs, "agent_models", nil); !strings.Contains(out, "scripted") {

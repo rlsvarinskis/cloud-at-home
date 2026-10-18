@@ -24,7 +24,7 @@ func TestMetrics(t *testing.T) {
 	agent := w.createAgent(ed, "p1", "metrics-agent", vm.Id, model)
 	task := w.createTask(ed, agent.Id, "measure", "")
 	w.runTasks()
-	if got := w.getTask(ed, task.Id); got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED {
+	if got := w.getTask(ed, task.Id); got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED {
 		t.Fatalf("setup task state %v", got.State)
 	}
 	_, err := ed.Task.ListSteps(ctx, connect.NewRequest(&agentdv1.ListStepsRequest{TaskId: task.Id}))

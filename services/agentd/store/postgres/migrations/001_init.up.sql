@@ -32,7 +32,8 @@ CREATE TABLE tasks (
     check_command     TEXT NOT NULL,
     max_steps         INTEGER NOT NULL,
     state             TEXT NOT NULL CHECK (state IN
-                          ('queued', 'running', 'succeeded', 'failed', 'gave_up', 'cancelled', 'error')),
+                          ('queued', 'running', 'succeeded', 'succeeded_unverified', 'failed', 'gave_up',
+                           'cancelled', 'error')),
     verdict           TEXT NOT NULL,
     result            TEXT NOT NULL,
     steps             INTEGER NOT NULL,
@@ -44,7 +45,25 @@ CREATE TABLE tasks (
     version           BIGINT NOT NULL,
     created_at        TIMESTAMPTZ NOT NULL,
     started_at        TIMESTAMPTZ,
-    finished_at       TIMESTAMPTZ
+    finished_at       TIMESTAMPTZ,
+    -- run options
+    check_each_step   BOOLEAN NOT NULL DEFAULT TRUE,
+    max_minutes       INTEGER NOT NULL DEFAULT 0,
+    max_call_tokens   INTEGER NOT NULL DEFAULT 32768,
+    -- how the task ended, and who decided its state ('check' or 'model')
+    reason            TEXT NOT NULL DEFAULT '',
+    verdict_source    TEXT NOT NULL DEFAULT '',
+    -- token and timing counters, summed over every model call (aborted calls included)
+    prompt_tokens     BIGINT NOT NULL DEFAULT 0,
+    completion_tokens BIGINT NOT NULL DEFAULT 0,
+    model_calls       INTEGER NOT NULL DEFAULT 0,
+    partial_calls     INTEGER NOT NULL DEFAULT 0,
+    first_token_seconds   DOUBLE PRECISION NOT NULL DEFAULT 0,
+    first_command_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+    -- the model call in progress, and the most recent call records
+    live_answer       TEXT NOT NULL DEFAULT '',
+    live_reasoning    TEXT NOT NULL DEFAULT '',
+    calls             JSONB NOT NULL DEFAULT '[]'
 );
 
 CREATE UNIQUE INDEX tasks_idempotency_key_idx ON tasks (project_id, idempotency_key)

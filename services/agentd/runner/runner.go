@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -183,11 +184,23 @@ func (r *Runner) fenced(ctx context.Context, taskID string, fn func(s store.Stor
 	}
 }
 
-// finish writes the task's final state and clears its lease. If the task is no longer leased to this worker
-// or is already final, nothing is written and the outcome is outAbandoned.
+// finish writes the task's final state, its verdict and result, and the progress the worker has made, and clears
+// its lease. If the task is no longer leased to this worker or is already final, nothing is written and the
+// outcome is outAbandoned.
+//
+// A task never ends with an empty result: a missing result gets a note saying so. A task that would end as a
+// success with no result is recorded as an error instead, because there is nothing to show for the success.
 func (r *Runner) finish(ctx context.Context, t *domain.Task, state domain.TaskState, verdict, result string) (outcome, error) {
 	now := r.now()
 	result = capResult(Clean(result))
+	if strings.TrimSpace(result) == "" {
+		if state.Succeeded() {
+			state = domain.TaskError
+			result = "[the task ended as a success but left no result, so it is recorded as an error]"
+		} else {
+			result = fmt.Sprintf("[no result recorded; state was %s]", state)
+		}
+	}
 	fresh, err := r.fenced(ctx, t.ID, func(s store.Store, cur *domain.Task) error {
 		cur.State = state
 		cur.Verdict = verdict
@@ -195,6 +208,7 @@ func (r *Runner) finish(ctx context.Context, t *domain.Task, state domain.TaskSt
 		cur.FinishedAt = now
 		cur.LeaseOwner = ""
 		cur.LeaseUntil = time.Time{}
+		copyProgress(cur, t)
 		return s.UpdateTask(ctx, cur)
 	})
 	if errors.Is(err, errLeaseLost) {

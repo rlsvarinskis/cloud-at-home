@@ -62,7 +62,7 @@ func nodeDownMidTask(t *testing.T, backend string) {
 	w.runTasks()
 
 	got = w.getTask(ed, task.Id)
-	if got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED {
+	if got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED {
 		t.Errorf("final state %v (result %q), want SUCCEEDED", got.State, got.Result)
 	}
 	// Known bug candidate: the first StartJob that hit the dead node already created a vmd job under the same
@@ -120,7 +120,7 @@ func vmCrashMidCommand(t *testing.T, backend string) {
 	if err := awaitErr(t, done, "RunOnce"); err != nil {
 		t.Fatalf("RunOnce: %v", err)
 	}
-	if got := w.getTask(ed, task.Id); got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED {
+	if got := w.getTask(ed, task.Id); got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED {
 		t.Errorf("task state %v (result %q), want SUCCEEDED after the crash", got.State, got.Result)
 	}
 	if len(fake.Calls) != 2 {
@@ -185,7 +185,7 @@ func runnerStoppedMidTask(t *testing.T, backend string) {
 		t.Fatal("second runner did not claim the expired task")
 	}
 	got := w.getTask(ed, task.Id)
-	if got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED {
+	if got.State != agentdv1.TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED {
 		t.Errorf("final state %v (result %q), want SUCCEEDED", got.State, got.Result)
 	}
 	if runs := w.commandRuns(cmd); len(runs) != 1 {

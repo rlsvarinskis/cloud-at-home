@@ -206,7 +206,7 @@ func TestMetricsCapacityExcludesStoppedVMsAndNonReadyNodesFromTotals(t *testing.
 		CPUs: 32, MemoryMB: 131072, DiskBytesTotal: 1 << 40, DiskBytesFree: 1 << 39}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.st.UpsertNode(ctx, &domain.Node{ID: "n3", Address: "fake://n3", State: domain.NodeDraining,
+	if err := e.st.UpsertNode(ctx, &domain.Node{ID: "n3", Address: "fake://n3", State: domain.NodeReady, Drain: true,
 		CPUs: 8, MemoryMB: 16384, DiskBytesTotal: 1 << 40, DiskBytesFree: 1 << 39}); err != nil {
 		t.Fatal(err)
 	}
@@ -261,8 +261,8 @@ func TestMetricsCapacityOvercommitChangesAvailable(t *testing.T) {
 	}
 }
 
-// Expected to FAIL with the current code: see the report. The field is documented as "what the scheduler
-// would still hand out", and the scheduler hands out nothing from a down node.
+// A down node offers nothing: the field is documented as "what the scheduler would still hand out", and the
+// scheduler hands out nothing from a down node.
 func TestMetricsCapacityDownNodeOffersNoAvailable(t *testing.T) {
 	e := newEnv(t)
 	if err := e.st.UpsertNode(context.Background(), &domain.Node{ID: "n2", Address: "fake://n2", State: domain.NodeDown,

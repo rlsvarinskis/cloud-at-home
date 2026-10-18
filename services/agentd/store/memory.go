@@ -534,6 +534,9 @@ func copyAgent(a *domain.Agent) *domain.Agent {
 
 func copyTask(t *domain.Task) *domain.Task {
 	c := *t
+	if t.Calls != nil {
+		c.Calls = append([]domain.CallRecord(nil), t.Calls...)
+	}
 	return &c
 }
 

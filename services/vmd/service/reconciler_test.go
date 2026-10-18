@@ -370,17 +370,11 @@ func TestReconCapacityOvercommitLetsBothRun(t *testing.T) {
 	}
 }
 
-// Expected to FAIL with the current code: see the report.
 func TestReconDrainingNodeKeepsRunningVMsButRefusesNewStarts(t *testing.T) {
 	e := newEnv(t)
 	a := e.runningVM("dr-a")
 
-	n, err := e.st.GetNode(context.Background(), "n1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	n.State = domain.NodeDraining
-	if err := e.st.UpsertNode(context.Background(), n); err != nil {
+	if err := e.st.SetNodeDrain(context.Background(), "n1", true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -402,8 +396,7 @@ func TestReconDrainingNodeKeepsRunningVMsButRefusesNewStarts(t *testing.T) {
 	}
 }
 
-// Expected to FAIL with the current code: see the report. Two VMs wanting to run on a node with room for one
-// must not both wait forever; one of them should start.
+// Two VMs wanting to run on a node with room for one must not both wait forever; one of them should start.
 func TestReconCapacityTwoPendingVMsOneSlotStartsOne(t *testing.T) {
 	e := newEnv(t, func(_ *service.Config, f *fake.Config) { f.CPUs = 2 })
 	img := e.sharedImage("base-slot")

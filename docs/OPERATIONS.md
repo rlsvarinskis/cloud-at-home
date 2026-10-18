@@ -198,8 +198,8 @@ Migrations run at start-up, before the server listens. Postgres must be reachabl
 ### Database schema
 
 vmd keeps its tables in its database under the migration record `schema_migrations_vmd`. The migrations are in
-`services/vmd/store/postgres/migrations/` (`001_init`, `002_vm_crashes`, `003_node_drain`). agentd keeps its tables
-in its own database under `schema_migrations_agentd`, with migrations in `services/agentd/store/postgres/migrations/`.
+`services/vmd/store/postgres/migrations/` (`001_init`). agentd keeps its tables in its own database under
+`schema_migrations_agentd`, with its migration in `services/agentd/store/postgres/migrations/` (`001_init`).
 Each migration is embedded in the binary and applied in numeric order, each in its own transaction.
 
 ## Running a node

@@ -218,7 +218,8 @@ func tskNewEnv() *tskEnv {
 		agents: &tskAgents{},
 		tasks:  &tskTasks{steps: map[string][]*agentdv1.Step{}},
 		models: &tskModels{models: []*agentdv1.Model{
-			{Name: "llama", SizeBytes: 2 << 30}, {Name: "qwen", SizeBytes: 4 << 30},
+			{Name: "llama", SizeBytes: 2 << 30, SizeGib: 2, FitsVram: true},
+			{Name: "qwen", SizeBytes: 4 << 30, SizeGib: 4, FitsVram: true},
 		}},
 	}
 }
@@ -250,7 +251,8 @@ func TestTskAgentModelsListsWithSizes(t *testing.T) {
 	if isErr {
 		t.Fatalf("unexpected error: %s", out)
 	}
-	want := "llama3.1:8b  4.6 GiB\ntiny  1.5 GiB"
+	want := `[{"name":"llama3.1:8b","size_gib":4.6,"params":"","quant":"","fits_vram":false,"context":null},` +
+		`{"name":"tiny","size_gib":1.5,"params":"","quant":"","fits_vram":false,"context":null}]`
 	if out != want {
 		t.Fatalf("got %q, want %q", out, want)
 	}
@@ -261,7 +263,7 @@ func TestTskAgentModelsNoneInstalled(t *testing.T) {
 	env.models.models = nil
 	cs := newTestSession(t, env.clients())
 	out, isErr := callTool(t, cs, "agent_models", nil)
-	if isErr || out != "(none installed)" {
+	if isErr || out != "[]" {
 		t.Fatalf("got %q (error %v)", out, isErr)
 	}
 }
@@ -307,6 +309,20 @@ func TestTskAgentTaskCreatesAgentAndQueuesTask(t *testing.T) {
 	ct := env.tasks.created[0]
 	if ct.GetAgentId() != "agent_new" || ct.GetPrompt() != "fix it" || ct.GetCheckCommand() != "test -f x" || ct.GetMaxSteps() != 7 {
 		t.Fatalf("bad CreateTask request: %+v", ct)
+	}
+}
+
+func TestTskAgentTaskWarnsWhenModelDoesNotFit(t *testing.T) {
+	env := tskNewEnv()
+	env.models.models[1].FitsVram = false
+	cs := newTestSession(t, env.clients())
+	out, isErr := callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "fix it", "model": "qwen"})
+	if isErr || !strings.Contains(out, "warning: model qwen (4.0 GiB) exceeds the VRAM budget, so it will probably run partly on the CPU") {
+		t.Fatalf("no VRAM warning: %q", out)
+	}
+	out, _ = callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "fix it", "model": "llama"})
+	if strings.Contains(out, "warning") {
+		t.Fatalf("warning for a model that fits: %q", out)
 	}
 }
 
@@ -485,6 +501,8 @@ func TestTskAgentStatusFinishedTask(t *testing.T) {
 		t.Fatalf("unexpected error: %s", out)
 	}
 	want := "status: done  (2 commands run, model qwen, verdict: SUCCESS)\n" +
+		`header: {"status":"done","step":2,"max_steps":0,"elapsed_s":10,"prompt_tokens":0,"gen_tokens":0,` +
+		`"calls":0,"first_command_s":null,"verdict_source":"","reason":"","last_command":"cat README"}` + "\n" +
 		"timing: created 12:00:00, started 12:00:02, finished 12:00:10, elapsed 10.0s\n" +
 		"$ ls -la\n$ cat README\n\n=== RESULT ===\nall good"
 	if out != want {
@@ -508,8 +526,11 @@ func TestTskAgentStatusRunningTaskNoResult(t *testing.T) {
 	if lines[0] != "status: running  (0 commands run, model qwen)" {
 		t.Fatalf("first line %q", lines[0])
 	}
-	if !strings.HasPrefix(lines[1], "timing: created 12:00:00, started 12:00:00, elapsed ") || strings.Contains(lines[1], "finished") {
-		t.Fatalf("timing line %q", lines[1])
+	if !strings.HasPrefix(lines[1], `header: {"status":"running",`) {
+		t.Fatalf("header line %q", lines[1])
+	}
+	if !strings.HasPrefix(lines[2], "timing: created 12:00:00, started 12:00:00, elapsed ") || strings.Contains(lines[2], "finished") {
+		t.Fatalf("timing line %q", lines[2])
 	}
 	if !strings.HasSuffix(out, "\n\n=== RESULT ===\n(no result yet)") {
 		t.Fatalf("bad tail: %q", out)
@@ -693,11 +714,11 @@ func TestTskAgentStatusClipsLongCommands(t *testing.T) {
 		t.Fatalf("unexpected error: %s", out)
 	}
 	lines := strings.Split(out, "\n")
-	if got := []rune(lines[2]); len(got) != 2+200 || !strings.HasSuffix(lines[2], "...") {
+	if got := []rune(lines[3]); len(got) != 2+200 || !strings.HasSuffix(lines[3], "...") {
 		t.Fatalf("long command not clipped to 200 runes: %d runes", len(got))
 	}
-	if lines[3] != "$ echo a echo b" {
-		t.Fatalf("multi-line command %q", lines[3])
+	if lines[4] != "$ echo a echo b" {
+		t.Fatalf("multi-line command %q", lines[4])
 	}
 }
 
@@ -863,5 +884,161 @@ func TestTskAgentTaskIdleAgentStartsImmediately(t *testing.T) {
 	out, isErr := callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "go", "model": "qwen"})
 	if isErr || !strings.Contains(out, "started") || strings.Contains(out, "queued") {
 		t.Fatalf("an idle agent must report started; got err=%v %q", isErr, out)
+	}
+}
+
+// --- agent_status: progress header, polling, live text ---
+
+// tskProgressTask is a running task with progress counters, live text and two model calls.
+func tskProgressTask() *agentdv1.Task {
+	task := tskTask("task_1", agentdv1.TaskState_TASK_STATE_RUNNING)
+	task.StartedAt = timestamppb.New(tskBase)
+	task.MaxSteps = 40
+	task.Steps = 3
+	task.PromptTokens = 1200
+	task.CompletionTokens = 340
+	task.ModelCalls = 2
+	task.PartialCalls = 1
+	task.FirstCommandSeconds = 1.5
+	task.LiveAnswer = "half of the answer"
+	task.LiveReasoning = "thinking aloud"
+	task.Calls = []*agentdv1.CallStat{
+		{Index: 1, Seconds: 2.5, PromptTokens: 1000, GenTokens: 40, End: "ok"},
+		{Index: 2, Seconds: 9.25, GenTokens: 300, End: "repetition", Partial: true},
+	}
+	return task
+}
+
+func TestTskAgentStatusHeaderAndProgress(t *testing.T) {
+	env := tskStatusEnv(tskProgressTask())
+	env.tasks.steps["task_1"] = []*agentdv1.Step{{Seq: 1, Command: "ls"}, {Seq: 2, Command: "make"}, {Seq: 3, Command: "make test  # the last one"}}
+	cs := newTestSession(t, env.clients())
+	out, _ := callTool(t, cs, "agent_status", map[string]any{"name": "box", "wait_seconds": 0})
+	for _, want := range []string{
+		`"step":3,"max_steps":40`, `"prompt_tokens":1200,"gen_tokens":340,"calls":2`, `"first_command_s":1.5`,
+		`"last_command":"make test  # the last one"`,
+		"tokens: prompt 1200, generated 340 over 2 model calls (+1 aborted",
+		"last calls: #1 2.5s 40 tok; #2 9.2s 300 tok partial repetition",
+		"[model answer so far: ...half of the answer]",
+		"[model reasoning (raw, may be noise): ...thinking aloud]",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("status lacks %q:\n%s", want, out)
+		}
+	}
+	// The reasoning and the live answer never appear in the result section.
+	if i := strings.Index(out, "=== RESULT ==="); i < 0 || strings.Contains(out[i:], "thinking") || strings.Contains(out[i:], "half") {
+		t.Errorf("live text leaked into the result:\n%s", out)
+	}
+}
+
+func TestTskAgentStatusLastCommandIsClipped(t *testing.T) {
+	task := tskProgressTask()
+	task.Steps = 1
+	env := tskStatusEnv(task)
+	env.tasks.steps["task_1"] = []*agentdv1.Step{{Seq: 1, Command: strings.Repeat("x", 300)}}
+	cs := newTestSession(t, env.clients())
+	out, _ := callTool(t, cs, "agent_status", map[string]any{"name": "box", "wait_seconds": 0, "brief": true})
+	line := strings.SplitN(out, "\n", 2)[0]
+	if !strings.Contains(line, `"last_command":"`+strings.Repeat("x", 117)+`..."`) {
+		t.Fatalf("last_command not clipped to 120 characters: %s", line)
+	}
+}
+
+func TestTskAgentStatusBriefIsTheHeaderOnly(t *testing.T) {
+	env := tskStatusEnv(tskProgressTask())
+	env.tasks.steps["task_1"] = []*agentdv1.Step{{Seq: 1, Command: "ls"}}
+	cs := newTestSession(t, env.clients())
+	out, _ := callTool(t, cs, "agent_status", map[string]any{"name": "box", "wait_seconds": 0, "brief": true})
+	if !strings.HasPrefix(out, "header: {") || strings.Contains(out, "\n") || strings.Contains(out, "live") ||
+		strings.Contains(out, "model answer") || strings.Contains(out, "$ ls") {
+		t.Fatalf("brief output = %q", out)
+	}
+}
+
+func TestTskAgentStatusPollingIsShortAndListsOnlyNewCommands(t *testing.T) {
+	task := tskProgressTask()
+	env := tskStatusEnv(task)
+	var steps []*agentdv1.Step
+	for i := 1; i <= 30; i++ {
+		steps = append(steps, &agentdv1.Step{Seq: int32(i), Command: fmt.Sprintf("cmd %d", i)})
+	}
+	env.tasks.steps["task_1"] = steps
+	task.Steps = 30
+	cs := newTestSession(t, env.clients())
+
+	// Nothing new since step 30: the reply is short.
+	out, _ := callTool(t, cs, "agent_status", map[string]any{"name": "box", "wait_seconds": 0, "since_step": 30})
+	if len(out) >= 1024 || strings.Contains(out, "$ ") || strings.Contains(out, "model answer") {
+		t.Fatalf("poll with nothing new: %d bytes: %q", len(out), out)
+	}
+
+	// Two new steps, and max_commands keeps only the latest one.
+	out, _ = callTool(t, cs, "agent_status", map[string]any{"name": "box", "wait_seconds": 0, "since_step": 28, "max_commands": 1})
+	if !strings.Contains(out, "[30] $ cmd 30") || strings.Contains(out, "[29]") || strings.Contains(out, "cmd 28") {
+		t.Fatalf("since 28, max 1: %q", out)
+	}
+	if strings.Contains(out, "=== RESULT") {
+		t.Fatalf("a running task shows no result: %q", out)
+	}
+}
+
+func TestTskAgentStatusMaxCommandsDefaultsToTen(t *testing.T) {
+	env := tskStatusEnv(tskProgressTask())
+	var steps []*agentdv1.Step
+	for i := 1; i <= 15; i++ {
+		steps = append(steps, &agentdv1.Step{Seq: int32(i), Command: fmt.Sprintf("cmd %d", i)})
+	}
+	env.tasks.steps["task_1"] = steps
+	cs := newTestSession(t, env.clients())
+	out, _ := callTool(t, cs, "agent_status", map[string]any{"name": "box", "wait_seconds": 0})
+	if strings.Contains(out, "$ cmd 5\n") || !strings.Contains(out, "$ cmd 6\n") || !strings.Contains(out, "$ cmd 15\n") {
+		t.Fatalf("expected the latest ten commands:\n%s", out)
+	}
+}
+
+func TestTskAgentStatusFinishedUnverifiedAndReason(t *testing.T) {
+	task := tskTask("task_1", agentdv1.TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED)
+	task.Verdict = "SUCCESS"
+	task.VerdictSource = "model"
+	task.Reason = "repetition"
+	task.Result = "done"
+	env := tskStatusEnv(task)
+	cs := newTestSession(t, env.clients())
+	out, _ := callTool(t, cs, "agent_status", map[string]any{"name": "box", "wait_seconds": 0})
+	if !strings.HasPrefix(out, "status: done_unverified  (0 commands run, model qwen, verdict: SUCCESS, verdict_source: model, reason: repetition)") {
+		t.Fatalf("status line: %q", out)
+	}
+}
+
+func TestTskAgentTaskPassesTheGuardOptions(t *testing.T) {
+	env := tskNewEnv()
+	cs := newTestSession(t, env.clients())
+	if out, isErr := callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "x", "model": "qwen",
+		"max_minutes": 5, "max_call_tokens": 0, "check_each_step": false}); isErr {
+		t.Fatalf("error: %s", out)
+	}
+	req := env.tasks.created[0]
+	if req.GetMaxMinutes() != 5 || req.GetMaxCallTokens() != 0 || req.GetCheckEachStep() {
+		t.Fatalf("request = %v", req)
+	}
+	if out, isErr := callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "x", "model": "qwen"}); isErr {
+		t.Fatalf("error: %s", out)
+	}
+	req = env.tasks.created[1]
+	if req.GetMaxCallTokens() != 32768 || req.CheckEachStep != nil || req.GetMaxMinutes() != 0 {
+		t.Fatalf("defaults = %v", req)
+	}
+	if out, isErr := callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "x", "model": "qwen", "max_minutes": -1}); !isErr {
+		t.Fatalf("negative max_minutes accepted: %s", out)
+	}
+}
+
+// TestToolsAdvertiseListChanged checks P8: the server declares the tools.listChanged capability.
+func TestToolsAdvertiseListChanged(t *testing.T) {
+	cs := newTestSession(t, tskNewEnv().clients())
+	caps := cs.InitializeResult().Capabilities
+	if caps == nil || caps.Tools == nil || !caps.Tools.ListChanged {
+		t.Fatalf("capabilities = %+v, want tools.listChanged", caps)
 	}
 }

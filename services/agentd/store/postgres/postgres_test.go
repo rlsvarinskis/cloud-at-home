@@ -57,7 +57,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations_agentd").Scan(&n); err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 {
+	if n != 1 { // 001_init
 		t.Fatalf("schema_migrations_agentd has %d rows, want 1", n)
 	}
 	// The store still works after repeated migrations.
