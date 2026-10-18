@@ -92,7 +92,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [vmd, agentd, node]
+        image: [vmd, agentd, mcp, node]
     steps:
       - uses: actions/checkout@v5
 

@@ -2,9 +2,9 @@
 # node: a VM host running the vmd binary with --role=node. Build from the repository root:
 #   docker build -f deploy/Dockerfile.node -t attic/node .
 #
-# Nodes normally run on the bare host, not in a container, because they need direct access to
-# /dev/kvm, bridge networking and local disk images. This image exists for development and for
-# hosts that prefer containers. It needs --privileged or equivalent device access for KVM.
+# Nodes can run on the bare host or in this container. The container needs /dev/kvm passed through
+# (`devices: [/dev/kvm]`) and the NET_ADMIN capability for the guest firewall, which is installed in the
+# container's own network namespace; it does not need --privileged. See deploy/docker-compose.yml.
 
 FROM golang:1.26 AS build
 WORKDIR /src

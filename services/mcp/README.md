@@ -55,7 +55,7 @@ session exists, and the tool set does not change while it runs.
 ### Authentication
 
 Every request to `/mcp` needs `Authorization: Bearer <token>`. The token is a user or service token in the same
-format vmd and agentd accept (Ed25519 JWT, see [AUTH](../../docs/AUTH.md)).
+format vmd and agentd accept (Ed25519 JWT, see [libs/authz](../../libs/authz/README.md#token)).
 
 | Case | Response |
 | --- | --- |
@@ -266,7 +266,7 @@ A JSON configuration for an MCP host that supports HTTP servers (placeholders on
 }
 ```
 
-Get a user token with `atticctl` (see [AUTH](../../docs/AUTH.md)). Keep it out of shared files. Set
+Get a user token with `atticctl` (see [libs/authz](../../libs/authz/README.md#token)). Keep it out of shared files. Set
 `-default-project` to the project most calls will use, so `project` can be left out.
 
 Quick check with curl (the `initialize` request must succeed before any tool call):
@@ -347,6 +347,6 @@ mcpserver/*_test.go         tool tests over an in-memory MCP transport
 
 - [agentd](../agentd/README.md): agents, tasks, steps and models that the agent tools call.
 - [vmd](../vmd/README.md): machines, jobs, files, images, capacity that the other tools call.
-- [AUTH](../../docs/AUTH.md): tokens, roles and permissions.
+- [libs/authz](../../libs/authz/README.md): tokens, roles and permissions.
 - [ADR 0003: jobs live in the guest](../../docs/adr/0003-jobs-live-in-the-guest.md).
 - [e2e](../../e2e/README.md), [deploy](../../deploy/README.md), [top-level README](../../README.md).

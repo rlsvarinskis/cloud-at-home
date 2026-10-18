@@ -5,7 +5,7 @@
 // source: attic/vmd/v1/vmd.proto
 
 // vmd: virtual machines, disks, images and in-guest execution.
-// Every resource belongs to a project; every RPC is authorized per project (see docs/ARCHITECTURE.md).
+// Every resource belongs to a project; every RPC is authorized per project (see libs/authz/README.md).
 
 package vmdv1
 

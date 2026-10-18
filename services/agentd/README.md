@@ -32,8 +32,8 @@ task ends.
 ```
 
 agentd may import `api`, `libs/common`, `libs/authz` and `libs/server` only. It must not import `services/vmd` or
-`libs/qemu`, and it shares no database with vmd. `scripts/check-boundaries.sh` enforces this. Layering is described in
-[ARCHITECTURE](../../docs/ARCHITECTURE.md).
+`libs/qemu`, and it shares no database with vmd. `scripts/check-boundaries.sh` enforces this; its rules are the
+`ALLOWED` table in that script.
 
 ## Contract
 
@@ -46,7 +46,7 @@ types are in [api](../../api/README.md).
 
 Every RPC needs a bearer token. Permissions are checked against the project of the resource. A caller with no binding
 on the resource's project gets `not_found` for an ID-addressed resource and `permission_denied` for a request that
-names a project. The permission each RPC needs is in its table; roles are listed in [AUTH](../../docs/AUTH.md).
+names a project. The permission each RPC needs is in its table; roles are listed in [libs/authz](../../libs/authz/README.md#roles-and-permissions).
 
 Errors are Connect codes mapped from `libs/common/errs`
 ([libs/common](../../libs/common/README.md)). Those agentd produces on purpose:
@@ -332,7 +332,7 @@ tables. The service also has a 20 s shutdown grace and a 10 s header read timeou
 
 vmd side: vmd must trust agentd's public key with the `service` role, for example
 `--trusted-key=agentd=/etc/attic/agentd.pub:service`. The `service` role grants what agentd needs and nothing
-destructive ([AUTH](../../docs/AUTH.md)).
+destructive ([libs/authz](../../libs/authz/README.md#roles-and-permissions)).
 
 ## Data
 
@@ -451,6 +451,87 @@ metrics/           runner Prometheus series
 store/             Store interface and Memory; postgres/ (migrations/, logs.go, tasks.go); storetest/; mock/
 vmclient/          VM interface and the vmd Connect client; mock/
 ```
+
+## Examples
+
+Agents and tasks through the API, with curl. The VM must already exist in the project (see
+[vmd examples](../vmd/README.md#examples)). The token must be trusted by agentd and carry a binding on the project,
+for example `-bind proj-a:editor`. The model name must be installed on the Ollama server (`ListModels` shows them).
+
+```
+export AGENTD=http://127.0.0.1:8081
+export TOKEN=...                    # from atticctl token mint
+call() {                            # call <Method> '<json>', for example call TaskService/GetTask '{...}'
+  curl -sS -X POST "$AGENTD/attic.agentd.v1.$1" \
+    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$2"
+}
+```
+
+### 1. List the models
+
+```
+call ModelService/ListModels '{}'
+```
+
+Each model has `name`, `sizeGib`, `params`, `quant`, `contextLength` and `fitsVram`.
+
+### 2. Create an agent on a VM
+
+Several agents can share one VM. Each gets its own working directory (default `/home/agent/agents/<agent id>`)
+and its own hold `agentd/<agent id>` on the VM, so the VM cannot be deleted under it.
+
+```
+call AgentService/CreateAgent '{"projectId":"proj-a","name":"builder","vmId":"vm_...",
+  "model":"llama3.1:8b","systemPrompt":"You build the project in /home/agent/src.",
+  "idempotencyKey":"builder-1"}'
+```
+
+A retry with the same `idempotencyKey` returns the same agent.
+
+### 3. Queue a task with a check
+
+The `checkCommand` runs in the VM. Its exit status decides the outcome: 0 is `TASK_STATE_SUCCEEDED`.
+
+```
+call TaskService/CreateTask '{"agentId":"agent_...",
+  "prompt":"Make the unit tests in /home/agent/src pass.",
+  "checkCommand":"cd /home/agent/src && go test ./...","maxSteps":60,
+  "idempotencyKey":"tests-1"}'
+```
+
+### 4. Wait for the task
+
+Wait while the task is queued, then while it runs. Repeat the last call until the state is final
+(`SUCCEEDED`, `SUCCEEDED_UNVERIFIED`, `FAILED`, `GAVE_UP`, `CANCELLED` or `ERROR`).
+
+```
+call TaskService/GetTask '{"id":"task_...","waitForNot":"TASK_STATE_QUEUED","waitSeconds":30}'
+call TaskService/GetTask '{"id":"task_...","waitForNot":"TASK_STATE_RUNNING","waitSeconds":30}'
+```
+
+The task's `result`, `verdict`, `reason` and `verdictSource` say how it ended. `calls` lists the latest 50 model
+calls.
+
+### 5. Read the commands the task ran
+
+Pass the last `seq` you have as `afterSeq`. Start with 0.
+
+```
+call TaskService/ListSteps '{"taskId":"task_...","afterSeq":0,"limit":100}'
+call TaskService/ListSteps '{"taskId":"task_...","afterSeq":"<last seq seen>","limit":100}'
+```
+
+### 6. Cancel a task, then delete the agent
+
+A queued task becomes `TASK_STATE_CANCELLED` at once. A running task is cancelled within about a second.
+
+```
+call TaskService/CancelTask '{"id":"task_..."}'
+call AgentService/DeleteAgent '{"id":"agent_..."}'
+```
+
+`DeleteAgent` cancels the agent's unfinished tasks, removes the agent with its tasks, steps and messages, and
+releases the hold on the VM. After that the VM can be deleted.
 
 ## Related
 

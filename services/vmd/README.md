@@ -604,6 +604,154 @@ store/postgres/     Postgres implementation, migrations/001_init.up.sql, Migrate
 store/shard/        router that spreads projects over several stores by rendezvous hashing
 ```
 
+## Examples
+
+Each example is a JSON `POST` with curl. The shell helper below sends one call; the placeholders (`$TOKEN`,
+`vm_...`, `img_...`) stand for values from `atticctl token mint` or from earlier responses. A token with
+`-bind proj-a:editor` can run the VM and exec calls; image registration needs an admin token with `*:admin`.
+
+```
+export API=http://127.0.0.1:8080
+export TOKEN=...                    # from atticctl token mint
+call() {                            # call <Service>/<Method> '<json>'
+  curl -sS -X POST "$API/attic.vmd.v1.$1" \
+    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$2"
+}
+```
+
+Errors come back as `{"code": "...", "message": "..."}`. Connect codes map to HTTP statuses as usual.
+
+### 1. Register a shared image
+
+An empty `projectId` makes the image shared, which needs a `*` binding. The path must be an absolute qcow2
+file on the node named by `nodeId`.
+
+```
+call ImageService/RegisterImage '{"projectId":"","name":"debian-12","nodeId":"node-1",
+  "path":"/var/lib/attic/base/debian-12.qcow2"}'
+call ImageService/GetImage '{"id":"img_..."}'     # repeat until "state":"IMAGE_STATE_READY"
+```
+
+The node symlinks the file, so the image stays where it is. `IMAGE_STATE_ERROR` carries a `stateReason`.
+
+### 2. Create a VM and wait for RUNNING
+
+```
+call VMService/CreateVM '{"projectId":"proj-a","name":"web-1","cpus":2,"memoryMb":2048,
+  "imageId":"img_...","diskSizeGb":20,"start":true,"labels":{"role":"web"},
+  "idempotencyKey":"web-1-create"}'
+call VMService/GetVM '{"id":"vm_...","waitForState":"VM_STATE_RUNNING","waitSeconds":30}'
+```
+
+`CreateVM` returns at once with `VM_STATE_PENDING`. A retry with the same `idempotencyKey` returns the same VM.
+The `GetVM` call returns early in `VM_STATE_ERROR`. Read `stateReason` and fix the cause. A VM short of capacity
+stays `PENDING` with a reason that begins `waiting for capacity`. A VM created with `"start":false` is started
+with `VMService/StartVM`.
+
+### 3. Run a command and read its output
+
+`StartJob` waits up to `waitSeconds` and returns the tail of the output (the last `maxOutput` bytes per stream).
+Poll for the rest.
+
+```
+call ExecService/StartJob '{"vmId":"vm_...","command":"apt-get update && uname -a",
+  "timeoutSeconds":600,"waitSeconds":25,"maxOutput":8192,"idempotencyKey":"run-1"}'
+
+call ExecService/PollJob '{"jobId":"job_...","waitSeconds":25,
+  "stdoutOffset":"<stdoutOffset from the previous response>",
+  "stderrOffset":"<stderrOffset from the previous response>","maxOutput":8192}'
+```
+
+Print `stdout` and `stderr` (base64 in the JSON), keep the new offsets, and poll again while `job.state` is
+`JOB_STATE_RUNNING` and `more` is true. The final states are `JOB_STATE_SUCCEEDED`, `JOB_STATE_FAILED`,
+`JOB_STATE_CANCELLED`, `JOB_STATE_TIMED_OUT` and `JOB_STATE_LOST`. Use a new `idempotencyKey` for each new
+command. Reusing a key with a different command is `invalid_argument`. `ExecService/CancelJob` with
+`{"jobId":"job_..."}` stops a running job.
+
+### 4. Copy a file in and out
+
+The VM must be running. `mode` is decimal: 420 is `0644`. The content limit is 8 MiB.
+
+```
+CONTENT=$(base64 -w0 app.conf)
+call ExecService/PutFile '{"vmId":"vm_...","path":"/home/agent/app.conf",
+  "content":"'"$CONTENT"'","mode":420}'
+call ExecService/GetFile '{"vmId":"vm_...","path":"/home/agent/app.conf","maxBytes":1048576}'
+```
+
+### 5. Snapshot a disk into an image
+
+The disk must be `DISK_STATE_READY` and detached, or attached to a stopped VM. The first entry of the VM's
+`diskIds` is the boot disk.
+
+```
+call VMService/StopVM '{"id":"vm_..."}'
+call VMService/GetVM '{"id":"vm_...","waitForState":"VM_STATE_STOPPED","waitSeconds":30}'
+call DiskService/SnapshotDisk '{"id":"disk_...","imageName":"web-1-snap"}'
+call ImageService/GetImage '{"id":"img_..."}'     # CREATING until the flattened copy exists
+```
+
+When the image is `IMAGE_STATE_READY`, use it with `CreateVM` or `CreateDisk`.
+
+### 6. Grow a disk and resize a VM
+
+A disk only grows. If it is attached, its VM must be stopped. CPU and memory change only while the VM is stopped
+and its desired state is stopped. `expectedGeneration` is the `generation` you last read; a mismatch is `aborted`.
+
+```
+call DiskService/ResizeDisk '{"id":"disk_...","sizeGb":40}'
+
+call VMService/StopVM '{"id":"vm_..."}'
+call VMService/GetVM '{"id":"vm_...","waitForState":"VM_STATE_STOPPED","waitSeconds":30}'
+call VMService/UpdateVM '{"id":"vm_...","cpus":4,"memoryMb":4096,"expectedGeneration":"2"}'
+call VMService/StartVM '{"id":"vm_..."}'
+```
+
+### 7. Delete a VM, its disks and an image
+
+`DeleteVM` is refused with `failed_precondition` while the VM has holds (agents hold their VM). Delete the agents
+first, or pass `"force":true`. `DeleteVM` force-stops a running guest. Call `StopVM` and wait for
+`VM_STATE_STOPPED` first if the guest should power off cleanly.
+
+```
+call VMService/StopVM '{"id":"vm_..."}'
+call VMService/GetVM '{"id":"vm_...","waitForState":"VM_STATE_STOPPED","waitSeconds":30}'
+call VMService/DeleteVM '{"id":"vm_...","deleteDisks":true}'
+
+call DiskService/DeleteDisk '{"id":"disk_..."}'          # only for a detached disk
+call ImageService/DeleteImage '{"id":"img_..."}'         # refused while a disk was created from it
+```
+
+With `deleteDisks` false the disks are detached and stay, and can be attached to another VM.
+
+### 8. Read VM metrics and cluster capacity
+
+```
+call MetricsService/GetVMMetrics '{"vmId":"vm_..."}'     # the VM must be running
+call MetricsService/GetCapacity '{}'                      # needs an operator token (*:operator)
+```
+
+### 9. Drain a node
+
+```
+call ClusterService/SetNodeDraining '{"nodeId":"node-1","draining":true}'     # operator token
+```
+
+Running VMs keep running. Starts wait. For a full maintenance procedure see
+[Draining a node for maintenance](../../deploy/README.md#draining-a-node-for-maintenance).
+
+### 10. The same call with grpcurl
+
+Reflection is not enabled, so pass the proto file. Use `-plaintext` for a cleartext server and omit it for TLS.
+
+```
+grpcurl -plaintext -proto api/proto/attic/vmd/v1/vmd.proto -import-path api/proto \
+  -H "authorization: Bearer $TOKEN" -d '{"projectId":"proj-a"}' \
+  127.0.0.1:8080 attic.vmd.v1.VMService/ListVMs
+```
+
+For Go, see [api](../../api/README.md#calling-from-go).
+
 ## Related
 
 - [API definitions](../../api/README.md): the vmd and node protos and generated code.

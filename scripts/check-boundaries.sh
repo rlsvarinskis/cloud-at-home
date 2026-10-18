@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fails when a module depends on a sibling module it is not allowed to (layering rules in docs/ARCHITECTURE.md).
+# Fails when a module depends on a sibling module it is not allowed to (layering rules in CONTRIBUTING.md#layering-rules).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 M=github.com/rlsvarinskis/cloud-at-home
@@ -12,6 +12,8 @@ declare -A ALLOWED=(
   [services/vmd]="api libs/common libs/authz libs/qemu libs/server"
   [services/agentd]="api libs/common libs/authz libs/server"
   [services/mcp]="api libs/common libs/authz libs/server"
+  # Reserved for the planned auth service (docs/design/auth-graph.md). No such module exists yet; the
+  # loop below skips rows whose directory has no go.mod, so this rule is not enforced until it does.
   [services/auth]="api libs/common libs/authz libs/server"
   [cmd/atticctl]="api libs/common libs/authz"
   [e2e]="api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd services/mcp"

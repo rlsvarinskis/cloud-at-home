@@ -212,6 +212,31 @@ Liveness is checked through `/proc/<pid>/stat` (not a zombie) and `/proc/<pid>/c
 
 ## Configuration
 
+### Host requirements
+
+What a Linux host needs before `vmd --role=node` (or `--role=all`) can run guests. Package names are Debian's, as
+used by [deploy/Dockerfile.node](../../deploy/Dockerfile.node). The driver does not install anything.
+
+| Requirement | Used for | Notes |
+| --- | --- | --- |
+| Linux on x86_64 | Guests run `qemu-system-x86_64` | The binary name is fixed in `qemu/args.go` (`Binary`). |
+| `qemu-system-x86_64` (Debian `qemu-system-x86`) | Runs each guest | Started as the `-run-as` user. |
+| `qemu-img` (Debian `qemu-utils`) | Creates, resizes and converts disks and images; reads image metadata | Called with `info`, `create`, `resize` and `convert`. |
+| `genisoimage` (Debian `genisoimage`) | Builds the cloud-init seed ISO at every VM start | Missing, every start fails with `node unreachable`. |
+| `iptables` and `ip6tables` (Debian `iptables`) | Guest network lockdown | Not needed with `-no-firewall`. |
+| `/dev/kvm` | Hardware acceleration with `-kvm=true`, the default | Without it QEMU fails to start. `-kvm=false` uses TCG, which is much slower. When `/dev/kvm` exists, the `-run-as` user is also put in its group. |
+| Root, or `CAP_NET_ADMIN` plus `chown` rights | Installs the firewall rules; hands `shared/`, VM directories and disks to `-run-as` | Start-up fails if the firewall cannot be installed. |
+| A user named by `-run-as` (default `qemu`) | Owns the shared folder, VM directories and disks; runs QEMU | The lookup fails if the user does not exist. Use `-run-as=` only for development. Debian: `useradd --system qemu`. |
+| Images readable by the `-run-as` user | Images are not chowned, so the user must be able to read them | Put them where that user can read them. |
+| Absolute `-data-dir` (default `/var/lib/attic`) | All state; see [On-disk layout](#on-disk-layout) | Created with mode 0755. |
+| Free disk on the data directory | Disks are qcow2 files sized at creation | No overcommit: a new disk needs its size free. |
+| `-ssh-key` file | The control plane's key for guests | Created with mode 0600 when missing; the public half goes to `<path>.pub` (0644) and is injected into each guest. The SSH client is in-process; no `ssh` binary is run. |
+| Private network or TLS for the node API | The node API accepts `node`-role tokens only | `-tls-cert` and `-tls-key` on `vmd --role=node`, or a private network. |
+
+`deploy/Dockerfile.node` installs `qemu-system-x86`, `qemu-utils`, `genisoimage`, `openssh-client` and `iptables`
+on Debian stable and creates the `qemu` user. The container needs `--privileged` and `/dev/kvm`. The Dockerfile
+installs `openssh-client`, but the driver does not use it.
+
 `qemudriver.Config` (set by `services/vmd/cmd/vmd`; the flags that feed it are listed in the
 [vmd README](../../services/vmd/README.md#configuration)):
 

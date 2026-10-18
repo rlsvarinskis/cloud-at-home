@@ -155,6 +155,21 @@ The key id rule `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` is enforced by `atticctl`, n
 Matching rule: a binding applies to a project when `binding.Project == "*"`, or when the project is not empty and
 `binding.Project == project`. A request with an empty project (global) is therefore satisfied only by a `*` binding.
 
+### Example bindings
+
+Bindings are chosen when the token is minted (`atticctl token mint -bind project:role`, repeatable):
+
+| Who | Bindings |
+| --- | --- |
+| Engineer with full access to one project | `proj-a:admin` |
+| Engineer who only reads one project | `proj-a:viewer` |
+| Operator who drains nodes and reads capacity, or Prometheus scraping `/metrics` | `*:operator` |
+| agentd calling vmd | `*:service`, minted by agentd itself (`ServiceTokens`) |
+| vmd control plane calling a node | `*:node`, minted by vmd itself (`ServiceTokens`) |
+
+`proj-a:operator` grants nothing global: capacity, metrics and drain need a `*` binding. Bindings are not checked
+against the role's scope when a token is minted; the verifier applies the rules above when it is used.
+
 ### Roles and permissions
 
 Roles are fixed sets in [`rbac.go`](rbac.go). Their meaning:

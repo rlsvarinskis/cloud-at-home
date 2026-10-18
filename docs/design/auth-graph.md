@@ -1,6 +1,6 @@
 # Design: graph-based identity and authorization (`services/auth`)
 
-Status: **proposal, not implemented.** This replaces the "planned identity service" note in [AUTH.md](../AUTH.md).
+Status: **proposal, not implemented.** This replaces the "planned identity service" note that the central auth documentation carried; the current token and role model is in [libs/authz](../../libs/authz/README.md).
 Nothing here changes the running system until the phases in [Rollout](#rollout) are done.
 
 ## Summary

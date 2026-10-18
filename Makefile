@@ -35,5 +35,5 @@ cover:
 tidy:
 	@for m in $(MODULES); do (cd $$m && go mod tidy) || exit 1; done
 
-boundaries:  ## fail if a module imports one it may not (see docs/ARCHITECTURE.md)
+boundaries:  ## fail if a module imports one it may not (see CONTRIBUTING.md#layering-rules)
 	./scripts/check-boundaries.sh

@@ -4,196 +4,154 @@
 
 ![Attic Cloud: a cloud full of giants wearing cloud-provider logos above mom's house, with a sad guy and some ad-hoc server racks in the attic](docs/assets/attic-cloud.svg)
 
-Attic Cloud is a small private cloud written in Go (identifier: `attic`). It runs virtual machines and LLM agents on
-hardware you already own, and exposes them to Claude and other MCP clients. It has these servers:
-
-- **vmd** manages virtual machines, disks, images, in-guest command execution and metrics. It runs as a
-  control plane, as a per-host node daemon, or both in one process.
-- **agentd** runs LLM agents on top of vmd's VMs. An agent is always tied to one VM. A task given to an
-  agent is executed by a model that drives the VM through a single `bash` tool.
-- **mcp** exposes both to MCP clients such as Claude (see `services/mcp`).
-
-All servers speak the Connect protocol, which is gRPC, gRPC-Web and plain HTTP+JSON on the same paths.
-All resources belong to projects. Every call is authenticated with an Ed25519-signed bearer token and
-authorized per project.
-
-Status: vmd and agentd are implemented, and `make test` passes. The `e2e/` tests run both servers in one
-process over HTTP, and `services/vmd/cmd/vmd` and `services/agentd/cmd/agentd` have tests that start the real daemons against Postgres. No guest
-has been booted in this repository's CI, and the development host used for these docs has no `genisoimage`, so the
-QEMU driver and the guest scripts are covered by unit tests with fakes. See
-[ARCHITECTURE.md](docs/ARCHITECTURE.md#known-limitations).
+Attic Cloud (identifier: `attic`) is a small private cloud written in Go. It runs virtual machines and LLM agents on
+hardware you already own, and exposes both to Claude and other MCP clients. Every component has its own README with
+its API contract; this page is the map.
 
 ## Architecture
 
 ```
-                    clients (atticctl, SDKs, Claude, curl)
-                          │  Connect / gRPC / gRPC-Web, JSON over HTTP
-            ┌─────────────┴──────────────┐
-            ▼                            ▼
-     ┌────────────┐   gRPC + service   ┌────────────┐
-     │  agentd    │ ─────────────────▶ │   vmd      │  control plane (stateless replicas)
-     │ replicas   │    JWT, role      │  replicas  │
-     └─────┬──────┘    "service"       └──┬──────┬──┘
-           │                              │      │ node API (role "node")
-      Postgres (agentd)             Postgres (vmd) ▼
-      + Ollama (LLM)                       ┌───────────┐ ┌───────────┐
-                                           │ node host │ │ node host │
-                                           │ QEMU/KVM  │ │ QEMU/KVM  │
-                                           └───────────┘ └───────────┘
+   clients: Claude / MCP clients, curl, SDKs, atticctl
+        │ MCP (streamable HTTP)                │ Connect: gRPC, gRPC-Web or HTTP+JSON
+        ▼                                      │
+ ┌────────────┐   same bearer token            │
+ │    mcp     │ ───────────────┬───────────────┤
+ └────────────┘                ▼               ▼
+                        ┌────────────┐   ┌────────────┐   service token (role "service")
+                        │   agentd   │──▶│    vmd     │◀── ... agentd only ever acts as "service"
+                        │ agents,    │   │ control    │
+                        │ tasks, LLM │   │ plane      │
+                        │ loop       │   └─────┬──────┘
+                        └──┬──────┬──┘         │ node API (role "node")
+                  Postgres │      │ Ollama     ▼
+                  (agentd) │      ▼       ┌───────────┐   ┌───────────┐
+                           ▼   models      │ vmd node  │   │ vmd node  │   one per VM host
+                                           │ QEMU/KVM  │   │ QEMU/KVM  │
+                                  Postgres │ guests    │   │ guests    │
+                                  (vmd)    └───────────┘   └───────────┘
 ```
 
-The design, including placement, the reconciler, sharding and the failure model, is in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The decisions themselves are recorded in
-[docs/adr/](docs/adr/).
+| Component | What it does | README |
+| --- | --- | --- |
+| vmd | VMs, disks, images, in-guest exec jobs, metrics, node placement. Runs as control plane, as a node, or both. | [services/vmd](services/vmd/README.md) |
+| agentd | LLM agents, each tied to one VM; runs tasks as a model-driven loop over a `bash` tool, with guards and an objective check. | [services/agentd](services/agentd/README.md) |
+| mcp | MCP server (20 tools) over vmd and agentd for Claude and other MCP clients. | [services/mcp](services/mcp/README.md) |
+| libs/qemu | The node side: QEMU driver, disks and images, guest firewall lock-down, in-guest command and metrics scripts. | [libs/qemu](libs/qemu/README.md) |
+| libs/authz | Tokens, roles, project bindings, revocation, Connect interceptors. | [libs/authz](libs/authz/README.md) |
+| libs/common, libs/server | Error vocabulary, ids, Postgres and migrations; HTTP daemon, logging, metrics. | [common](libs/common/README.md), [server](libs/server/README.md) |
+| api | The `.proto` files (source of truth) and the generated Go code. | [api](api/README.md) |
+| cmd/atticctl | Admin CLI: keys, tokens, roles. | [cmd/atticctl](cmd/atticctl/README.md) |
+| e2e | End-to-end tests over the real HTTP handlers. | [e2e](e2e/README.md) |
+| deploy | Dockerfiles, the compose stack, production-style deployment notes. | [deploy](deploy/README.md) |
 
-## Features
+How the pieces work together:
 
-vmd:
+- **Everything belongs to a project.** Every call carries an Ed25519-signed bearer token whose bindings say which roles
+  it has in which projects. Servers hold only public keys, so a server cannot mint tokens. A caller with no binding on
+  a project cannot even learn that its resources exist.
+- **State lives in Postgres, work is leased.** vmd and agentd are stateless replicas. A reconciler (vmd) and a task
+  runner (agentd) claim work with leases, so a crashed replica's work is picked up by another. Each service has its own
+  database. See [ADR 2](docs/adr/0002-state-and-leases.md).
+- **vmd drives nodes towards the state you ask for.** You set a VM's desired power state; the reconciler places it on a
+  node that has capacity, starts QEMU through the node daemon, and records why when something is not as requested.
+- **Commands run inside the guest.** An exec job is a directory in the VM, not a process held by a server, so jobs and
+  their output survive restarts of every Attic component. See [ADR 3](docs/adr/0003-jobs-live-in-the-guest.md).
+- **Agents are guarded.** A task ends `succeeded` only when your `check_command` passes (otherwise a claimed success is
+  `succeeded_unverified`). Malformed tool calls are repaired or sent back to the model, runaway or repeating output is
+  cut off, and a wall-clock limit applies. See [ADR 4](docs/adr/0004-agent-loop-guards.md).
+- **Isolation.** Guests run as an unprivileged user and are firewalled from private networks; the node container needs
+  `/dev/kvm` and `NET_ADMIN` only inside its own network namespace.
 
-- Declarative VMs, disks and images. An API call records a desired state; a reconciler moves the VM
-  towards it and records why it could not (`state_reason`).
-- Copy-on-write disks from images, snapshots of a detached disk into a new image, grow-only disk resize.
-- Commands run in the guest as detached jobs (`StartJob`, `PollJob` with output offsets, `CancelJob`).
-  Calls wait at most 30 seconds. Jobs survive restarts of the control plane and of the node daemon.
-- Small file transfer into and out of a running guest (up to 8 MiB per file).
-- Per-VM guest metrics (CPU, memory, swap, filesystems), per-disk host allocation, and cluster capacity.
-- Draining a node (`ClusterService.SetNodeDraining`): running VMs keep running, nothing new starts there.
-- Per-project quotas (`--quota-*`, unlimited by default).
-- Prometheus metrics on `/metrics` for operators.
-- Holds: another service can hold a VM so that it cannot be deleted from under it.
-- Ed25519 bearer tokens with per-key role restrictions, project-scoped RBAC, revocation of single tokens
-  (`--revoked-tokens`), and not-found answers for resources in projects the caller cannot see.
-- Postgres as the system of record, with leases and compare-and-swap so that several replicas can serve
-  and reconcile at the same time. Projects can be spread over several databases (`--postgres-dsn` repeated).
-  An in-memory store is available for development.
+Scaling and failure, in short:
 
-agentd:
+- **Scale-out:** run more vmd or agentd replicas on the same database. Projects can be sharded over several Postgres
+  databases (`--postgres-dsn` more than once; the set is part of your data layout). A VM runs on the node that holds its
+  boot disk, and there is no live migration.
+- **A replica dies:** its leases expire after 30 seconds and another replica takes over. A running task resumes from its
+  stored messages, and a command still running in the guest is found again, not started twice.
+- **A node daemon or vmd restarts:** guests keep running (QEMU is detached) and are re-adopted. If a guest's QEMU
+  crashes, the reconciler restarts it with backoff.
+- **Postgres is down:** `/readyz` fails and API calls that need the database error out; running guests keep running.
+- **Limits:** two vmd replicas can overcommit one node (the placement lock is per process), there is no cross-node image
+  replication, and changing the shard set needs a manual migration.
 
-- Agents with a model chosen by the caller, a system prompt, a working directory inside the VM and labels.
-- Tasks queued in the database and run by worker replicas under leases. The conversation is stored after
-  every message, so another worker can resume a task whose owner died.
-- Optional `check_command` that decides the final state, independent of the model's own verdict.
-- Long-poll task reads, cancellation (which also stops the running command), and a list of the commands a task ran.
+All decisions are recorded in [docs/adr](docs/adr/). A proposal for a graph-based identity service is in
+[docs/design/auth-graph.md](docs/design/auth-graph.md); it is not implemented.
 
-## Quick start (single machine, development)
+## Quick start (Docker)
 
-Prerequisites: Go 1.26 or later. To start real VMs you also need the host tools listed in
-[docs/OPERATIONS.md](docs/OPERATIONS.md#node-host-requirements). Without them the API works, but starting a VM fails
-with a `state_reason` of `node unreachable: <node id>` and the VM stays `STOPPED`.
+Requirements: Linux with KVM (`/dev/kvm`), Docker with Compose v2, Go (to run `atticctl`), about 3 GB of free disk and
+a few GB of RAM for one small guest. Verified with Docker 29 on Linux. Run these from the repository root.
 
-1. Build the binaries into `bin/`:
+```bash
+# 1. Signing keys: one pair per signer. Private keys stay in deploy/keys (gitignored).
+for id in admin agentd vmd; do go run ./cmd/atticctl key generate -out deploy/keys -id "$id"; done
 
-   ```
-   mkdir -p bin && go build -o bin/ ./services/vmd/cmd/vmd ./services/agentd/cmd/agentd ./cmd/atticctl
-   ```
+# 2. Settings: a database password, and the uid that may read the private keys.
+printf 'ATTIC_POSTGRES_PASSWORD=%s\nATTIC_UID=%s\nATTIC_GID=%s\n' \
+  "$(head -c16 /dev/urandom | od -An -tx1 | tr -d ' \n')" "$(id -u)" "$(id -g)" > deploy/.env
 
-   The repository is a Go workspace (`go.work`) with one module per directory and no root module. `make build`
-   compiles every module and writes no binaries.
+# 3. A guest image (Debian cloud image, about 350 MB) for the node to boot VMs from.
+mkdir -p deploy/images
+curl -L -o deploy/images/debian12.qcow2 \
+  https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
 
-2. Generate a signing key and mint an admin token. The key pair is written to `dev/keys/`; `atticctl` refuses
-   to overwrite existing files.
+# 4. Build and start: postgres, vmd (control plane), node (QEMU/KVM), agentd, mcp.
+cd deploy && docker compose up -d --build && cd ..
+```
 
-   ```
-   ./bin/atticctl key generate -out dev/keys -id admin
-   TOKEN=$(./bin/atticctl token mint -key dev/keys/admin.key -kid admin \
-     -sub user:me -type user -bind '*:admin' -ttl 24h)
-   ```
+The APIs listen on loopback only: vmd `127.0.0.1:8080`, agentd `127.0.0.1:8081`, MCP `127.0.0.1:8082`. Try it:
 
-   `-bind project:role` may be repeated. `*` as the project means every project. The default token
-   lifetime is 24 hours; `vmd` rejects tokens longer than its `-max-token-ttl`, which defaults to 24 hours.
+```bash
+TOKEN=$(go run ./cmd/atticctl token mint -key deploy/keys/admin.key -kid admin \
+  -sub user:me -type user -bind '*:admin' -bind '*:operator' -ttl 12h)
+call() { curl -sS -X POST "http://127.0.0.1:8080/attic.vmd.v1.$1" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$2"; echo; }
 
-3. Start vmd with the control plane and an in-process node:
+call ImageService/RegisterImage '{"projectId":"","name":"debian12","nodeId":"node1","path":"/images/debian12.qcow2"}'
+call ImageService/ListImages '{"projectId":"demo"}'          # wait for IMAGE_STATE_READY and copy the image id
+call VMService/CreateVM '{"projectId":"demo","name":"vm1","cpus":1,"memoryMb":1024,"imageId":"IMAGE_ID","diskSizeGb":6,"start":true}'
+call VMService/GetVM '{"id":"VM_ID","waitForState":"VM_STATE_PENDING","waitSeconds":30}'   # until VM_STATE_RUNNING
+call ExecService/StartJob '{"vmId":"VM_ID","command":"uname -a","waitSeconds":20}'          # stdout is base64
+```
 
-   ```
-   ./bin/vmd --role=all --listen=127.0.0.1:8080 \
-     --trusted-key=admin=dev/keys/admin.pub \
-     --ssh-key=dev/ssh_ed25519 \
-     --no-firewall --run-as= \
-     --data-dir="$PWD/dev/data" --log-level=info
-   ```
+To use Claude or another MCP client, point it at `http://127.0.0.1:8082/mcp` with the same `Authorization: Bearer`
+header (put TLS in front of it for anything but loopback). For LLM agents add a model server and pull a model:
 
-   - `--trusted-key kid=path[:roles]` trusts the public key `path` for tokens whose key id is `kid`.
-     Without at least one trusted key vmd refuses to start.
-   - `--ssh-key` is required for a node. The private key is created with mode 0600 if it does not exist, and
-     its public half is written to `dev/ssh_ed25519.pub`.
-   - `--no-firewall` skips the guest network lockdown. Without it vmd installs `iptables` rules that stop
-     guests from reaching private networks, which needs root or `CAP_NET_ADMIN`, and fails at start-up if
-     the rules cannot be installed. Use `--no-firewall` only for development.
-   - `--data-dir` must be an absolute path; vmd refuses a relative one. `$PWD` gives the absolute path used here.
-   - `--run-as=` (empty) runs the guests as the current user. The default is the `qemu` user, which must
-     exist.
-   - Without `--postgres-dsn` (or `ATTIC_POSTGRES_DSN`) vmd uses the in-memory store and logs a warning.
-     All state is lost on restart.
-   - `--revoked-tokens FILE` is optional. If given, the file must exist when vmd starts.
+```bash
+cd deploy && docker compose --profile llm up -d && docker compose exec ollama ollama pull qwen3:0.6b
+```
 
-4. Call the API:
+That Ollama runs on the CPU. For a GPU, or to run several nodes, put TLS in front, change ports or run next to other
+Docker projects, see [deploy/README.md](deploy/README.md). Stop everything with `docker compose down` (add `-v` to
+delete the data volumes).
 
-   ```
-   curl -sS -X POST http://127.0.0.1:8080/attic.vmd.v1.VMService/ListVMs \
-     -H "Authorization: Bearer $TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"projectId": "proj-a"}'
-   ```
+## Status
 
-   The health endpoints are `/healthz` (liveness) and `/readyz` (readiness, checks the store).
-
-See [docs/API.md](docs/API.md) for the full API and a worked workflow, and [docs/OPERATIONS.md](docs/OPERATIONS.md)
-for a multi-host deployment.
+- Verified end to end in an isolated compose project: a real KVM guest booted inside the node container, command
+  execution, metrics, file transfer, the guest firewall, the MCP tools and an agent task driven by a small model on the
+  CPU. Unit, store-conformance and end-to-end tests run under `-race` (`make test`).
+- Not yet exercised: the GitHub Actions workflow, GPU inference through the compose stack, multi-node placement on real
+  hosts, and the sharded Postgres layout outside tests.
+- Known limits are listed in the component READMEs (for example in [vmd](services/vmd/README.md) and
+  [agentd](services/agentd/README.md)).
 
 ## Repository layout
 
-```
-api/                   module: API definitions (api/proto, source of truth) and generated Go code (api/gen, committed)
-libs/common/           module: errs (error vocabulary), ids (prefixed ULIDs), pg (Postgres pool, migrations, pgtest)
-libs/authz/            module, package authz: tokens, RBAC, revocation list, Connect interceptors, service tokens
-libs/qemu/             module: node driver interface (node/), qemudriver, qemu, guest scripts, sshrunner, remote, nodeserver, fake
-libs/server/           module: obs (RPC metrics, /metrics, health checks), daemon (flags, logging, HTTP server)
-services/vmd/         module: vmd (domain, store, scheduler, service, promcollect) and cmd/vmd (control plane and node daemon)
-services/agentd/      module: agentd (domain, store, llm, vmclient, runner, service, metrics) and cmd/agentd
-services/mcp/         module: MCP server (tools for Claude and other MCP clients) and cmd/mcp
-cmd/atticctl/             module: admin CLI: keys, tokens, roles
-e2e/                   module: end-to-end tests, vmd and agentd in one process, over their HTTP APIs
-deploy/                Dockerfiles, docker-compose development stack, deployment notes
-docs/                  ARCHITECTURE.md, adr/, API.md, AUTH.md, OPERATIONS.md, DEVELOPMENT.md
-```
-
-The module layout and the rules on which module may import which are in
-[ARCHITECTURE.md](docs/ARCHITECTURE.md#repository-layout).
-
-## Tests
+Go workspace (`go.work`), one module per directory, no root module. The layering rule (which module may import which)
+is enforced by `make boundaries`; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```
-make build         # go build ./... in every module
-make test          # go test -race -count=1 ./... in every module
-make vet           # go vet ./... in every module
-make cover         # coverage summary
-make boundaries    # fail if a module imports a sibling it may not
+api/            proto sources and generated code        services/vmd/     VM service and node daemon
+libs/common/    errors, ids, Postgres                   services/agentd/  agent service
+libs/authz/     tokens, roles, interceptors             services/mcp/     MCP server
+libs/qemu/      node driver and guest scripts           cmd/atticctl/     admin CLI
+libs/server/    HTTP daemon, logging, metrics           e2e/              end-to-end tests
+deploy/         Dockerfiles and compose stack           docs/             ADRs and design proposals
 ```
 
-`go test ./...` at the repository root does not work. Run it inside a module, for example
-`cd services/vmd && go test ./...`, or use `make test`.
+## Contributing
 
-Store conformance suites (`storetest`) run against every store implementation. The Postgres suites need a
-Postgres server. Choose one of:
-
-- Default: a real Postgres is started for the test process with `embedded-postgres`. Its binaries are
-  downloaded on first use and cached, so the first run needs network access.
-- `ATTIC_TEST_POSTGRES=postgres://admin-dsn...`: use an existing server. Each test gets a fresh
-  database on it.
-- `ATTIC_TEST_POSTGRES=skip`: skip the Postgres tests.
-
-Service tests run the real Connect handlers over `httptest` with a fake node driver and a fake LLM, using
-real signed tokens. `cd services/vmd && ATTIC_TEST_SHARDS=3 go test ./service` runs the same suite on a store
-sharded over three databases. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
-
-## Documentation
-
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): components, placement, identity, distribution, failure model, known limitations.
-- [docs/adr/](docs/adr/): decisions on Connect RPC, Postgres with leases, jobs living in the guest, and guards on the agent loop.
-- [docs/API.md](docs/API.md): every service, its RPCs, permissions, errors and limits, with examples.
-- [docs/AUTH.md](docs/AUTH.md): tokens, roles, projects, revocation, service-to-service auth, key rotation, hardening.
-- [docs/OPERATIONS.md](docs/OPERATIONS.md): deployment shapes, node host setup, reconciler behaviour, draining,
-  failure handling, metrics and alerts, quotas, capacity, backups and upgrades.
-- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): regenerating code, testing, adding RPCs, permissions and
-  store methods, conventions and known limitations.
-- [deploy/README.md](deploy/README.md): container images and the docker-compose development stack.
+Build, test, conventions and the rules for what may be committed (this repository is public: no secrets, deployment
+details or binaries) are in [CONTRIBUTING.md](CONTRIBUTING.md). Quick commands: `make build`, `make test`, `make vet`,
+`make boundaries`.
