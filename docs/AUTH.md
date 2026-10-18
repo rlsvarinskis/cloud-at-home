@@ -6,7 +6,7 @@ it holds privately. This document describes the token model, the roles, revocati
 key rotation and hardening. The code is in [`libs/authz`](../libs/authz/) (package `authz`), the admin tool is
 [`cmd/atticctl`](../cmd/atticctl/). The system design is in [ARCHITECTURE.md](ARCHITECTURE.md#identity-and-authorization).
 
-> **Planned, not implemented:** a `services/auth` identity service, which would hold users, API keys and service
+> **Planned, not implemented** (see [the design](design/auth-graph.md)): a `services/auth` identity service, which would hold users, API keys and service
 > accounts, offer OIDC login for Google and GitHub, keep an audit log and publish JWKS, so that services verify its
 > tokens offline. It does not exist yet. The rest of this document describes what is implemented today.
 
