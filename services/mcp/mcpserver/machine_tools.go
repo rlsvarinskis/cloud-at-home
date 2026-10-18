@@ -20,8 +20,8 @@ import (
 const (
 	machineMaxCPUs  = 32
 	machineMaxMemGB = 56
-	machineDefCPUs  = 8
-	machineDefMemGB = 16
+	machineDefCPUs  = 1
+	machineDefMemGB = 2
 	machineDefDisk  = 40
 	// machinePageSize is the page size used when listing VMs, images, agents, tasks and jobs.
 	machinePageSize = 200
@@ -33,8 +33,8 @@ var machineNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,30}$`)
 
 type agentCreateArgs struct {
 	Name     string `json:"name" jsonschema:"machine name: 1-31 characters, lowercase letters, digits and hyphens, starting with a letter or digit"`
-	CPUs     int    `json:"cpus,omitempty" jsonschema:"number of vCPUs; default 8, maximum 32"`
-	MemoryGB int    `json:"memory_gb,omitempty" jsonschema:"memory in GiB; default 16, maximum 56"`
+	CPUs     int    `json:"cpus,omitempty" jsonschema:"number of vCPUs; default 1, maximum 32"`
+	MemoryGB int    `json:"memory_gb,omitempty" jsonschema:"memory in GiB; default 2, maximum 56"`
 	DiskGB   int    `json:"disk_gb,omitempty" jsonschema:"boot disk size in GiB; default 40"`
 	Image    string `json:"image,omitempty" jsonschema:"image to boot from, by name or ID; default is the server's default image"`
 	Project  string `json:"project,omitempty" jsonschema:"project ID; default is the server's default project"`
@@ -66,7 +66,7 @@ type agentResizeArgs struct {
 func (s *Server) registerMachineTools() {
 	addTool(s, "agent_create",
 		"Create a machine (VM) named name and start it, or start it again if a stopped machine with that name exists. "+
-			"It boots from image (a name or an image ID; default: the server's default image). Defaults: 8 CPUs, 16 GiB memory, "+
+			"It boots from image (a name or an image ID; default: the server's default image). Defaults: 1 CPU, 2 GiB memory, "+
 			"40 GiB disk; limits: 32 CPUs, 56 GiB memory. Waits up to about 25 s for the machine to be running; if it is still "+
 			"booting the result says so (check with agent_list). Fails if a machine with that name is already running "+
 			"(use agent_resize to change its size).", s.agentCreate)
@@ -171,7 +171,7 @@ func (s *Server) awaitRunning(ctx context.Context, name, id string, deadline tim
 	}
 	switch vm.GetState() {
 	case vmdv1.VMState_VM_STATE_RUNNING:
-		return fmt.Sprintf("machine '%s' is running (%d CPUs, %s GiB)", name, vm.GetCpus(), gibText(vm.GetMemoryMb())), nil
+		return fmt.Sprintf("machine '%s' is running (%s, %s GiB)", name, cpuText(vm.GetCpus()), gibText(vm.GetMemoryMb())), nil
 	case vmdv1.VMState_VM_STATE_ERROR:
 		return "", machineStateErr(vm)
 	}
@@ -192,7 +192,7 @@ func (s *Server) agentList(ctx context.Context, in agentListArgs) (string, error
 	lines := make([]string, 0, len(vms))
 	for _, v := range vms {
 		var b strings.Builder
-		fmt.Fprintf(&b, "%s: %s, %d CPUs / %s GiB", v.GetName(), vmStateLabel(v.GetState()), v.GetCpus(), gibText(v.GetMemoryMb()))
+		fmt.Fprintf(&b, "%s: %s, %s / %s GiB", v.GetName(), vmStateLabel(v.GetState()), cpuText(v.GetCpus()), gibText(v.GetMemoryMb()))
 		if r := v.GetStateReason(); r != "" {
 			fmt.Fprintf(&b, ", reason: %s", r)
 		}
@@ -319,7 +319,7 @@ func (s *Server) agentResize(ctx context.Context, in agentResizeArgs) (string, e
 	default:
 		return "", fmt.Errorf("%v; agent_resize needs the machine running or stopped", machineStateErr(vm))
 	}
-	change := fmt.Sprintf("%d CPUs / %s GiB", vm.GetCpus(), gibText(vm.GetMemoryMb()))
+	change := fmt.Sprintf("%s / %s GiB", cpuText(vm.GetCpus()), gibText(vm.GetMemoryMb()))
 
 	cur := vm
 	if wasRunning {
@@ -364,7 +364,7 @@ func (s *Server) agentResize(ctx context.Context, in agentResizeArgs) (string, e
 		}
 		return "", err
 	}
-	newSize := fmt.Sprintf("%d CPUs / %s GiB", upd.Msg.GetCpus(), gibText(upd.Msg.GetMemoryMb()))
+	newSize := fmt.Sprintf("%s / %s GiB", cpuText(upd.Msg.GetCpus()), gibText(upd.Msg.GetMemoryMb()))
 	summary := fmt.Sprintf("machine '%s' resized from %s to %s", in.Name, change, newSize)
 	if !wasRunning {
 		return summary + "; applied; machine is stopped (agent_create starts it)", nil
@@ -548,4 +548,12 @@ func machineStateErr(vm *vmdv1.VM) error {
 // gibText renders megabytes as GiB without trailing zeros (16384 -> "16", 1536 -> "1.5").
 func gibText(mb int64) string {
 	return strconv.FormatFloat(float64(mb)/1024, 'f', -1, 64)
+}
+
+// cpuText writes a vCPU count with the right plural: "1 CPU", "8 CPUs".
+func cpuText(n int32) string {
+	if n == 1 {
+		return "1 CPU"
+	}
+	return fmt.Sprintf("%d CPUs", n)
 }

@@ -106,7 +106,7 @@ requires it to start with a letter (the MCP check accepts a leading digit; vmd t
 
 | Tool | Arguments | Result | Notes |
 | --- | --- | --- | --- |
-| `agent_create` | `name` (required); `cpus` (1-32, default 8); `memory_gb` (1-56, default 16); `disk_gb` (at least 1, default 40); `image` (name or ID, default `-default-image`); `project` | Text: `machine 'x' is running (8 CPUs, 16 GiB)`, or `is booting (agent_list shows when it is ready)`. | Creates the VM and starts it, or starts a stopped VM with that name (its sizes and image are then not changed). Refused if the VM is already running or starting. An image name that matches two images is refused (give the ID). |
+| `agent_create` | `name` (required); `cpus` (1-32, default 1); `memory_gb` (1-56, default 2); `disk_gb` (at least 1, default 40); `image` (name or ID, default `-default-image`); `project` | Text: `machine 'x' is running (1 CPU, 2 GiB)`, or `is booting (agent_list shows when it is ready)`. | Creates the VM and starts it, or starts a stopped VM with that name (its sizes and image are then not changed). Refused if the VM is already running or starting. An image name that matches two images is refused (give the ID). |
 | `agent_list` | `project` | One line per machine: `name: state, N CPUs / X GiB[, reason: ...], task: <label>`. `(no machines)` when empty. | State: pending, stopped, starting, running, stopping, error, deleting. `task` is the newest agentd task of the machine's agents: `queued`, `running`, `done`, `failed`, `gave_up`, `cancelled`, `error`, `none` (no agent or no task), or `unknown` (agentd unreachable, or a `succeeded_unverified` task, see [Known limits](#known-limits)). |
 | `agent_stop` | `name`, `project` | `machine 'x' is stopped` or `is stopping`. | Graceful stop of the guest. Disk and data are kept. Does not wait. |
 | `agent_destroy` | `name`, `project`, `force` (default false) | `machine 'x' destroyed`. | PERMANENT. Deletes the agentd agents on the VM first (one by one; a failure stops the call before the VM is deleted), then deletes the VM with its boot disk. `force` is passed to vmd, which then deletes a VM other services hold. Returns once deletion is requested. |
@@ -136,7 +136,7 @@ code.
 | Tool | Arguments | Result | Notes |
 | --- | --- | --- | --- |
 | `agent_upload` | `name`, `path` (absolute, required), `content` (required), `base64` (bool, default false), `mode` (octal such as `0644`, default `0644`; `0000` refused), `project` | `wrote N bytes to <path>` | `content` is plain text, or base64 of the bytes (whitespace is ignored). At most 8 MiB after decoding. |
-| `agent_download` | `name`, `path` (required), `encoding` (`auto` default, `utf-8`, `base64`), `base64` (deprecated alias of `encoding=base64`), `max_bytes` (default 1 MiB), `project` | JSON: `path`, `size` (bytes returned), `sha256` (of those raw bytes), `encoding` (`utf-8` or `base64`, the one used), `content`, and `truncated` when set. | `auto` gives UTF-8 text when the bytes are valid UTF-8, base64 otherwise. `utf-8` fails on binary files. `max_bytes` may be up to 1 MiB for `utf-8` and up to 8 MiB for `auto` and `base64`. A cut inside a UTF-8 character is removed before the check. |
+| `agent_download` | `name`, `path` (required), `encoding` (`auto` default, `utf-8`, `base64`), `base64` (same as `encoding=base64`), `max_bytes` (default 1 MiB), `project` | JSON: `path`, `size` (bytes returned), `sha256` (of those raw bytes), `encoding` (`utf-8` or `base64`, the one used), `content`, and `truncated` when set. | `auto` gives UTF-8 text when the bytes are valid UTF-8, base64 otherwise. `utf-8` fails on binary files. `max_bytes` may be up to 1 MiB for `utf-8` and up to 8 MiB for `auto` and `base64`. A cut inside a UTF-8 character is removed before the check. |
 | `agent_fetch` | `name`, `url` (absolute http or https, required), `path` (required; absolute, or relative to the home directory; directories are created), `wait_seconds` (default 45), `project` | `ok: <ls -l line>` when it finished; `download still running as job <id>: poll it with agent_exec_poll`; or an error with the exit code and the last 1000 bytes of stderr. | The machine downloads the URL itself with `curl -fsSL --create-dirs` (curl must exist in the image). The job lives up to 3600 s. |
 | `agent_ssh_pubkey` | `name`, `project` | The public key of `~/.ssh/id_ed25519.pub`, plus a line saying the private key never leaves the machine. | Creates an ed25519 key pair with no passphrase if there is none (needs `ssh-keygen` in the image). Waits up to 20 s. |
 
@@ -350,3 +350,13 @@ mcpserver/*_test.go         tool tests over an in-memory MCP transport
 - [libs/authz](../../libs/authz/README.md): tokens, roles and permissions.
 - [ADR 0003: jobs live in the guest](../../docs/adr/0003-jobs-live-in-the-guest.md).
 - [e2e](../../e2e/README.md), [deploy](../../deploy/README.md), [top-level README](../../README.md).
+
+## Compatibility with the Python gateway's tool schema
+
+The Python gateway that this server replaced exposed 17 tools. Existing clients and prompts were written against its
+argument names, so this server keeps every one of those tools and arguments with the same JSON type (for example
+`memory_gb`). It may add optional arguments
+(`project`, `image`, `disk_gb`, `workdir`, ...) and tools (`agent_metrics`, `cluster_capacity`, `node_drain`), but never
+drops or renames the old ones. `TestSchemaCoversTheDeployedPythonGateway` enforces this. Two deliberate differences:
+`agent_create` defaults to 1 CPU and 2 GiB of memory (the Python gateway used 8 CPUs and 16 GiB), and the Python
+argument names `base64_encoded` (`agent_upload`) and `as_base64` (`agent_download`) are both just `base64` here.

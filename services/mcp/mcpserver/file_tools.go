@@ -50,7 +50,7 @@ type filDownloadArgs struct {
 	Name     string `json:"name" jsonschema:"name of the machine (VM) to read the file from"`
 	Path     string `json:"path" jsonschema:"path of the file inside the machine"`
 	Encoding string `json:"encoding,omitempty" jsonschema:"auto (default: UTF-8 text if the file is valid UTF-8, else base64), utf-8 (fails on binary files) or base64 (the raw bytes as base64)"`
-	Base64   bool   `json:"base64,omitempty" jsonschema:"deprecated alias for encoding=base64"`
+	Base64   bool   `json:"base64,omitempty" jsonschema:"same as encoding=base64"`
 	MaxBytes *int   `json:"max_bytes,omitempty" jsonschema:"most bytes to read; default 1048576 (1 MiB). utf-8 is capped at 1 MiB; auto and base64 may go up to 8 MiB"`
 	Project  string `json:"project,omitempty" jsonschema:"project ID; default is the server's default project"`
 }

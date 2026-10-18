@@ -329,9 +329,9 @@ func TestMachCreateNoImage(t *testing.T) {
 func TestMachCreateNewDefaults(t *testing.T) {
 	vms := &machVMs{seq: []vmdv1.VMState{vmdv1.VMState_VM_STATE_STARTING, vmdv1.VMState_VM_STATE_RUNNING}}
 	text, isErr := machCall(t, Clients{VMs: vms, Images: machImgs()}, "agent_create", map[string]any{"name": "web"}, machWait)
-	machWantOK(t, text, isErr, "machine 'web' is running (8 CPUs, 16 GiB)")
+	machWantOK(t, text, isErr, "machine 'web' is running (1 CPU, 2 GiB)")
 	r := vms.createReq
-	if r.GetProjectId() != "p1" || r.GetName() != "web" || r.GetCpus() != 8 || r.GetMemoryMb() != 16384 ||
+	if r.GetProjectId() != "p1" || r.GetName() != "web" || r.GetCpus() != 1 || r.GetMemoryMb() != 2048 ||
 		r.GetDiskSizeGb() != 40 || !r.GetStart() || r.GetImageId() != "img-1" {
 		t.Fatalf("CreateVM request = %v", r)
 	}
@@ -579,7 +579,7 @@ func TestMachListVMPaging(t *testing.T) {
 		machVM("vm_3", "c", vmdv1.VMState_VM_STATE_STOPPED, 1, 1024),
 	}}
 	text, isErr := machCall(t, Clients{VMs: vms}, "agent_list", map[string]any{})
-	machWantOK(t, text, isErr, "a: stopped, 1 CPUs / 1 GiB\nb: stopped, 1 CPUs / 1 GiB\nc: stopped, 1 CPUs / 1 GiB")
+	machWantOK(t, text, isErr, "a: stopped, 1 CPU / 1 GiB\nb: stopped, 1 CPU / 1 GiB\nc: stopped, 1 CPU / 1 GiB")
 }
 
 // --- agent_stop ------------------------------------------------------------------------------------------
