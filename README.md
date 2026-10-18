@@ -2,6 +2,8 @@
 
 > Cloud computing is too expensive, but at least we have mom's attic.
 
+![Attic Cloud: a cloud full of giants wearing cloud-provider logos above mom's house, with a sad guy and some ad-hoc server racks in the attic](docs/assets/attic-cloud.svg)
+
 Attic Cloud is a small private cloud written in Go (identifier: `attic`). It runs virtual machines and LLM agents on
 hardware you already own, and exposes them to Claude and other MCP clients. It has these servers:
 
