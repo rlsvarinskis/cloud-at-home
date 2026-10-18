@@ -150,6 +150,10 @@ libs/server/    HTTP daemon, logging, metrics           e2e/              end-to
 deploy/         Dockerfiles and compose stack           docs/             ADRs and design proposals
 ```
 
+## Roadmap
+
+Planned work and known gaps are in [TODO.md](TODO.md).
+
 ## Contributing
 
 Build, test, conventions and the rules for what may be committed (this repository is public: no secrets, deployment
