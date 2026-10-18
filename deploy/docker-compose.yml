@@ -13,6 +13,7 @@
 #   ATTIC_VMD_PORT / ATTIC_AGENTD_PORT / ATTIC_MCP_PORT / ATTIC_OLLAMA_PORT   host ports (8080 / 8081 / 8082 / 11434)
 #   ATTIC_UID / ATTIC_GID  user the vmd and agentd containers run as; it must be able to read keys/*.key, which
 #                          atticctl writes with mode 0600 (default 65532, the image's nonroot user)
+#   ATTIC_MAX_TOKEN_TTL    longest token lifetime vmd, agentd and mcp accept (default 720h); keep it equal on all three
 #   ATTIC_SUBNET           subnet of the private network (default 172.30.77.0/24)
 #   ATTIC_NODE_CPUS / ATTIC_NODE_MEM   hard caps for the node container, which hosts the guests (default 4 / 6g)
 #   ATTIC_IMAGES_DIR       host folder with guest base images, mounted read-only at /images in the node (default ./images)
@@ -65,7 +66,7 @@ services:
       - --service-key-id=vmd
       - --trusted-key=admin=/keys/admin.pub            # user tokens
       - --trusted-key=agentd=/keys/agentd.pub:service  # agentd may only ever act with the "service" role
-      - --max-token-ttl=720h
+      - --max-token-ttl=${ATTIC_MAX_TOKEN_TTL:-720h}
       - --log-level=info
       - --metrics=true
     volumes:
@@ -126,6 +127,7 @@ services:
       - --service-key=/keys/agentd.key
       - --service-key-id=agentd
       - --workers=4
+      - --max-token-ttl=${ATTIC_MAX_TOKEN_TTL:-720h}
       - --log-level=info
       - --metrics=true
     volumes:
@@ -154,6 +156,7 @@ services:
       - --agentd-url=http://agentd:8080
       - --default-project=${ATTIC_DEFAULT_PROJECT:-default}
       - --default-image=${ATTIC_DEFAULT_IMAGE:-}
+      - --max-token-ttl=${ATTIC_MAX_TOKEN_TTL:-720h}
       - --log-level=info
     volumes:
       - ./keys/admin.pub:/keys/admin.pub:ro

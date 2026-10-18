@@ -51,6 +51,7 @@ Set these in `deploy/.env` or the environment. Only the first is required.
 | `COMPOSE_PROJECT_NAME` | `attic` | Prefix of every container, network and volume. |
 | `ATTIC_BIND` | `127.0.0.1` | Host address the ports are published on. |
 | `ATTIC_VMD_PORT`, `ATTIC_AGENTD_PORT`, `ATTIC_MCP_PORT`, `ATTIC_OLLAMA_PORT` | 8080, 8081, 8082, 11434 | Host ports. |
+| `ATTIC_MAX_TOKEN_TTL` | `720h` | Longest token lifetime that vmd, agentd and mcp accept (one value for all three; a token longer than a service's limit is rejected by that service). |
 | `ATTIC_SUBNET` | `172.30.77.0/24` | Subnet of the stack's private network. |
 | `ATTIC_NODE_CPUS`, `ATTIC_NODE_MEM` | 4, `6g` | Hard caps (`cpus`, `mem_limit`) of the node container, which hosts the guests. |
 | `ATTIC_NODE_RESERVE_MB` | 1024 | RAM the node keeps back for itself (`--reserve-memory-mb`). |
