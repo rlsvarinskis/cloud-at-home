@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 #
 # agentd: the agent daemon that drives LLM-backed tasks against vmd. Build from the repository root:
 #   docker build -f deploy/Dockerfile.agentd -t attic/agentd .
@@ -6,7 +5,7 @@
 FROM golang:1.26 AS build
 WORKDIR /src
 
-# Download modules first so source-only changes reuse this layer; the cache mount keeps them across builds.
+# Download modules first so source-only changes reuse this layer.
 # Copy the workspace file and every module's go.mod and go.sum first, so this layer depends only on manifests.
 # Each module has replace directives pointing at sibling directories, so all of their manifests are needed.
 COPY go.work go.work.sum ./
@@ -20,12 +19,10 @@ COPY services/agentd/go.mod services/agentd/go.sum services/agentd/
 COPY services/mcp/go.mod services/mcp/go.sum services/mcp/
 COPY cmd/atticctl/go.mod cmd/atticctl/go.sum cmd/atticctl/
 COPY e2e/go.mod e2e/go.sum e2e/
-RUN --mount=type=cache,target=/go/pkg/mod cd services/agentd && go mod download
+RUN cd services/agentd && go mod download
 
 COPY . .
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    cd services/agentd && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/agentd ./cmd/agentd
+RUN cd services/agentd && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/agentd ./cmd/agentd
 
 # Distroless static image: no shell, no package manager, runs as the nonroot user.
 FROM gcr.io/distroless/static-debian12:nonroot

@@ -2,6 +2,7 @@
 #
 # Quick start (from this directory; details in deploy/README.md):
 #   1. echo 'ATTIC_POSTGRES_PASSWORD=<any local password>' > .env
+#      printf 'ATTIC_UID=%s\nATTIC_GID=%s\n' "$(id -u)" "$(id -g)" >> .env   # lets vmd/agentd read the private keys
 #   2. generate keys:  go run ../cmd/atticctl key generate -out keys -id admin   (also: -id agentd, -id vmd)
 #   3. docker compose up -d --build
 #   4. docker compose --profile llm up -d     # optional: Ollama for agentd
@@ -10,6 +11,8 @@
 #   COMPOSE_PROJECT_NAME   prefix of every container, network and volume (default: the directory name, "deploy")
 #   ATTIC_BIND             host address the ports are published on (default 127.0.0.1)
 #   ATTIC_VMD_PORT / ATTIC_AGENTD_PORT / ATTIC_MCP_PORT / ATTIC_OLLAMA_PORT   host ports (8080 / 8081 / 8082 / 11434)
+#   ATTIC_UID / ATTIC_GID  user the vmd and agentd containers run as; it must be able to read keys/*.key, which
+#                          atticctl writes with mode 0600 (default 65532, the image's nonroot user)
 #   ATTIC_SUBNET           subnet of the private network (default 172.30.77.0/24)
 #   ATTIC_NODE_CPUS / ATTIC_NODE_MEM   hard caps for the node container, which hosts the guests (default 4 / 6g)
 #   ATTIC_IMAGES_DIR       host folder with guest base images, mounted read-only at /images in the node (default ./images)
@@ -44,6 +47,7 @@ services:
   # Control plane: API, scheduler, state in Postgres. It calls the node over the private network.
   vmd:
     <<: *restart
+    user: "${ATTIC_UID:-65532}:${ATTIC_GID:-65532}"
     build:
       context: ..       # the repository root, so the Dockerfile sees go.work and every module
       dockerfile: deploy/Dockerfile.vmd
@@ -86,6 +90,7 @@ services:
       - --ssh-key=/var/lib/attic/node_ssh              # created on first start; its public half goes into cloud-init
       - --run-as=qemu
       - --trusted-key=vmd=/keys/vmd.pub:node           # only the control plane's key, and only the "node" role
+      - --allow-dns=127.0.0.11                         # Docker's embedded resolver: guests get DNS, nothing else on loopback
       - --reserve-memory-mb=${ATTIC_NODE_RESERVE_MB:-1024}
       - --log-level=info
     devices:
@@ -102,6 +107,7 @@ services:
 
   agentd:
     <<: *restart
+    user: "${ATTIC_UID:-65532}:${ATTIC_GID:-65532}"
     build:
       context: ..
       dockerfile: deploy/Dockerfile.agentd

@@ -1,0 +1,14 @@
+# Keep secrets, local state and VCS data out of every image build context (the build context is the repo root).
+.git
+.github
+.env
+**/.env
+**/*.key
+**/*.pem
+deploy/keys
+deploy/images
+dev
+bin
+**/*.qcow2
+**/*.test
+cover.out
