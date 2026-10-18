@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
@@ -16,7 +17,22 @@ import (
 // addTool registers a tool whose handler returns plain text. Errors become tool errors (isError=true with the
 // message), not protocol errors, so the model can read them and react.
 func addTool[In any](s *Server, name, description string, h func(ctx context.Context, in In) (string, error)) {
-	mcp.AddTool(s.mcp, &mcp.Tool{Name: name, Description: description},
+	addToolSchema(s, name, description, nil, h)
+}
+
+// addToolSchema is addTool with a hook that tightens the input schema the SDK infers from the In struct, so the
+// schema states what the handler really accepts: minimum and maximum, string length and pattern, allowed values.
+// The SDK validates calls against this schema before the handler runs. Which fields are required still comes from
+// the struct (a field without omitempty is required).
+func addToolSchema[In any](s *Server, name, description string, tune func(*jsonschema.Schema), h func(ctx context.Context, in In) (string, error)) {
+	sch, err := jsonschema.For[In](nil)
+	if err != nil {
+		panic(fmt.Sprintf("mcp tool %s: input schema: %v", name, err))
+	}
+	if tune != nil {
+		tune(sch)
+	}
+	mcp.AddTool(s.mcp, &mcp.Tool{Name: name, Description: description, InputSchema: sch},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 			out, err := h(ctx, in)
 			if err != nil {
@@ -87,4 +103,49 @@ func clip(s string, n int) string {
 		return s
 	}
 	return s[:n] + fmt.Sprintf("\n...[%d more bytes]", len(s)-n)
+}
+
+// The helpers below tighten one property of an inferred schema; they panic on a property that does not exist, so a
+// renamed argument cannot silently lose its constraint.
+
+func prop(sch *jsonschema.Schema, name string) *jsonschema.Schema {
+	p, ok := sch.Properties[name]
+	if !ok {
+		panic("mcp tool schema has no property " + name)
+	}
+	return p
+}
+
+// intRange sets the inclusive bounds of an integer property.
+func intRange(sch *jsonschema.Schema, name string, min, max float64) {
+	p := prop(sch, name)
+	p.Minimum, p.Maximum = &min, &max
+}
+
+// intMin sets the inclusive lower bound of an integer property.
+func intMin(sch *jsonschema.Schema, name string, min float64) {
+	prop(sch, name).Minimum = &min
+}
+
+// strLen sets the length bounds of a string property (max 0 = no upper bound).
+func strLen(sch *jsonschema.Schema, name string, min, max int) {
+	p := prop(sch, name)
+	p.MinLength = &min
+	if max > 0 {
+		p.MaxLength = &max
+	}
+}
+
+// strPattern sets the regular expression a string property must match.
+func strPattern(sch *jsonschema.Schema, name, pattern string) {
+	prop(sch, name).Pattern = pattern
+}
+
+// strEnum restricts a string property to the given values.
+func strEnum(sch *jsonschema.Schema, name string, values ...string) {
+	p := prop(sch, name)
+	p.Enum = p.Enum[:0]
+	for _, v := range values {
+		p.Enum = append(p.Enum, v)
+	}
 }
