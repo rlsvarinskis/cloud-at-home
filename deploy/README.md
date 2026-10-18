@@ -99,7 +99,7 @@ Mint an admin token for user `robert`. The token is printed alone on stdout, so 
 TOKEN=$(go run ./cmd/atticctl token mint \
   -key deploy/keys/admin.key \
   -kid admin \
-  -sub user:robert \
+  -sub user:alice \
   -type user \
   -bind '*:admin' \
   -ttl 24h)

@@ -30,7 +30,7 @@ A token is a JWT signed with Ed25519 (`alg: EdDSA`).
 | --- | --- |
 | Header `kid` | Id of the signing key. |
 | `iss` | The same key id as the header. |
-| `sub` | Subject, for example `user:robert` or `svc:vmd`. |
+| `sub` | Subject, for example `user:alice` or `svc:vmd`. |
 | `typ` | `user` or `service`. |
 | `b` | Bindings: a list of `{"p": project, "r": role}`. `p` may be `*`. |
 | `jti` | Token id (`tok_...`), used for audit and for revocation. |
