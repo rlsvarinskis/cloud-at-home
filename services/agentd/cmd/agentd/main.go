@@ -13,6 +13,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
+	"github.com/rlsvarinskis/cloud-at-home/libs/common/pg"
+	"github.com/rlsvarinskis/cloud-at-home/libs/server/daemon"
+	"github.com/rlsvarinskis/cloud-at-home/libs/server/obs"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/llm"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/metrics"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/runner"
@@ -20,10 +24,6 @@ import (
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
 	pgstore "github.com/rlsvarinskis/cloud-at-home/services/agentd/store/postgres"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/vmclient"
-	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
-	"github.com/rlsvarinskis/cloud-at-home/libs/server/daemon"
-	"github.com/rlsvarinskis/cloud-at-home/libs/server/obs"
-	"github.com/rlsvarinskis/cloud-at-home/libs/common/pg"
 )
 
 var version = "dev" // set with -ldflags "-X main.version=..."

@@ -2,7 +2,7 @@
 // Linux guest and reads their state back.
 //
 // It is a Go port of the Python/bash job implementation in
-// local-agent/gateway/gateway.py. A job is a directory <JobsDir>/<id>/ holding:
+// the original Python gateway (local-agent/gateway/gateway.py, outside this repo). A job is a directory <JobsDir>/<id>/ holding:
 //
 //	cmd          the command text (bash source)
 //	started      unix time the job was launched

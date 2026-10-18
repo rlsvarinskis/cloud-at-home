@@ -17,8 +17,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
-	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/fake"
+	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/scheduler"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/service"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/store"

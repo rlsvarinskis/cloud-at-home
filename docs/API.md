@@ -1,9 +1,9 @@
 # API reference
 
 This document describes the public APIs of vmd and agentd: what each RPC does, which permission it needs, the errors
-it returns and the limits it enforces. The wire definitions are in [`proto/homecloud/`](../proto/homecloud/) (the
-source of truth); the Go types are generated into [`gen/`](../gen/). Behaviour below was read from the handlers in
-`internal/vmd/service` and `internal/agentd/service`, and the examples were run against a development vmd.
+it returns and the limits it enforces. The wire definitions are in [`api/proto/homecloud/`](../api/proto/homecloud/) (the
+source of truth); the Go types are generated into [`api/gen/`](../api/gen/). Behaviour below was read from the handlers in
+`services/vmd/service` and `services/agentd/service`, and the examples were run against a development vmd.
 
 The system design (placement, reconciler, failure model) is in [ARCHITECTURE.md](ARCHITECTURE.md). Flags and
 deployment are in [OPERATIONS.md](OPERATIONS.md). Roles and tokens are in [AUTH.md](AUTH.md).
@@ -257,8 +257,8 @@ The response has the same fields as a `GetCapacity` node entry, with `"state":"d
 
 ## agentd services
 
-agentd's handlers are in `internal/agentd/service` and its task runner is in `internal/agentd/runner`. The
-entry point, with its flags, is `cmd/agentd`; see [OPERATIONS.md](OPERATIONS.md#running-agentd).
+agentd's handlers are in `services/agentd/service` and its task runner is in `services/agentd/runner`. The
+entry point, with its flags, is `services/agentd/cmd/agentd`; see [OPERATIONS.md](OPERATIONS.md#running-agentd).
 
 An agent is always bound to one VM (`vm_id` is required). Many agents can share a VM; each has its own working
 directory (default `/home/agent/agents/<agent id>`). When an agent is created, agentd places a hold on the VM
@@ -336,7 +336,7 @@ Reflection is not enabled, so pass the proto file. Use `-plaintext` for a cleart
 
 ```
 grpcurl -plaintext \
-  -proto proto/homecloud/vmd/v1/vmd.proto -import-path proto \
+  -proto api/proto/homecloud/vmd/v1/vmd.proto -import-path api/proto \
   -H "authorization: Bearer $TOKEN" \
   -d '{"projectId":"proj-a","name":"web-1","cpus":2,"memoryMb":2048,
        "imageId":"img_...","diskSizeGb":20,"start":true,
@@ -346,9 +346,9 @@ grpcurl -plaintext \
 
 ### Go client
 
-The generated Connect client takes an HTTP client, the base URL and options. `auth.ClientInterceptor` adds the
-bearer token to each call. The snippet below is in package `main` inside this module, compiles against the current
-code, and lists the VMs in project `p1` when run against a development server.
+The generated Connect client takes an HTTP client, the base URL and options. `authz.ClientInterceptor` adds the
+bearer token to each call. The snippet below is a `package main` for a module that requires `api` and `libs/authz`.
+It lists the VMs in project `p1` when run against a development server.
 
 ```go
 package main
@@ -362,16 +362,16 @@ import (
 
 	"connectrpc.com/connect"
 
-	vmdv1 "example.com/homecloud/gen/homecloud/vmd/v1"
-	"example.com/homecloud/gen/homecloud/vmd/v1/vmdv1connect"
-	"example.com/homecloud/internal/auth"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	"github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1/vmdv1connect"
+	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 )
 
 func main() {
 	client := vmdv1connect.NewVMServiceClient(
 		http.DefaultClient,
 		"http://127.0.0.1:8080",
-		connect.WithInterceptors(auth.ClientInterceptor(auth.StaticToken(os.Getenv("TOKEN")))),
+		connect.WithInterceptors(authz.ClientInterceptor(authz.StaticToken(os.Getenv("TOKEN")))),
 	)
 	res, err := client.ListVMs(context.Background(),
 		connect.NewRequest(&vmdv1.ListVMsRequest{ProjectId: "p1", PageSize: 10}))
@@ -382,10 +382,10 @@ func main() {
 }
 ```
 
-`auth.StaticToken` suits a fixed token. For a service that mints its own tokens, use
-`auth.ServiceTokens` (see [AUTH.md](AUTH.md#service-tokens-in-go)). Errors returned by the client are
+`authz.StaticToken` suits a fixed token. For a service that mints its own tokens, use
+`authz.ServiceTokens` (see [AUTH.md](AUTH.md#service-tokens-in-go)). Errors returned by the client are
 `*connect.Error`; `connect.CodeOf(err)` gives the code. `errs.FromConnect(err)` converts them to the
-`internal/errs` sentinels so that `errors.Is(err, errs.ErrNotFound)` works.
+`libs/common/errs` sentinels so that `errors.Is(err, errs.ErrNotFound)` works.
 
 ---
 

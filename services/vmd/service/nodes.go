@@ -9,8 +9,8 @@ import (
 
 	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
-	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/node"
+	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/scheduler"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/store"
 )

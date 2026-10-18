@@ -9,8 +9,8 @@ import (
 
 	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
 	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/llm"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/llm"
 )
 
 // Scenario 4: authorization across the two services.

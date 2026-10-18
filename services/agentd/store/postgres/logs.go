@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 )
 
 // AppendStep stores a copy of st with the next dense Seq of its task, which is also written back into st.

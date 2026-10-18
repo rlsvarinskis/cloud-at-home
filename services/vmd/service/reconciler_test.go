@@ -14,9 +14,9 @@ import (
 	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
 	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
-	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
-	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/node"
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/fake"
+	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/node"
+	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/service"
 )
 

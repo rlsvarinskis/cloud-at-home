@@ -3,8 +3,12 @@
 homecloud authenticates callers with signed bearer tokens and authorizes them with project-scoped roles.
 Servers hold only public keys, so no server can mint a token it is not configured to trust with a key
 it holds privately. This document describes the token model, the roles, revocation, service-to-service calls,
-key rotation and hardening. The code is in [`internal/auth`](../internal/auth/), the admin tool is
+key rotation and hardening. The code is in [`libs/authz`](../libs/authz/) (package `authz`), the admin tool is
 [`cmd/hcctl`](../cmd/hcctl/). The system design is in [ARCHITECTURE.md](ARCHITECTURE.md#identity-and-authorization).
+
+> **Planned, not implemented:** a `services/auth` identity service, which would hold users, API keys and service
+> accounts, offer OIDC login for Google and GitHub, keep an audit log and publish JWKS, so that services verify its
+> tokens offline. It does not exist yet. The rest of this document describes what is implemented today.
 
 ## Contents
 
@@ -34,7 +38,7 @@ A token is a JWT signed with Ed25519 (`alg: EdDSA`).
 
 ### What a server checks
 
-The verifier (`auth.Verifier`) accepts a token only if all of these hold:
+The verifier (`authz.Verifier`) accepts a token only if all of these hold:
 
 1. The algorithm is `EdDSA`.
 2. The header `kid` is a trusted key on this server.
@@ -118,8 +122,8 @@ Shared images (empty project) are readable by any caller who has the permission 
 
 ## Roles and permissions
 
-Roles are fixed sets of permissions in [`internal/auth/rbac.go`](../internal/auth/rbac.go). The table below is
-the output of `go run ./cmd/hcctl roles -v`, reformatted as a table. Regenerate it with that command after any
+Roles are fixed sets of permissions in [`libs/authz/rbac.go`](../libs/authz/rbac.go). The table below is
+the output of `cd cmd/hcctl && go run . roles -v`, reformatted as a table. Regenerate it with that command after any
 change to `rbac.go`.
 
 Notes on the table:
@@ -246,8 +250,8 @@ only the `node` role from that key, so the key cannot be used for anything else 
 
 ### Service tokens in Go
 
-`auth.ServiceTokens(issuer, principal, ttl)` returns a `TokenSource` that mints and caches tokens. Pass it
-to `auth.ClientInterceptor` on a Connect client. See the snippet in [API.md](API.md#go-client).
+`authz.ServiceTokens(issuer, principal, ttl)` returns a `TokenSource` that mints and caches tokens. Pass it
+to `authz.ClientInterceptor` on a Connect client. See the snippet in [API.md](API.md#go-client).
 
 ## Key rotation
 

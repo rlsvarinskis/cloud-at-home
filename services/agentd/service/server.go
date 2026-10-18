@@ -13,12 +13,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1/agentdv1connect"
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/llm"
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/vmclient"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/libs/server/obs"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/llm"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/vmclient"
 )
 
 // Deps is everything the agentd API needs.

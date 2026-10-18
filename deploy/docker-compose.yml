@@ -33,7 +33,7 @@ services:
 
   vmd:
     build:
-      # The build context is the repository root so the Dockerfile can see go.mod and ./cmd.
+      # The build context is the repository root so the Dockerfile can see go.work, the module directories and ./services.
       context: ..
       dockerfile: deploy/Dockerfile.vmd
     restart: unless-stopped

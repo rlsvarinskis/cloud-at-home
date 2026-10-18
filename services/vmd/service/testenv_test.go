@@ -77,7 +77,7 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	}
 	e.st = store.NewMemory()
 	if n, _ := strconv.Atoi(os.Getenv("HOMECLOUD_TEST_SHARDS")); n > 1 {
-		// Run the whole suite on a project-sharded store (HOMECLOUD_TEST_SHARDS=3 go test ./internal/vmd/service).
+		// Run the whole suite on a project-sharded store (HOMECLOUD_TEST_SHARDS=3 cd services/vmd && go test ./service).
 		shards := make([]store.Store, n)
 		for i := range shards {
 			shards[i] = store.NewMemory()
@@ -141,8 +141,12 @@ func (e *env) editor() *clients      { return e.as("user:editor-p1", bind("p1", 
 func (e *env) viewer() *clients      { return e.as("user:viewer-p1", bind("p1", authz.RoleViewer)) }
 func (e *env) otherTenant() *clients { return e.as("user:editor-p2", bind("p2", authz.RoleEditor)) }
 func (e *env) root() *clients        { return e.as("user:root", bind(authz.AnyProject, authz.RoleAdmin)) }
-func (e *env) operator() *clients    { return e.as("user:ops", bind(authz.AnyProject, authz.RoleOperator)) }
-func (e *env) service() *clients     { return e.as("svc:agentd", bind(authz.AnyProject, authz.RoleService)) }
+func (e *env) operator() *clients {
+	return e.as("user:ops", bind(authz.AnyProject, authz.RoleOperator))
+}
+func (e *env) service() *clients {
+	return e.as("svc:agentd", bind(authz.AnyProject, authz.RoleService))
+}
 
 // tick runs the reconciler n times, advancing the clock one second per tick.
 func (e *env) tick(n int) {

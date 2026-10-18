@@ -9,10 +9,10 @@ import (
 	"connectrpc.com/connect"
 
 	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/ids"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 )
 
 // TaskServer implements agentdv1connect.TaskServiceHandler.

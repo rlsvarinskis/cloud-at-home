@@ -13,8 +13,8 @@ import (
 	"connectrpc.com/connect"
 
 	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/service"
 	"github.com/rlsvarinskis/cloud-at-home/libs/server/obs"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/service"
 )
 
 // okCode stands for "the call succeeded" in the authorization matrix.
@@ -107,7 +107,7 @@ func TestAuthorizationMatrix(t *testing.T) {
 				return err
 			},
 			okCode, connect.CodeNotFound, connect.CodePermissionDenied, connect.CodePermissionDenied, connect.CodeUnauthenticated},
-		// The service role carries ModelList in internal/auth, so agentd's own identity may list models.
+		// The service role carries ModelList in libs/authz, so agentd's own identity may list models.
 		{"ListModels",
 			func(c *clients) error {
 				_, err := c.Model.ListModels(ctx, connect.NewRequest(&agentdv1.ListModelsRequest{}))

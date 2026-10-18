@@ -11,8 +11,8 @@ Both servers speak the Connect protocol, which is gRPC, gRPC-Web and plain HTTP+
 All resources belong to projects. Every call is authenticated with an Ed25519-signed bearer token and
 authorized per project.
 
-Status: vmd and agentd are implemented, and `make test` passes. The `internal/e2e` tests run both servers in one
-process over HTTP, and `cmd/vmd` and `cmd/agentd` have tests that start the real daemons against Postgres. No guest
+Status: vmd and agentd are implemented, and `make test` passes. The `e2e/` tests run both servers in one
+process over HTTP, and `services/vmd/cmd/vmd` and `services/agentd/cmd/agentd` have tests that start the real daemons against Postgres. No guest
 has been booted in this repository's CI, and the development host used for these docs has no `genisoimage`, so the
 QEMU driver and the guest scripts are covered by unit tests with fakes. See
 [ARCHITECTURE.md](docs/ARCHITECTURE.md#known-limitations).
@@ -78,10 +78,11 @@ with a `state_reason` of `node unreachable: <node id>` and the VM stays `STOPPED
 1. Build the binaries into `bin/`:
 
    ```
-   mkdir -p bin && go build -o bin/ ./cmd/...
+   mkdir -p bin && go build -o bin/ ./services/vmd/cmd/vmd ./services/agentd/cmd/agentd ./cmd/hcctl
    ```
 
-   `go build ./cmd/...` on its own compiles the packages and writes nothing.
+   The repository is a Go workspace (`go.work`) with one module per directory and no root module. `make build`
+   compiles every module and writes no binaries.
 
 2. Generate a signing key and mint an admin token. The key pair is written to `dev/keys/`; `hcctl` refuses
    to overwrite existing files.
@@ -136,36 +137,34 @@ for a multi-host deployment.
 ## Repository layout
 
 ```
-proto/                 API definitions (source of truth): vmd, agentd, node
-gen/                   generated Go code for proto/ (committed; regenerate with `make proto`)
-cmd/vmd/               vmd: control plane and node daemon (--role=all|control|node)
-cmd/agentd/            agentd: API server and task workers
-cmd/hcctl/             admin CLI: keys, tokens, roles
-internal/auth/         tokens, RBAC, revocation list, Connect interceptors, service tokens
-internal/errs/         shared error vocabulary, mapped to Connect codes at the edge
-internal/daemon/       trusted-key and revocation flags, logger, HTTP server with graceful shutdown
-internal/obs/          RPC metrics, /metrics, health checks, build info
-internal/ids/          ULID-based IDs with a resource prefix (and shard suffixes)
-internal/pg/           Postgres pool and the shared migration runner (advisory lock)
-internal/vmd/domain/   vmd's internal model (not the wire types)
-internal/vmd/store/    store interface; memory, postgres, and shard (projects spread over several databases)
-internal/vmd/service/  Connect handlers, reconciler, node registry
-internal/vmd/scheduler/ capacity arithmetic and placement helpers
-internal/vmd/node/     node driver interface; qemudriver (QEMU/KVM), remote, fake, nodeserver
-internal/vmd/promcollect/ Prometheus collector for vmd state
-internal/agentd/       agentd: domain, store, llm (Ollama and fake), runner, service, vmclient, metrics
-internal/e2e/          end-to-end tests: vmd and agentd in one process, over their HTTP APIs
+api/                   module: API definitions (api/proto, source of truth) and generated Go code (api/gen, committed)
+libs/common/           module: errs (error vocabulary), ids (prefixed ULIDs), pg (Postgres pool, migrations, pgtest)
+libs/authz/            module, package authz: tokens, RBAC, revocation list, Connect interceptors, service tokens
+libs/qemu/             module: node driver interface (node/), qemudriver, qemu, guest scripts, sshrunner, remote, nodeserver, fake
+libs/server/           module: obs (RPC metrics, /metrics, health checks), daemon (flags, logging, HTTP server)
+services/vmd/         module: vmd (domain, store, scheduler, service, promcollect) and cmd/vmd (control plane and node daemon)
+services/agentd/      module: agentd (domain, store, llm, vmclient, runner, service, metrics) and cmd/agentd
+cmd/hcctl/             module: admin CLI: keys, tokens, roles
+e2e/                   module: end-to-end tests, vmd and agentd in one process, over their HTTP APIs
 deploy/                Dockerfiles, docker-compose development stack, deployment notes
 docs/                  ARCHITECTURE.md, adr/, API.md, AUTH.md, OPERATIONS.md, DEVELOPMENT.md
 ```
 
+The module layout and the rules on which module may import which are in
+[ARCHITECTURE.md](docs/ARCHITECTURE.md#repository-layout).
+
 ## Tests
 
 ```
-make test          # go test -race -count=1 ./...
-make vet           # go vet ./...
+make build         # go build ./... in every module
+make test          # go test -race -count=1 ./... in every module
+make vet           # go vet ./... in every module
 make cover         # coverage summary
+make boundaries    # fail if a module imports a sibling it may not
 ```
+
+`go test ./...` at the repository root does not work. Run it inside a module, for example
+`cd services/vmd && go test ./...`, or use `make test`.
 
 Store conformance suites (`storetest`) run against every store implementation. The Postgres suites need a
 Postgres server. Choose one of:
@@ -177,7 +176,7 @@ Postgres server. Choose one of:
 - `HOMECLOUD_TEST_POSTGRES=skip`: skip the Postgres tests.
 
 Service tests run the real Connect handlers over `httptest` with a fake node driver and a fake LLM, using
-real signed tokens. `HOMECLOUD_TEST_SHARDS=3 go test ./internal/vmd/service` runs the same suite on a store
+real signed tokens. `cd services/vmd && HOMECLOUD_TEST_SHARDS=3 go test ./service` runs the same suite on a store
 sharded over three databases. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Documentation

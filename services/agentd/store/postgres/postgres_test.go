@@ -13,12 +13,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store/storetest"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/pg"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/pg/pgtest"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store/storetest"
 )
 
 func TestMain(m *testing.M) { os.Exit(pgtest.Run(m)) }

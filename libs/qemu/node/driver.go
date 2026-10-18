@@ -9,7 +9,7 @@ import (
 	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
 )
 
-// Driver is the node API as plain Go calls. Errors use the sentinels in internal/errs
+// Driver is the node API as plain Go calls. Errors use the sentinels in libs/common/errs
 // (ErrNotFound, ErrUnavailable, ErrFailedPrecondition, ...), whichever implementation is behind it.
 type Driver interface {
 	GetCapacity(ctx context.Context, r *nodev1.GetCapacityRequest) (*nodev1.GetCapacityResponse, error)

@@ -18,10 +18,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/pg"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
 )
 
 // Store is the PostgreSQL implementation of store.Store.

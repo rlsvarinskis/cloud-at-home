@@ -19,12 +19,12 @@ import (
 	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1/agentdv1connect"
 	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
+	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/llm"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/service"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/vmclient"
-	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
-	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
 
 // clock is a manually advanced clock shared by the service and the token issuer, so tests never sleep for
@@ -265,9 +265,13 @@ func bind(project string, role authz.Role) authz.Binding {
 func (e *env) editor() *clients      { return e.as("user:editor-p1", bind("p1", authz.RoleEditor)) }
 func (e *env) viewer() *clients      { return e.as("user:viewer-p1", bind("p1", authz.RoleViewer)) }
 func (e *env) otherTenant() *clients { return e.as("user:editor-p2", bind("p2", authz.RoleEditor)) }
-func (e *env) service() *clients     { return e.as("svc:agentd", bind(authz.AnyProject, authz.RoleService)) }
-func (e *env) operator() *clients    { return e.as("user:ops", bind(authz.AnyProject, authz.RoleOperator)) }
-func (e *env) anonymous() *clients   { return e.client("") }
+func (e *env) service() *clients {
+	return e.as("svc:agentd", bind(authz.AnyProject, authz.RoleService))
+}
+func (e *env) operator() *clients {
+	return e.as("user:ops", bind(authz.AnyProject, authz.RoleOperator))
+}
+func (e *env) anonymous() *clients { return e.client("") }
 
 // createAgent creates an agent as c and fails the test on error.
 func (e *env) createAgent(c *clients, project, name, vmID string) *agentdv1.Agent {

@@ -12,10 +12,10 @@ import (
 	"time"
 
 	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/llm"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
-	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
 
 // systemText and nudgeText are ported from the Python gateway's SYSTEM and NUDGE.

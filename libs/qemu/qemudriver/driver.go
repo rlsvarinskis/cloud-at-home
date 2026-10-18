@@ -35,8 +35,8 @@ import (
 	"time"
 
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
-	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/node"
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/guestexec"
+	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/node"
 )
 
 var _ node.Driver = (*Driver)(nil)

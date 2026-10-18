@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
-	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
 
 // Run executes the conformance suite. newStore must return an empty store; it is called once per subtest.

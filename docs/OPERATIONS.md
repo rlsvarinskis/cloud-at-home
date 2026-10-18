@@ -2,7 +2,7 @@
 
 This document covers running homecloud: deployment shapes, the host setup a node needs, the flags, how the
 reconciler behaves, draining nodes, what happens when parts fail, metrics and alerts, quotas and capacity, backups
-and upgrades. Flags are those of `cmd/vmd` (`vmd -h`), `cmd/agentd` (`agentd -h`) and `cmd/hcctl`. The design
+and upgrades. Flags are those of `services/vmd/cmd/vmd` (`vmd -h`), `services/agentd/cmd/agentd` (`agentd -h`) and `cmd/hcctl`. The design
 behind these behaviours is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Contents
@@ -33,7 +33,7 @@ homecloud has three roles for `vmd`, chosen with `--role`:
 | `control` | Control plane only. Nodes are reached over the node API with `--node id=URL`. | Several hosts. Run one or more replicas. |
 | `node` | Node daemon only. Serves the node API for one host. | One per physical host that runs VMs. |
 
-`agentd` is a separate process (`cmd/agentd`). It calls vmd's API with a service token that it mints with its own
+`agentd` is a separate process (`services/agentd/cmd/agentd`). It calls vmd's API with a service token that it mints with its own
 key. See [Running agentd](#running-agentd).
 
 ### 1. Single host, all in one
@@ -114,16 +114,16 @@ A node needs the following on the host. The names are the programs the node runs
 
 | Requirement | Why | Source |
 | --- | --- | --- |
-| Linux on x86_64 | The QEMU command is `qemu-system-x86_64`. | `internal/vmd/node/qemu` |
-| `qemu-system-x86_64` | Runs the guests. | `qemu/args.go` |
-| `/dev/kvm` and `--kvm=true` (default) | Hardware acceleration. `--kvm=false` uses TCG emulation, which is much slower. | `cmd/vmd` flag `-kvm` |
-| `qemu-img` | Creates disks, reads image metadata, resizes, flattens snapshots. | `qemudriver/disks.go` |
-| `genisoimage` | Builds the cloud-init seed ISO at every VM start. Missing, starts fail. The state reason is `node unreachable: <node id>`; the tool's error is in the vmd log (`reconcile failed`). | `qemudriver/vm.go` |
-| `iptables` and `ip6tables` | Guest network lockdown, unless `--no-firewall`. | `qemudriver/firewall.go` |
-| Root, or `CAP_NET_ADMIN` for the firewall; `chown` rights for the shared folder and VM directories when `--run-as` is set | Installs the firewall rules and hands `shared/` and the VM directories to the run-as user. | `qemudriver/driver.go`, `qemudriver/firewall.go` |
-| A user named by `--run-as` (default `qemu`) | QEMU processes run as this user, and the shared folder belongs to it. Use `--run-as=` (empty) to run as the current user, for development. | `cmd/vmd` flag `-run-as` |
-| `--data-dir` (default `/var/lib/homecloud`), an absolute path, writable by the node | All state (below). | `qemudriver/driver.go` |
-| An SSH key at `--ssh-key` | The control plane's guest access key. Created with mode 0600 if missing, and its public half is written to `<path>.pub`. The public key is injected into each guest for user `agent`. | `sshrunner/sshrunner.go` |
+| Linux on x86_64 | The QEMU command is `qemu-system-x86_64`. | `libs/qemu/qemu` |
+| `qemu-system-x86_64` | Runs the guests. | `libs/qemu/qemu/args.go` |
+| `/dev/kvm` and `--kvm=true` (default) | Hardware acceleration. `--kvm=false` uses TCG emulation, which is much slower. | `services/vmd/cmd/vmd` flag `-kvm` |
+| `qemu-img` | Creates disks, reads image metadata, resizes, flattens snapshots. | `libs/qemu/qemudriver/disks.go` |
+| `genisoimage` | Builds the cloud-init seed ISO at every VM start. Missing, starts fail. The state reason is `node unreachable: <node id>`; the tool's error is in the vmd log (`reconcile failed`). | `libs/qemu/qemudriver/vm.go` |
+| `iptables` and `ip6tables` | Guest network lockdown, unless `--no-firewall`. | `libs/qemu/qemudriver/firewall.go` |
+| Root, or `CAP_NET_ADMIN` for the firewall; `chown` rights for the shared folder and VM directories when `--run-as` is set | Installs the firewall rules and hands `shared/` and the VM directories to the run-as user. | `libs/qemu/qemudriver/driver.go`, `libs/qemu/qemudriver/firewall.go` |
+| A user named by `--run-as` (default `qemu`) | QEMU processes run as this user, and the shared folder belongs to it. Use `--run-as=` (empty) to run as the current user, for development. | `services/vmd/cmd/vmd` flag `-run-as` |
+| `--data-dir` (default `/var/lib/homecloud`), an absolute path, writable by the node | All state (below). | `libs/qemu/qemudriver/driver.go` |
+| An SSH key at `--ssh-key` | The control plane's guest access key. Created with mode 0600 if missing, and its public half is written to `<path>.pub`. The public key is injected into each guest for user `agent`. | `libs/qemu/sshrunner/sshrunner.go` |
 
 ### Network lockdown
 
@@ -158,7 +158,7 @@ The image must be a qcow2 file with a cloud-init-capable Linux that the node can
 
 The job scripts and the mount script run these programs in the guest: `bash`, `setsid`, `timeout`, `base64`,
 `stat`, `tail`, `cat`, `mkdir`, `mv`, `kill`, `pgrep`, `mountpoint`, `sudo`, `date`, `chmod`, `poweroff`. Guests
-stop with `sudo poweroff`. Extra packages can be installed through `GuestPackages` in code; `cmd/vmd` does not
+stop with `sudo poweroff`. Extra packages can be installed through `GuestPackages` in code; `services/vmd/cmd/vmd` does not
 set it.
 
 Each running VM gets a free loopback SSH port on `127.0.0.1` (at 1024 or above), forwarded to its port 22. The
@@ -198,8 +198,8 @@ Migrations run at start-up, before the server listens. Postgres must be reachabl
 ### Database schema
 
 vmd keeps its tables in its database under the migration record `schema_migrations_vmd`. The migrations are in
-`internal/vmd/store/postgres/migrations/` (`001_init`, `002_vm_crashes`, `003_node_drain`). agentd keeps its tables
-in its own database under `schema_migrations_agentd`, with migrations in `internal/agentd/store/postgres/migrations/`.
+`services/vmd/store/postgres/migrations/` (`001_init`, `002_vm_crashes`, `003_node_drain`). agentd keeps its tables
+in its own database under `schema_migrations_agentd`, with migrations in `services/agentd/store/postgres/migrations/`.
 Each migration is embedded in the binary and applied in numeric order, each in its own transaction.
 
 ## Running a node
@@ -210,7 +210,7 @@ starts. Reconcile failures appear in the control plane's log as `reconcile faile
 
 ## Running agentd
 
-`agentd` (from `cmd/agentd`) serves the Agent, Task and Model APIs and runs task workers. It reaches vmd over
+`agentd` (from `services/agentd/cmd/agentd`) serves the Agent, Task and Model APIs and runs task workers. It reaches vmd over
 vmd's API with a service token. It needs its own private key for that, and it verifies user tokens with its own
 trusted keys.
 
@@ -448,8 +448,8 @@ scrape_configs:
 All metric names start with `homecloud_`, except the standard Go and process collectors. Each server registers
 only the collectors listed here.
 
-The names and meanings below are from `internal/vmd/promcollect` (`descs.go`, `promcollect.go`, `capacity.go`
-and `sampler.go`), `internal/obs` and `internal/agentd/metrics`.
+The names and meanings below are from `services/vmd/promcollect` (`descs.go`, `promcollect.go`, `capacity.go`
+and `sampler.go`), `libs/server/obs` and `services/agentd/metrics`.
 
 ### RPC metrics (every API server)
 

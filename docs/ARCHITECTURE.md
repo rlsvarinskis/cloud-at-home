@@ -68,6 +68,9 @@ nodes (`--node id=URL`); `--role=node` is the host daemon.
   key. Each trusted key can be limited to certain roles (a compromised agentd key cannot mint admin tokens). Tokens have a
   maximum lifetime (`--max-token-ttl`), are decoded strictly (one canonical spelling), and can be revoked by id through
   a file the daemons watch (`--revoked-tokens`).
+* **Planned, not implemented**: a `services/auth` identity service (users with Argon2 password hashes, API keys and
+  service accounts, OIDC login for Google and GitHub, an audit log, JWKS publishing, with services verifying its tokens
+  offline). It does not exist yet; today tokens are minted by `hcctl` and by the services themselves, as described above.
 * **Authorization**: RBAC scoped to **projects**. A token carries bindings `(project, role)`; project `*` means all.
   Roles: `viewer`, `editor`, `admin`, `service` (agentd → vmd), `node` (control plane → node), `operator` (global: capacity
   and drain). Handlers check a named permission against the *resource's* project. A caller with no access to a project gets
@@ -85,7 +88,7 @@ nodes (`--node id=URL`); `--role=node` is the host daemon.
   its lease expires.
 * **Horizontal compute**: one node daemon per host, registered with the control plane (`--node id=URL`).
 * **Data sharding by project**: pass `--postgres-dsn` several times and vmd spreads projects across those databases with
-  rendezvous hashing (`internal/vmd/store/shard`). Resource IDs embed their shard (`vm_<ulid>-s02`) so lookups need no
+  rendezvous hashing (`services/vmd/store/shard`). Resource IDs embed their shard (`vm_<ulid>-s02`) so lookups need no
   directory; node rows and shared images live on shard 0; a transaction stays inside one project's shard. **The set of
   databases is part of the data layout**: changing it re-routes projects, and there is no rebalancing tool yet.
 
@@ -104,16 +107,82 @@ Everything that can take long is asynchronous (jobs, tasks, VM transitions) with
 because clients and proxies give up around 60 s.
 
 ## Repository layout
+
+The repository is a Go workspace (`go.work`). Each module has its own `go.mod`; modules refer to each other
+through `go.work` and relative `replace` directives. Module paths are `github.com/rlsvarinskis/cloud-at-home/<module dir>`.
+There is no root module, so `go test ./...` must run inside a module. The `make` targets loop over all modules:
+`api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd cmd/hcctl e2e`.
+
 ```
-proto/             API definitions (source of truth)          gen/        generated code (committed)
-cmd/vmd, agentd    the two servers                            cmd/hcctl   admin CLI (keys, tokens, roles)
-internal/auth      tokens, RBAC, revocation, interceptors     internal/errs   shared error model
-internal/obs       RPC metrics, /metrics, health              internal/daemon flags, logging, HTTP serving
-internal/vmd       domain, store (memory/postgres/shard), scheduler, reconciler, node drivers, services, promcollect
-internal/agentd    domain, store (memory/postgres), llm (Ollama/fake), vmclient, runner, services, metrics
-internal/e2e       both servers together, in one process       deploy/     Dockerfiles, compose, CI
+go.work                              the workspace: the nine modules below
+Makefile                             proto, mocks, build, vet, test, cover, tidy, boundaries
+scripts/check-boundaries.sh          fails when a module imports a sibling it may not (rules below)
+api/                                 module: API definitions and generated code
+  proto/homecloud/{vmd,agentd,node}/v1/   .proto files, the source of truth for the wire format
+  gen/                               generated Go code for proto/ (committed; make proto)
+libs/
+  common/                            module: shared building blocks
+    errs/                            error vocabulary, mapped to Connect codes at the edge
+    ids/                             ULID-based IDs with a resource prefix (and shard suffixes)
+    pg/                              Postgres pool and migration runner (advisory lock); pgtest/ for tests
+  authz/                             module, package authz: tokens, keys, principals, RBAC, revocation,
+                                     Connect interceptors, service tokens
+  qemu/                              module: everything that runs VMs on a host
+    node/                            the node Driver interface (driver.go); mock/
+    qemudriver/                      QEMU/KVM driver (disks, firewall, jobs, metrics, export, system)
+    qemu/                            QEMU argument builder
+    guestexec/, guestmetrics/        guest job scripts and guest metrics
+    sshrunner/                       SSH access to guests
+    remote/                          Driver client that talks to a node over the network
+    nodeserver/                      handler that serves the node API
+    fake/                            in-memory fake Driver for tests
+  server/                            module: shared server plumbing
+    obs/                             RPC metrics, /metrics, health checks, error interceptor
+    daemon/                          trusted-key and revocation flags, logger, HTTP server with graceful shutdown
+services/
+  vmd/                               module: the VM service
+    domain/                          vmd's model (not the wire types)
+    store/                           store interface; memory, postgres/ (migrations/), shard/, storetest/, mock/
+    service/                         Connect handlers, reconciler, node registry; servicemock/
+    scheduler/                       capacity arithmetic and placement helpers
+    promcollect/                     Prometheus collector for vmd state
+    cmd/vmd/                         the vmd binary (--role=all|control|node)
+  agentd/                            module: the agent service
+    domain/, store/                  agentd's model; store with postgres/ (migrations/), storetest/, mock/
+    llm/                             model client interface, Ollama client, fake, mock/
+    vmclient/                        the only way agentd calls vmd; mock/
+    runner/                          task workers: leases, conversation loop, commands, sanitising
+    service/                         agentd's Connect handlers
+    metrics/                         task and step counters, task duration histogram
+    cmd/agentd/                      the agentd binary
+cmd/
+  hcctl/                             module: admin CLI (keys, tokens, roles)
+e2e/                                 module: vmd and agentd together in one process, over their HTTP APIs
+deploy/                              Dockerfiles, compose stack, deployment notes (not a module)
+docs/                                this documentation
 ```
-Migrations live with their store: `internal/*/store/postgres/migrations/`.
+
+Migrations live with their store: `services/*/store/postgres/migrations/`.
+
+### Layering rules
+
+`scripts/check-boundaries.sh` (run by `make boundaries`) fails when a module imports a sibling module that its
+row below does not allow. Imports are checked in tests as well as in the code.
+
+| Module | May import |
+| --- | --- |
+| `api` | nothing |
+| `libs/common` | nothing |
+| `libs/authz` | `api`, `libs/common` |
+| `libs/qemu` | `api`, `libs/common`, `libs/authz` |
+| `libs/server` | `api`, `libs/common`, `libs/authz` |
+| `services/vmd` | `api`, `libs/common`, `libs/authz`, `libs/qemu`, `libs/server` |
+| `services/agentd` | `api`, `libs/common`, `libs/authz`, `libs/server` |
+| `cmd/hcctl` | `api`, `libs/common`, `libs/authz` |
+| `e2e` | anything |
+
+No service imports another service. agentd talks to vmd only through the generated gRPC client in `api/gen`
+(`services/agentd/vmclient`).
 
 ## Testing strategy
 * Unit tests for pure logic (scheduler, parsers, argument builders, RBAC matrix, tokens).
@@ -121,8 +190,8 @@ Migrations live with their store: `internal/*/store/postgres/migrations/`.
   and the shard router.
 * Service tests run the real handlers over HTTP with the fake node and fake LLM, real tokens and a manual clock; the whole
   vmd suite can also run on a sharded store (`HOMECLOUD_TEST_SHARDS=3`).
-* `internal/e2e` runs vmd and agentd together through their real APIs, on memory and Postgres.
-* The daemons' real `run` functions are started against real Postgres in `cmd/*` tests.
+* `e2e/` runs vmd and agentd together through their real APIs, on memory and Postgres.
+* The daemons' real `run` functions are started against real Postgres in the tests of `services/*/cmd/*`.
 * gomock mocks (`make mocks`) script failures the fakes cannot (a broken database, exact call order and arguments).
 
 ## Known limitations

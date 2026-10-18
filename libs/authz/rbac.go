@@ -1,7 +1,7 @@
-// Package auth: authentication (signed tokens) and authorization (project-scoped RBAC).
+// Package authz: authentication (signed tokens) and authorization (project-scoped RBAC).
 //
 // Model: a Principal holds Bindings (project, role). A role grants a fixed set of Permissions.
-// A binding on project "*" applies to every project. Handlers call Require/RequireVisible with the
+// A binding on project "*" applies to every project. Handlers call Require/RequireResource with the
 // permission they need and the project of the resource they touch; there is no ambient access.
 package authz
 

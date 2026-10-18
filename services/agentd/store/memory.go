@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 )
 
 // Memory is an in-process Store and the reference implementation of the contract, used by unit tests and

@@ -8,9 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/pg"
+	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 )
 
 const taskCols = "id, agent_id, project_id, prompt, check_command, max_steps, state, verdict, result, " +

@@ -24,13 +24,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/homecloud-pg-cache
-          key: pg-cache-${{ runner.os }}-${{ hashFiles('go.mod') }}
+          key: pg-cache-${{ runner.os }}-${{ hashFiles('go.work', '**/go.mod') }}
 
+      # The repository is a Go workspace (go.work) of separate modules, so the Makefile loops over every module.
       - name: Build
-        run: go build ./...
+        run: make build
 
       - name: Vet
-        run: go vet ./...
+        run: make vet
 
       - name: gofmt
         run: |
@@ -42,7 +43,10 @@ jobs:
           fi
 
       - name: Test
-        run: go test -race -count=1 ./...
+        run: make test
+
+      - name: Check module boundaries
+        run: ./scripts/check-boundaries.sh
 
   protobuf:
     name: protobuf generated code is up to date
@@ -71,10 +75,14 @@ jobs:
 
       - name: Fail if generated code differs from committed code
         run: |
-          if [ -n "$(git diff --name-only)" ] || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+          if ! git diff --exit-code api/gen; then
             echo "generated code is out of date; run make proto and commit the result"
-            git --no-pager diff --stat
-            git ls-files --others --exclude-standard
+            exit 1
+          fi
+          untracked="$(git ls-files --others --exclude-standard api/gen)"
+          if [ -n "$untracked" ]; then
+            echo "generated code has new files that are not committed:"
+            echo "$untracked"
             exit 1
           fi
 

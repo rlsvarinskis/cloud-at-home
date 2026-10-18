@@ -12,10 +12,10 @@ import (
 
 	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
 	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/service"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/store"
-	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
 
 func ptr[T any](v T) *T { return &v }

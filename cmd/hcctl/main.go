@@ -35,7 +35,7 @@ const defaultMaxTTL = 30 * 24 * time.Hour
 // keyIDPattern limits key IDs to characters that are safe in file names and JWT headers.
 var keyIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
-// knownRoles lists the roles hcctl can grant (every role defined in internal/auth).
+// knownRoles lists the roles hcctl can grant (every role defined in libs/authz).
 var knownRoles = authz.Roles()
 
 const usageText = `usage:

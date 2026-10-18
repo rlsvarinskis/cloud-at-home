@@ -7,8 +7,8 @@ homecloud on real hosts, see [docs/OPERATIONS.md](../docs/OPERATIONS.md).
 
 | Binary | Role | Image |
 | --- | --- | --- |
-| `vmd` (`cmd/vmd`) | Control plane: Connect API, scheduler, state in Postgres. With `--role=node` it runs a VM host. | `Dockerfile.vmd` (control plane only), `Dockerfile.node` (node, `--role=node`) |
-| `agentd` (`cmd/agentd`) | Agent daemon: runs LLM-backed tasks by calling vmd, with Ollama as the model server. | `Dockerfile.agentd` |
+| `vmd` (`services/vmd/cmd/vmd`) | Control plane: Connect API, scheduler, state in Postgres. With `--role=node` it runs a VM host. | `Dockerfile.vmd` (control plane only), `Dockerfile.node` (node, `--role=node`) |
+| `agentd` (`services/agentd/cmd/agentd`) | Agent daemon: runs LLM-backed tasks by calling vmd, with Ollama as the model server. | `Dockerfile.agentd` |
 | `hcctl` (`cmd/hcctl`) | Admin CLI: generates signing keys, mints tokens, inspects tokens. Runs on your workstation. | not containerized |
 
 Request flow:

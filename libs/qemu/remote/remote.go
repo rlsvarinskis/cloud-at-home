@@ -1,5 +1,5 @@
 // Package remote is a node.Driver that calls a node daemon over the network. It is the client
-// half of the node API; the server half is internal/vmd/node/nodeserver.
+// half of the node API; the server half is libs/qemu/nodeserver.
 package remote
 
 import (
@@ -17,7 +17,7 @@ import (
 var _ node.Driver = (*Driver)(nil)
 
 // Driver implements node.Driver by calling a remote NodeService. Errors come back as the
-// internal/errs sentinels, so errors.Is works the same as it does for a local driver. A host that
+// libs/common/errs sentinels, so errors.Is works the same as it does for a local driver. A host that
 // cannot be reached yields an error matching errs.ErrUnavailable.
 type Driver struct {
 	client nodev1connect.NodeServiceClient

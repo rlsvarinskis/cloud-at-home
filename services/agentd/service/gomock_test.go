@@ -17,14 +17,14 @@ import (
 	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1/agentdv1connect"
 	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
+	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/llm"
 	llmmock "github.com/rlsvarinskis/cloud-at-home/services/agentd/llm/mock"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/service"
 	storemock "github.com/rlsvarinskis/cloud-at-home/services/agentd/store/mock"
 	vmclientmock "github.com/rlsvarinskis/cloud-at-home/services/agentd/vmclient/mock"
-	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
-	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
 
 // gmAgentSecret is a store failure text that must never reach an API client.
