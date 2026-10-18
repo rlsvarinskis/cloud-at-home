@@ -8,12 +8,12 @@ import (
 
 	"connectrpc.com/connect"
 
-	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
 
-const leakyNodeError = `node n1: Post "http://203.0.113.40:9000/homecloud.node.v1.NodeService/PollJob": dial tcp 203.0.113.40:9000: connect: connection refused`
+const leakyNodeError = `node n1: Post "http://203.0.113.40:9000/attic.node.v1.NodeService/PollJob": dial tcp 203.0.113.40:9000: connect: connection refused`
 
 func assertNoInternals(t *testing.T, what, text string) {
 	t.Helper()

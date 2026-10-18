@@ -10,8 +10,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
-	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/fake"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
@@ -305,13 +305,13 @@ func TestMetricsEndpointAuthAndSeries(t *testing.T) {
 		t.Fatalf("/metrics with operator token: status %d, want 200", status)
 	}
 
-	const svc = `service="homecloud.vmd.v1.VMService"`
+	const svc = `service="attic.vmd.v1.VMService"`
 	expect := []string{
-		`(?m)^homecloud_rpc_requests_total\{code="ok",method="CreateVM",server="vmd",` + svc + `\} 1$`,
-		`(?m)^homecloud_rpc_requests_total\{code="permission_denied",method="CreateVM",server="vmd",` + svc + `\} 1$`,
-		`(?m)^homecloud_rpc_requests_total\{code="not_found",method="GetVM",server="vmd",` + svc + `\} 1$`,
-		`(?m)^homecloud_rpc_duration_seconds_count\{method="CreateVM",server="vmd",` + svc + `\} 2$`,
-		`(?m)^homecloud_rpc_duration_seconds_bucket\{`,
+		`(?m)^attic_rpc_requests_total\{code="ok",method="CreateVM",server="vmd",` + svc + `\} 1$`,
+		`(?m)^attic_rpc_requests_total\{code="permission_denied",method="CreateVM",server="vmd",` + svc + `\} 1$`,
+		`(?m)^attic_rpc_requests_total\{code="not_found",method="GetVM",server="vmd",` + svc + `\} 1$`,
+		`(?m)^attic_rpc_duration_seconds_count\{method="CreateVM",server="vmd",` + svc + `\} 2$`,
+		`(?m)^attic_rpc_duration_seconds_bucket\{`,
 		`(?m)^go_goroutines `,
 	}
 	for _, pat := range expect {

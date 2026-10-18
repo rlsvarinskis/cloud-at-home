@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.5
-// source: homecloud/node/v1/node.proto
+// source: attic/node/v1/node.proto
 
 // node: the per-host hypervisor API. Only the vmd control plane calls it (service credentials);
 // it is the unit of horizontal scaling: one node daemon per physical host.
@@ -63,11 +63,11 @@ func (x RuntimeState) String() string {
 }
 
 func (RuntimeState) Descriptor() protoreflect.EnumDescriptor {
-	return file_homecloud_node_v1_node_proto_enumTypes[0].Descriptor()
+	return file_attic_node_v1_node_proto_enumTypes[0].Descriptor()
 }
 
 func (RuntimeState) Type() protoreflect.EnumType {
-	return &file_homecloud_node_v1_node_proto_enumTypes[0]
+	return &file_attic_node_v1_node_proto_enumTypes[0]
 }
 
 func (x RuntimeState) Number() protoreflect.EnumNumber {
@@ -76,7 +76,7 @@ func (x RuntimeState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RuntimeState.Descriptor instead.
 func (RuntimeState) EnumDescriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{0}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{0}
 }
 
 type GuestJobState int32
@@ -118,11 +118,11 @@ func (x GuestJobState) String() string {
 }
 
 func (GuestJobState) Descriptor() protoreflect.EnumDescriptor {
-	return file_homecloud_node_v1_node_proto_enumTypes[1].Descriptor()
+	return file_attic_node_v1_node_proto_enumTypes[1].Descriptor()
 }
 
 func (GuestJobState) Type() protoreflect.EnumType {
-	return &file_homecloud_node_v1_node_proto_enumTypes[1]
+	return &file_attic_node_v1_node_proto_enumTypes[1]
 }
 
 func (x GuestJobState) Number() protoreflect.EnumNumber {
@@ -131,7 +131,7 @@ func (x GuestJobState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use GuestJobState.Descriptor instead.
 func (GuestJobState) EnumDescriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{1}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{1}
 }
 
 type Capacity struct {
@@ -147,7 +147,7 @@ type Capacity struct {
 
 func (x *Capacity) Reset() {
 	*x = Capacity{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[0]
+	mi := &file_attic_node_v1_node_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -159,7 +159,7 @@ func (x *Capacity) String() string {
 func (*Capacity) ProtoMessage() {}
 
 func (x *Capacity) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[0]
+	mi := &file_attic_node_v1_node_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -172,7 +172,7 @@ func (x *Capacity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Capacity.ProtoReflect.Descriptor instead.
 func (*Capacity) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{0}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Capacity) GetCpusTotal() int32 {
@@ -218,7 +218,7 @@ type GetCapacityRequest struct {
 
 func (x *GetCapacityRequest) Reset() {
 	*x = GetCapacityRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[1]
+	mi := &file_attic_node_v1_node_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -230,7 +230,7 @@ func (x *GetCapacityRequest) String() string {
 func (*GetCapacityRequest) ProtoMessage() {}
 
 func (x *GetCapacityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[1]
+	mi := &file_attic_node_v1_node_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -243,7 +243,7 @@ func (x *GetCapacityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCapacityRequest.ProtoReflect.Descriptor instead.
 func (*GetCapacityRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{1}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{1}
 }
 
 type GetCapacityResponse struct {
@@ -255,7 +255,7 @@ type GetCapacityResponse struct {
 
 func (x *GetCapacityResponse) Reset() {
 	*x = GetCapacityResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[2]
+	mi := &file_attic_node_v1_node_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -267,7 +267,7 @@ func (x *GetCapacityResponse) String() string {
 func (*GetCapacityResponse) ProtoMessage() {}
 
 func (x *GetCapacityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[2]
+	mi := &file_attic_node_v1_node_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -280,7 +280,7 @@ func (x *GetCapacityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCapacityResponse.ProtoReflect.Descriptor instead.
 func (*GetCapacityResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{2}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetCapacityResponse) GetCapacity() *Capacity {
@@ -301,7 +301,7 @@ type RegisterImageRequest struct {
 
 func (x *RegisterImageRequest) Reset() {
 	*x = RegisterImageRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[3]
+	mi := &file_attic_node_v1_node_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -313,7 +313,7 @@ func (x *RegisterImageRequest) String() string {
 func (*RegisterImageRequest) ProtoMessage() {}
 
 func (x *RegisterImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[3]
+	mi := &file_attic_node_v1_node_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -326,7 +326,7 @@ func (x *RegisterImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterImageRequest.ProtoReflect.Descriptor instead.
 func (*RegisterImageRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{3}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RegisterImageRequest) GetImageId() string {
@@ -352,7 +352,7 @@ type RegisterImageResponse struct {
 
 func (x *RegisterImageResponse) Reset() {
 	*x = RegisterImageResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[4]
+	mi := &file_attic_node_v1_node_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -364,7 +364,7 @@ func (x *RegisterImageResponse) String() string {
 func (*RegisterImageResponse) ProtoMessage() {}
 
 func (x *RegisterImageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[4]
+	mi := &file_attic_node_v1_node_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -377,7 +377,7 @@ func (x *RegisterImageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterImageResponse.ProtoReflect.Descriptor instead.
 func (*RegisterImageResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{4}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *RegisterImageResponse) GetSizeBytes() int64 {
@@ -396,7 +396,7 @@ type DeleteImageRequest struct {
 
 func (x *DeleteImageRequest) Reset() {
 	*x = DeleteImageRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[5]
+	mi := &file_attic_node_v1_node_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -408,7 +408,7 @@ func (x *DeleteImageRequest) String() string {
 func (*DeleteImageRequest) ProtoMessage() {}
 
 func (x *DeleteImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[5]
+	mi := &file_attic_node_v1_node_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -421,7 +421,7 @@ func (x *DeleteImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteImageRequest.ProtoReflect.Descriptor instead.
 func (*DeleteImageRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{5}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DeleteImageRequest) GetImageId() string {
@@ -439,7 +439,7 @@ type DeleteImageResponse struct {
 
 func (x *DeleteImageResponse) Reset() {
 	*x = DeleteImageResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[6]
+	mi := &file_attic_node_v1_node_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -451,7 +451,7 @@ func (x *DeleteImageResponse) String() string {
 func (*DeleteImageResponse) ProtoMessage() {}
 
 func (x *DeleteImageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[6]
+	mi := &file_attic_node_v1_node_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -464,7 +464,7 @@ func (x *DeleteImageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteImageResponse.ProtoReflect.Descriptor instead.
 func (*DeleteImageResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{6}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{6}
 }
 
 type CreateDiskRequest struct {
@@ -478,7 +478,7 @@ type CreateDiskRequest struct {
 
 func (x *CreateDiskRequest) Reset() {
 	*x = CreateDiskRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[7]
+	mi := &file_attic_node_v1_node_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -490,7 +490,7 @@ func (x *CreateDiskRequest) String() string {
 func (*CreateDiskRequest) ProtoMessage() {}
 
 func (x *CreateDiskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[7]
+	mi := &file_attic_node_v1_node_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -503,7 +503,7 @@ func (x *CreateDiskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDiskRequest.ProtoReflect.Descriptor instead.
 func (*CreateDiskRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{7}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateDiskRequest) GetDiskId() string {
@@ -535,7 +535,7 @@ type CreateDiskResponse struct {
 
 func (x *CreateDiskResponse) Reset() {
 	*x = CreateDiskResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[8]
+	mi := &file_attic_node_v1_node_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -547,7 +547,7 @@ func (x *CreateDiskResponse) String() string {
 func (*CreateDiskResponse) ProtoMessage() {}
 
 func (x *CreateDiskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[8]
+	mi := &file_attic_node_v1_node_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -560,7 +560,7 @@ func (x *CreateDiskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDiskResponse.ProtoReflect.Descriptor instead.
 func (*CreateDiskResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{8}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{8}
 }
 
 type ResizeDiskRequest struct {
@@ -573,7 +573,7 @@ type ResizeDiskRequest struct {
 
 func (x *ResizeDiskRequest) Reset() {
 	*x = ResizeDiskRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[9]
+	mi := &file_attic_node_v1_node_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -585,7 +585,7 @@ func (x *ResizeDiskRequest) String() string {
 func (*ResizeDiskRequest) ProtoMessage() {}
 
 func (x *ResizeDiskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[9]
+	mi := &file_attic_node_v1_node_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -598,7 +598,7 @@ func (x *ResizeDiskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResizeDiskRequest.ProtoReflect.Descriptor instead.
 func (*ResizeDiskRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{9}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ResizeDiskRequest) GetDiskId() string {
@@ -623,7 +623,7 @@ type ResizeDiskResponse struct {
 
 func (x *ResizeDiskResponse) Reset() {
 	*x = ResizeDiskResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[10]
+	mi := &file_attic_node_v1_node_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -635,7 +635,7 @@ func (x *ResizeDiskResponse) String() string {
 func (*ResizeDiskResponse) ProtoMessage() {}
 
 func (x *ResizeDiskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[10]
+	mi := &file_attic_node_v1_node_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -648,7 +648,7 @@ func (x *ResizeDiskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResizeDiskResponse.ProtoReflect.Descriptor instead.
 func (*ResizeDiskResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{10}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{10}
 }
 
 type DeleteDiskRequest struct {
@@ -660,7 +660,7 @@ type DeleteDiskRequest struct {
 
 func (x *DeleteDiskRequest) Reset() {
 	*x = DeleteDiskRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[11]
+	mi := &file_attic_node_v1_node_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -672,7 +672,7 @@ func (x *DeleteDiskRequest) String() string {
 func (*DeleteDiskRequest) ProtoMessage() {}
 
 func (x *DeleteDiskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[11]
+	mi := &file_attic_node_v1_node_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -685,7 +685,7 @@ func (x *DeleteDiskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDiskRequest.ProtoReflect.Descriptor instead.
 func (*DeleteDiskRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{11}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DeleteDiskRequest) GetDiskId() string {
@@ -703,7 +703,7 @@ type DeleteDiskResponse struct {
 
 func (x *DeleteDiskResponse) Reset() {
 	*x = DeleteDiskResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[12]
+	mi := &file_attic_node_v1_node_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -715,7 +715,7 @@ func (x *DeleteDiskResponse) String() string {
 func (*DeleteDiskResponse) ProtoMessage() {}
 
 func (x *DeleteDiskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[12]
+	mi := &file_attic_node_v1_node_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -728,7 +728,7 @@ func (x *DeleteDiskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDiskResponse.ProtoReflect.Descriptor instead.
 func (*DeleteDiskResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{12}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{12}
 }
 
 type SnapshotDiskRequest struct {
@@ -741,7 +741,7 @@ type SnapshotDiskRequest struct {
 
 func (x *SnapshotDiskRequest) Reset() {
 	*x = SnapshotDiskRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[13]
+	mi := &file_attic_node_v1_node_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -753,7 +753,7 @@ func (x *SnapshotDiskRequest) String() string {
 func (*SnapshotDiskRequest) ProtoMessage() {}
 
 func (x *SnapshotDiskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[13]
+	mi := &file_attic_node_v1_node_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -766,7 +766,7 @@ func (x *SnapshotDiskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SnapshotDiskRequest.ProtoReflect.Descriptor instead.
 func (*SnapshotDiskRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{13}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SnapshotDiskRequest) GetDiskId() string {
@@ -792,7 +792,7 @@ type SnapshotDiskResponse struct {
 
 func (x *SnapshotDiskResponse) Reset() {
 	*x = SnapshotDiskResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[14]
+	mi := &file_attic_node_v1_node_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -804,7 +804,7 @@ func (x *SnapshotDiskResponse) String() string {
 func (*SnapshotDiskResponse) ProtoMessage() {}
 
 func (x *SnapshotDiskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[14]
+	mi := &file_attic_node_v1_node_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -817,7 +817,7 @@ func (x *SnapshotDiskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SnapshotDiskResponse.ProtoReflect.Descriptor instead.
 func (*SnapshotDiskResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{14}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SnapshotDiskResponse) GetSizeBytes() int64 {
@@ -829,7 +829,7 @@ func (x *SnapshotDiskResponse) GetSizeBytes() int64 {
 
 type Runtime struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	State         RuntimeState           `protobuf:"varint,1,opt,name=state,proto3,enum=homecloud.node.v1.RuntimeState" json:"state,omitempty"`
+	State         RuntimeState           `protobuf:"varint,1,opt,name=state,proto3,enum=attic.node.v1.RuntimeState" json:"state,omitempty"`
 	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -837,7 +837,7 @@ type Runtime struct {
 
 func (x *Runtime) Reset() {
 	*x = Runtime{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[15]
+	mi := &file_attic_node_v1_node_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -849,7 +849,7 @@ func (x *Runtime) String() string {
 func (*Runtime) ProtoMessage() {}
 
 func (x *Runtime) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[15]
+	mi := &file_attic_node_v1_node_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -862,7 +862,7 @@ func (x *Runtime) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Runtime.ProtoReflect.Descriptor instead.
 func (*Runtime) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{15}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Runtime) GetState() RuntimeState {
@@ -892,7 +892,7 @@ type StartVMRequest struct {
 
 func (x *StartVMRequest) Reset() {
 	*x = StartVMRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[16]
+	mi := &file_attic_node_v1_node_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -904,7 +904,7 @@ func (x *StartVMRequest) String() string {
 func (*StartVMRequest) ProtoMessage() {}
 
 func (x *StartVMRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[16]
+	mi := &file_attic_node_v1_node_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -917,7 +917,7 @@ func (x *StartVMRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartVMRequest.ProtoReflect.Descriptor instead.
 func (*StartVMRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{16}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *StartVMRequest) GetVmId() string {
@@ -964,7 +964,7 @@ type StartVMResponse struct {
 
 func (x *StartVMResponse) Reset() {
 	*x = StartVMResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[17]
+	mi := &file_attic_node_v1_node_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -976,7 +976,7 @@ func (x *StartVMResponse) String() string {
 func (*StartVMResponse) ProtoMessage() {}
 
 func (x *StartVMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[17]
+	mi := &file_attic_node_v1_node_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -989,7 +989,7 @@ func (x *StartVMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartVMResponse.ProtoReflect.Descriptor instead.
 func (*StartVMResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{17}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *StartVMResponse) GetRuntime() *Runtime {
@@ -1009,7 +1009,7 @@ type StopVMRequest struct {
 
 func (x *StopVMRequest) Reset() {
 	*x = StopVMRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[18]
+	mi := &file_attic_node_v1_node_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1021,7 +1021,7 @@ func (x *StopVMRequest) String() string {
 func (*StopVMRequest) ProtoMessage() {}
 
 func (x *StopVMRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[18]
+	mi := &file_attic_node_v1_node_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1034,7 +1034,7 @@ func (x *StopVMRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopVMRequest.ProtoReflect.Descriptor instead.
 func (*StopVMRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{18}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *StopVMRequest) GetVmId() string {
@@ -1059,7 +1059,7 @@ type StopVMResponse struct {
 
 func (x *StopVMResponse) Reset() {
 	*x = StopVMResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[19]
+	mi := &file_attic_node_v1_node_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1071,7 +1071,7 @@ func (x *StopVMResponse) String() string {
 func (*StopVMResponse) ProtoMessage() {}
 
 func (x *StopVMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[19]
+	mi := &file_attic_node_v1_node_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1084,7 +1084,7 @@ func (x *StopVMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopVMResponse.ProtoReflect.Descriptor instead.
 func (*StopVMResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{19}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{19}
 }
 
 type GetVMRuntimeRequest struct {
@@ -1096,7 +1096,7 @@ type GetVMRuntimeRequest struct {
 
 func (x *GetVMRuntimeRequest) Reset() {
 	*x = GetVMRuntimeRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[20]
+	mi := &file_attic_node_v1_node_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1108,7 +1108,7 @@ func (x *GetVMRuntimeRequest) String() string {
 func (*GetVMRuntimeRequest) ProtoMessage() {}
 
 func (x *GetVMRuntimeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[20]
+	mi := &file_attic_node_v1_node_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1121,7 +1121,7 @@ func (x *GetVMRuntimeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVMRuntimeRequest.ProtoReflect.Descriptor instead.
 func (*GetVMRuntimeRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{20}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetVMRuntimeRequest) GetVmId() string {
@@ -1140,7 +1140,7 @@ type GetVMRuntimeResponse struct {
 
 func (x *GetVMRuntimeResponse) Reset() {
 	*x = GetVMRuntimeResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[21]
+	mi := &file_attic_node_v1_node_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1152,7 +1152,7 @@ func (x *GetVMRuntimeResponse) String() string {
 func (*GetVMRuntimeResponse) ProtoMessage() {}
 
 func (x *GetVMRuntimeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[21]
+	mi := &file_attic_node_v1_node_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1165,7 +1165,7 @@ func (x *GetVMRuntimeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVMRuntimeResponse.ProtoReflect.Descriptor instead.
 func (*GetVMRuntimeResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{21}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetVMRuntimeResponse) GetRuntime() *Runtime {
@@ -1184,7 +1184,7 @@ type ForgetVMRequest struct {
 
 func (x *ForgetVMRequest) Reset() {
 	*x = ForgetVMRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[22]
+	mi := &file_attic_node_v1_node_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1196,7 +1196,7 @@ func (x *ForgetVMRequest) String() string {
 func (*ForgetVMRequest) ProtoMessage() {}
 
 func (x *ForgetVMRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[22]
+	mi := &file_attic_node_v1_node_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1209,7 +1209,7 @@ func (x *ForgetVMRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForgetVMRequest.ProtoReflect.Descriptor instead.
 func (*ForgetVMRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{22}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ForgetVMRequest) GetVmId() string {
@@ -1227,7 +1227,7 @@ type ForgetVMResponse struct {
 
 func (x *ForgetVMResponse) Reset() {
 	*x = ForgetVMResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[23]
+	mi := &file_attic_node_v1_node_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1239,7 +1239,7 @@ func (x *ForgetVMResponse) String() string {
 func (*ForgetVMResponse) ProtoMessage() {}
 
 func (x *ForgetVMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[23]
+	mi := &file_attic_node_v1_node_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1252,7 +1252,7 @@ func (x *ForgetVMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForgetVMResponse.ProtoReflect.Descriptor instead.
 func (*ForgetVMResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{23}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{23}
 }
 
 type JobSpec struct {
@@ -1267,7 +1267,7 @@ type JobSpec struct {
 
 func (x *JobSpec) Reset() {
 	*x = JobSpec{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[24]
+	mi := &file_attic_node_v1_node_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1279,7 +1279,7 @@ func (x *JobSpec) String() string {
 func (*JobSpec) ProtoMessage() {}
 
 func (x *JobSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[24]
+	mi := &file_attic_node_v1_node_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1292,7 +1292,7 @@ func (x *JobSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobSpec.ProtoReflect.Descriptor instead.
 func (*JobSpec) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{24}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *JobSpec) GetJobId() string {
@@ -1333,7 +1333,7 @@ type StartJobRequest struct {
 
 func (x *StartJobRequest) Reset() {
 	*x = StartJobRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[25]
+	mi := &file_attic_node_v1_node_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1345,7 +1345,7 @@ func (x *StartJobRequest) String() string {
 func (*StartJobRequest) ProtoMessage() {}
 
 func (x *StartJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[25]
+	mi := &file_attic_node_v1_node_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1358,7 +1358,7 @@ func (x *StartJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartJobRequest.ProtoReflect.Descriptor instead.
 func (*StartJobRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{25}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *StartJobRequest) GetVmId() string {
@@ -1383,7 +1383,7 @@ type StartJobResponse struct {
 
 func (x *StartJobResponse) Reset() {
 	*x = StartJobResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[26]
+	mi := &file_attic_node_v1_node_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1395,7 +1395,7 @@ func (x *StartJobResponse) String() string {
 func (*StartJobResponse) ProtoMessage() {}
 
 func (x *StartJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[26]
+	mi := &file_attic_node_v1_node_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1408,7 +1408,7 @@ func (x *StartJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartJobResponse.ProtoReflect.Descriptor instead.
 func (*StartJobResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{26}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{26}
 }
 
 type PollJobRequest struct {
@@ -1425,7 +1425,7 @@ type PollJobRequest struct {
 
 func (x *PollJobRequest) Reset() {
 	*x = PollJobRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[27]
+	mi := &file_attic_node_v1_node_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1437,7 +1437,7 @@ func (x *PollJobRequest) String() string {
 func (*PollJobRequest) ProtoMessage() {}
 
 func (x *PollJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[27]
+	mi := &file_attic_node_v1_node_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1450,7 +1450,7 @@ func (x *PollJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobRequest.ProtoReflect.Descriptor instead.
 func (*PollJobRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{27}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *PollJobRequest) GetVmId() string {
@@ -1497,7 +1497,7 @@ func (x *PollJobRequest) GetTail() bool {
 
 type PollJobResponse struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	State          GuestJobState          `protobuf:"varint,1,opt,name=state,proto3,enum=homecloud.node.v1.GuestJobState" json:"state,omitempty"`
+	State          GuestJobState          `protobuf:"varint,1,opt,name=state,proto3,enum=attic.node.v1.GuestJobState" json:"state,omitempty"`
 	ExitCode       *int32                 `protobuf:"varint,2,opt,name=exit_code,json=exitCode,proto3,oneof" json:"exit_code,omitempty"`
 	Cancelled      bool                   `protobuf:"varint,3,opt,name=cancelled,proto3" json:"cancelled,omitempty"`
 	ElapsedSeconds int64                  `protobuf:"varint,4,opt,name=elapsed_seconds,json=elapsedSeconds,proto3" json:"elapsed_seconds,omitempty"`
@@ -1515,7 +1515,7 @@ type PollJobResponse struct {
 
 func (x *PollJobResponse) Reset() {
 	*x = PollJobResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[28]
+	mi := &file_attic_node_v1_node_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1527,7 +1527,7 @@ func (x *PollJobResponse) String() string {
 func (*PollJobResponse) ProtoMessage() {}
 
 func (x *PollJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[28]
+	mi := &file_attic_node_v1_node_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1540,7 +1540,7 @@ func (x *PollJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobResponse.ProtoReflect.Descriptor instead.
 func (*PollJobResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{28}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *PollJobResponse) GetState() GuestJobState {
@@ -1637,7 +1637,7 @@ type CancelJobRequest struct {
 
 func (x *CancelJobRequest) Reset() {
 	*x = CancelJobRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[29]
+	mi := &file_attic_node_v1_node_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1649,7 +1649,7 @@ func (x *CancelJobRequest) String() string {
 func (*CancelJobRequest) ProtoMessage() {}
 
 func (x *CancelJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[29]
+	mi := &file_attic_node_v1_node_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1662,7 +1662,7 @@ func (x *CancelJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelJobRequest.ProtoReflect.Descriptor instead.
 func (*CancelJobRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{29}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *CancelJobRequest) GetVmId() string {
@@ -1687,7 +1687,7 @@ type CancelJobResponse struct {
 
 func (x *CancelJobResponse) Reset() {
 	*x = CancelJobResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[30]
+	mi := &file_attic_node_v1_node_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1699,7 +1699,7 @@ func (x *CancelJobResponse) String() string {
 func (*CancelJobResponse) ProtoMessage() {}
 
 func (x *CancelJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[30]
+	mi := &file_attic_node_v1_node_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1712,7 +1712,7 @@ func (x *CancelJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelJobResponse.ProtoReflect.Descriptor instead.
 func (*CancelJobResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{30}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{30}
 }
 
 type PutFileRequest struct {
@@ -1727,7 +1727,7 @@ type PutFileRequest struct {
 
 func (x *PutFileRequest) Reset() {
 	*x = PutFileRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[31]
+	mi := &file_attic_node_v1_node_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1739,7 +1739,7 @@ func (x *PutFileRequest) String() string {
 func (*PutFileRequest) ProtoMessage() {}
 
 func (x *PutFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[31]
+	mi := &file_attic_node_v1_node_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1752,7 +1752,7 @@ func (x *PutFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutFileRequest.ProtoReflect.Descriptor instead.
 func (*PutFileRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{31}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *PutFileRequest) GetVmId() string {
@@ -1791,7 +1791,7 @@ type PutFileResponse struct {
 
 func (x *PutFileResponse) Reset() {
 	*x = PutFileResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[32]
+	mi := &file_attic_node_v1_node_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1803,7 +1803,7 @@ func (x *PutFileResponse) String() string {
 func (*PutFileResponse) ProtoMessage() {}
 
 func (x *PutFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[32]
+	mi := &file_attic_node_v1_node_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1816,7 +1816,7 @@ func (x *PutFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutFileResponse.ProtoReflect.Descriptor instead.
 func (*PutFileResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{32}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{32}
 }
 
 type GetFileRequest struct {
@@ -1830,7 +1830,7 @@ type GetFileRequest struct {
 
 func (x *GetFileRequest) Reset() {
 	*x = GetFileRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[33]
+	mi := &file_attic_node_v1_node_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1842,7 +1842,7 @@ func (x *GetFileRequest) String() string {
 func (*GetFileRequest) ProtoMessage() {}
 
 func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[33]
+	mi := &file_attic_node_v1_node_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1855,7 +1855,7 @@ func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFileRequest.ProtoReflect.Descriptor instead.
 func (*GetFileRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{33}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *GetFileRequest) GetVmId() string {
@@ -1889,7 +1889,7 @@ type GetFileResponse struct {
 
 func (x *GetFileResponse) Reset() {
 	*x = GetFileResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[34]
+	mi := &file_attic_node_v1_node_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1901,7 +1901,7 @@ func (x *GetFileResponse) String() string {
 func (*GetFileResponse) ProtoMessage() {}
 
 func (x *GetFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[34]
+	mi := &file_attic_node_v1_node_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1914,7 +1914,7 @@ func (x *GetFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFileResponse.ProtoReflect.Descriptor instead.
 func (*GetFileResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{34}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *GetFileResponse) GetContent() []byte {
@@ -1944,7 +1944,7 @@ type GuestFilesystem struct {
 
 func (x *GuestFilesystem) Reset() {
 	*x = GuestFilesystem{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[35]
+	mi := &file_attic_node_v1_node_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1956,7 +1956,7 @@ func (x *GuestFilesystem) String() string {
 func (*GuestFilesystem) ProtoMessage() {}
 
 func (x *GuestFilesystem) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[35]
+	mi := &file_attic_node_v1_node_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1969,7 +1969,7 @@ func (x *GuestFilesystem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GuestFilesystem.ProtoReflect.Descriptor instead.
 func (*GuestFilesystem) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{35}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *GuestFilesystem) GetDiskId() string {
@@ -2018,7 +2018,7 @@ type DiskAllocation struct {
 
 func (x *DiskAllocation) Reset() {
 	*x = DiskAllocation{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[36]
+	mi := &file_attic_node_v1_node_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2030,7 +2030,7 @@ func (x *DiskAllocation) String() string {
 func (*DiskAllocation) ProtoMessage() {}
 
 func (x *DiskAllocation) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[36]
+	mi := &file_attic_node_v1_node_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2043,7 +2043,7 @@ func (x *DiskAllocation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiskAllocation.ProtoReflect.Descriptor instead.
 func (*DiskAllocation) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{36}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *DiskAllocation) GetDiskId() string {
@@ -2077,7 +2077,7 @@ type GetVMMetricsRequest struct {
 
 func (x *GetVMMetricsRequest) Reset() {
 	*x = GetVMMetricsRequest{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[37]
+	mi := &file_attic_node_v1_node_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2089,7 +2089,7 @@ func (x *GetVMMetricsRequest) String() string {
 func (*GetVMMetricsRequest) ProtoMessage() {}
 
 func (x *GetVMMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[37]
+	mi := &file_attic_node_v1_node_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2102,7 +2102,7 @@ func (x *GetVMMetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVMMetricsRequest.ProtoReflect.Descriptor instead.
 func (*GetVMMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{37}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *GetVMMetricsRequest) GetVmId() string {
@@ -2140,7 +2140,7 @@ type GetVMMetricsResponse struct {
 
 func (x *GetVMMetricsResponse) Reset() {
 	*x = GetVMMetricsResponse{}
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[38]
+	mi := &file_attic_node_v1_node_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2152,7 +2152,7 @@ func (x *GetVMMetricsResponse) String() string {
 func (*GetVMMetricsResponse) ProtoMessage() {}
 
 func (x *GetVMMetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_node_v1_node_proto_msgTypes[38]
+	mi := &file_attic_node_v1_node_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2165,7 +2165,7 @@ func (x *GetVMMetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVMMetricsResponse.ProtoReflect.Descriptor instead.
 func (*GetVMMetricsResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_node_v1_node_proto_rawDescGZIP(), []int{38}
+	return file_attic_node_v1_node_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *GetVMMetricsResponse) GetCpuPercent() float64 {
@@ -2259,11 +2259,11 @@ func (x *GetVMMetricsResponse) GetDisks() []*DiskAllocation {
 	return nil
 }
 
-var File_homecloud_node_v1_node_proto protoreflect.FileDescriptor
+var File_attic_node_v1_node_proto protoreflect.FileDescriptor
 
-const file_homecloud_node_v1_node_proto_rawDesc = "" +
+const file_attic_node_v1_node_proto_rawDesc = "" +
 	"\n" +
-	"\x1chomecloud/node/v1/node.proto\x12\x11homecloud.node.v1\"\xd3\x01\n" +
+	"\x18attic/node/v1/node.proto\x12\rattic.node.v1\"\xd3\x01\n" +
 	"\bCapacity\x12\x1d\n" +
 	"\n" +
 	"cpus_total\x18\x01 \x01(\x05R\tcpusTotal\x12&\n" +
@@ -2271,9 +2271,9 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\x0fdisk_bytes_free\x18\x03 \x01(\x03R\rdiskBytesFree\x12.\n" +
 	"\x13memory_mb_available\x18\x04 \x01(\x03R\x11memoryMbAvailable\x12(\n" +
 	"\x10disk_bytes_total\x18\x05 \x01(\x03R\x0ediskBytesTotal\"\x14\n" +
-	"\x12GetCapacityRequest\"N\n" +
-	"\x13GetCapacityResponse\x127\n" +
-	"\bcapacity\x18\x01 \x01(\v2\x1b.homecloud.node.v1.CapacityR\bcapacity\"E\n" +
+	"\x12GetCapacityRequest\"J\n" +
+	"\x13GetCapacityResponse\x123\n" +
+	"\bcapacity\x18\x01 \x01(\v2\x17.attic.node.v1.CapacityR\bcapacity\"E\n" +
 	"\x14RegisterImageRequest\x12\x19\n" +
 	"\bimage_id\x18\x01 \x01(\tR\aimageId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\"6\n" +
@@ -2300,26 +2300,26 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\bimage_id\x18\x02 \x01(\tR\aimageId\"5\n" +
 	"\x14SnapshotDiskResponse\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\x01 \x01(\x03R\tsizeBytes\"X\n" +
-	"\aRuntime\x125\n" +
-	"\x05state\x18\x01 \x01(\x0e2\x1f.homecloud.node.v1.RuntimeStateR\x05state\x12\x16\n" +
+	"size_bytes\x18\x01 \x01(\x03R\tsizeBytes\"T\n" +
+	"\aRuntime\x121\n" +
+	"\x05state\x18\x01 \x01(\x0e2\x1b.attic.node.v1.RuntimeStateR\x05state\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x85\x01\n" +
 	"\x0eStartVMRequest\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04cpus\x18\x03 \x01(\x05R\x04cpus\x12\x1b\n" +
 	"\tmemory_mb\x18\x04 \x01(\x03R\bmemoryMb\x12\x19\n" +
-	"\bdisk_ids\x18\x05 \x03(\tR\adiskIds\"G\n" +
-	"\x0fStartVMResponse\x124\n" +
-	"\aruntime\x18\x01 \x01(\v2\x1a.homecloud.node.v1.RuntimeR\aruntime\":\n" +
+	"\bdisk_ids\x18\x05 \x03(\tR\adiskIds\"C\n" +
+	"\x0fStartVMResponse\x120\n" +
+	"\aruntime\x18\x01 \x01(\v2\x16.attic.node.v1.RuntimeR\aruntime\":\n" +
 	"\rStopVMRequest\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\"\x10\n" +
 	"\x0eStopVMResponse\"*\n" +
 	"\x13GetVMRuntimeRequest\x12\x13\n" +
-	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\"L\n" +
-	"\x14GetVMRuntimeResponse\x124\n" +
-	"\aruntime\x18\x01 \x01(\v2\x1a.homecloud.node.v1.RuntimeR\aruntime\"&\n" +
+	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\"H\n" +
+	"\x14GetVMRuntimeResponse\x120\n" +
+	"\aruntime\x18\x01 \x01(\v2\x16.attic.node.v1.RuntimeR\aruntime\"&\n" +
 	"\x0fForgetVMRequest\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\"\x12\n" +
 	"\x10ForgetVMResponse\"}\n" +
@@ -2327,10 +2327,10 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x18\n" +
 	"\acommand\x18\x02 \x01(\tR\acommand\x12\x18\n" +
 	"\aworkdir\x18\x03 \x01(\tR\aworkdir\x12'\n" +
-	"\x0ftimeout_seconds\x18\x04 \x01(\x05R\x0etimeoutSeconds\"V\n" +
+	"\x0ftimeout_seconds\x18\x04 \x01(\x05R\x0etimeoutSeconds\"R\n" +
 	"\x0fStartJobRequest\x12\x13\n" +
-	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12.\n" +
-	"\x04spec\x18\x02 \x01(\v2\x1a.homecloud.node.v1.JobSpecR\x04spec\"\x12\n" +
+	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12*\n" +
+	"\x04spec\x18\x02 \x01(\v2\x16.attic.node.v1.JobSpecR\x04spec\"\x12\n" +
 	"\x10StartJobResponse\"\xb9\x01\n" +
 	"\x0ePollJobRequest\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x15\n" +
@@ -2339,9 +2339,9 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\rstderr_offset\x18\x04 \x01(\x03R\fstderrOffset\x12\x1d\n" +
 	"\n" +
 	"max_output\x18\x05 \x01(\x05R\tmaxOutput\x12\x12\n" +
-	"\x04tail\x18\x06 \x01(\bR\x04tail\"\xae\x03\n" +
-	"\x0fPollJobResponse\x126\n" +
-	"\x05state\x18\x01 \x01(\x0e2 .homecloud.node.v1.GuestJobStateR\x05state\x12 \n" +
+	"\x04tail\x18\x06 \x01(\bR\x04tail\"\xaa\x03\n" +
+	"\x0fPollJobResponse\x122\n" +
+	"\x05state\x18\x01 \x01(\x0e2\x1c.attic.node.v1.GuestJobStateR\x05state\x12 \n" +
 	"\texit_code\x18\x02 \x01(\x05H\x00R\bexitCode\x88\x01\x01\x12\x1c\n" +
 	"\tcancelled\x18\x03 \x01(\bR\tcancelled\x12'\n" +
 	"\x0felapsed_seconds\x18\x04 \x01(\x03R\x0eelapsedSeconds\x12\x16\n" +
@@ -2390,7 +2390,7 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\x0fallocated_bytes\x18\x03 \x01(\x03R\x0eallocatedBytes\"E\n" +
 	"\x13GetVMMetricsRequest\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x19\n" +
-	"\bdisk_ids\x18\x02 \x03(\tR\adiskIds\"\x8e\x04\n" +
+	"\bdisk_ids\x18\x02 \x03(\tR\adiskIds\"\x86\x04\n" +
 	"\x14GetVMMetricsResponse\x12\x1f\n" +
 	"\vcpu_percent\x18\x01 \x01(\x01R\n" +
 	"cpuPercent\x12\x1b\n" +
@@ -2404,9 +2404,9 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\x10swap_total_bytes\x18\t \x01(\x03R\x0eswapTotalBytes\x12&\n" +
 	"\x0fswap_used_bytes\x18\n" +
 	" \x01(\x03R\rswapUsedBytes\x12%\n" +
-	"\x0euptime_seconds\x18\v \x01(\x03R\ruptimeSeconds\x12D\n" +
-	"\vfilesystems\x18\f \x03(\v2\".homecloud.node.v1.GuestFilesystemR\vfilesystems\x127\n" +
-	"\x05disks\x18\r \x03(\v2!.homecloud.node.v1.DiskAllocationR\x05disks*\x97\x01\n" +
+	"\x0euptime_seconds\x18\v \x01(\x03R\ruptimeSeconds\x12@\n" +
+	"\vfilesystems\x18\f \x03(\v2\x1e.attic.node.v1.GuestFilesystemR\vfilesystems\x123\n" +
+	"\x05disks\x18\r \x03(\v2\x1d.attic.node.v1.DiskAllocationR\x05disks*\x97\x01\n" +
 	"\fRuntimeState\x12\x1d\n" +
 	"\x19RUNTIME_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14RUNTIME_STATE_ABSENT\x10\x01\x12\x19\n" +
@@ -2418,129 +2418,130 @@ const file_homecloud_node_v1_node_proto_rawDesc = "" +
 	"\x17GUEST_JOB_STATE_MISSING\x10\x01\x12\x1b\n" +
 	"\x17GUEST_JOB_STATE_RUNNING\x10\x02\x12\x1a\n" +
 	"\x16GUEST_JOB_STATE_EXITED\x10\x03\x12\x18\n" +
-	"\x14GUEST_JOB_STATE_LOST\x10\x042\xfa\v\n" +
-	"\vNodeService\x12\\\n" +
-	"\vGetCapacity\x12%.homecloud.node.v1.GetCapacityRequest\x1a&.homecloud.node.v1.GetCapacityResponse\x12b\n" +
-	"\rRegisterImage\x12'.homecloud.node.v1.RegisterImageRequest\x1a(.homecloud.node.v1.RegisterImageResponse\x12\\\n" +
-	"\vDeleteImage\x12%.homecloud.node.v1.DeleteImageRequest\x1a&.homecloud.node.v1.DeleteImageResponse\x12Y\n" +
+	"\x14GUEST_JOB_STATE_LOST\x10\x042\xf2\n" +
 	"\n" +
-	"CreateDisk\x12$.homecloud.node.v1.CreateDiskRequest\x1a%.homecloud.node.v1.CreateDiskResponse\x12Y\n" +
+	"\vNodeService\x12T\n" +
+	"\vGetCapacity\x12!.attic.node.v1.GetCapacityRequest\x1a\".attic.node.v1.GetCapacityResponse\x12Z\n" +
+	"\rRegisterImage\x12#.attic.node.v1.RegisterImageRequest\x1a$.attic.node.v1.RegisterImageResponse\x12T\n" +
+	"\vDeleteImage\x12!.attic.node.v1.DeleteImageRequest\x1a\".attic.node.v1.DeleteImageResponse\x12Q\n" +
 	"\n" +
-	"ResizeDisk\x12$.homecloud.node.v1.ResizeDiskRequest\x1a%.homecloud.node.v1.ResizeDiskResponse\x12Y\n" +
+	"CreateDisk\x12 .attic.node.v1.CreateDiskRequest\x1a!.attic.node.v1.CreateDiskResponse\x12Q\n" +
 	"\n" +
-	"DeleteDisk\x12$.homecloud.node.v1.DeleteDiskRequest\x1a%.homecloud.node.v1.DeleteDiskResponse\x12_\n" +
-	"\fSnapshotDisk\x12&.homecloud.node.v1.SnapshotDiskRequest\x1a'.homecloud.node.v1.SnapshotDiskResponse\x12P\n" +
-	"\aStartVM\x12!.homecloud.node.v1.StartVMRequest\x1a\".homecloud.node.v1.StartVMResponse\x12M\n" +
-	"\x06StopVM\x12 .homecloud.node.v1.StopVMRequest\x1a!.homecloud.node.v1.StopVMResponse\x12_\n" +
-	"\fGetVMRuntime\x12&.homecloud.node.v1.GetVMRuntimeRequest\x1a'.homecloud.node.v1.GetVMRuntimeResponse\x12S\n" +
-	"\bForgetVM\x12\".homecloud.node.v1.ForgetVMRequest\x1a#.homecloud.node.v1.ForgetVMResponse\x12S\n" +
-	"\bStartJob\x12\".homecloud.node.v1.StartJobRequest\x1a#.homecloud.node.v1.StartJobResponse\x12P\n" +
-	"\aPollJob\x12!.homecloud.node.v1.PollJobRequest\x1a\".homecloud.node.v1.PollJobResponse\x12V\n" +
-	"\tCancelJob\x12#.homecloud.node.v1.CancelJobRequest\x1a$.homecloud.node.v1.CancelJobResponse\x12P\n" +
-	"\aPutFile\x12!.homecloud.node.v1.PutFileRequest\x1a\".homecloud.node.v1.PutFileResponse\x12P\n" +
-	"\aGetFile\x12!.homecloud.node.v1.GetFileRequest\x1a\".homecloud.node.v1.GetFileResponse\x12_\n" +
-	"\fGetVMMetrics\x12&.homecloud.node.v1.GetVMMetricsRequest\x1a'.homecloud.node.v1.GetVMMetricsResponseBHZFgithub.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1;nodev1b\x06proto3"
+	"ResizeDisk\x12 .attic.node.v1.ResizeDiskRequest\x1a!.attic.node.v1.ResizeDiskResponse\x12Q\n" +
+	"\n" +
+	"DeleteDisk\x12 .attic.node.v1.DeleteDiskRequest\x1a!.attic.node.v1.DeleteDiskResponse\x12W\n" +
+	"\fSnapshotDisk\x12\".attic.node.v1.SnapshotDiskRequest\x1a#.attic.node.v1.SnapshotDiskResponse\x12H\n" +
+	"\aStartVM\x12\x1d.attic.node.v1.StartVMRequest\x1a\x1e.attic.node.v1.StartVMResponse\x12E\n" +
+	"\x06StopVM\x12\x1c.attic.node.v1.StopVMRequest\x1a\x1d.attic.node.v1.StopVMResponse\x12W\n" +
+	"\fGetVMRuntime\x12\".attic.node.v1.GetVMRuntimeRequest\x1a#.attic.node.v1.GetVMRuntimeResponse\x12K\n" +
+	"\bForgetVM\x12\x1e.attic.node.v1.ForgetVMRequest\x1a\x1f.attic.node.v1.ForgetVMResponse\x12K\n" +
+	"\bStartJob\x12\x1e.attic.node.v1.StartJobRequest\x1a\x1f.attic.node.v1.StartJobResponse\x12H\n" +
+	"\aPollJob\x12\x1d.attic.node.v1.PollJobRequest\x1a\x1e.attic.node.v1.PollJobResponse\x12N\n" +
+	"\tCancelJob\x12\x1f.attic.node.v1.CancelJobRequest\x1a .attic.node.v1.CancelJobResponse\x12H\n" +
+	"\aPutFile\x12\x1d.attic.node.v1.PutFileRequest\x1a\x1e.attic.node.v1.PutFileResponse\x12H\n" +
+	"\aGetFile\x12\x1d.attic.node.v1.GetFileRequest\x1a\x1e.attic.node.v1.GetFileResponse\x12W\n" +
+	"\fGetVMMetrics\x12\".attic.node.v1.GetVMMetricsRequest\x1a#.attic.node.v1.GetVMMetricsResponseBDZBgithub.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1;nodev1b\x06proto3"
 
 var (
-	file_homecloud_node_v1_node_proto_rawDescOnce sync.Once
-	file_homecloud_node_v1_node_proto_rawDescData []byte
+	file_attic_node_v1_node_proto_rawDescOnce sync.Once
+	file_attic_node_v1_node_proto_rawDescData []byte
 )
 
-func file_homecloud_node_v1_node_proto_rawDescGZIP() []byte {
-	file_homecloud_node_v1_node_proto_rawDescOnce.Do(func() {
-		file_homecloud_node_v1_node_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_homecloud_node_v1_node_proto_rawDesc), len(file_homecloud_node_v1_node_proto_rawDesc)))
+func file_attic_node_v1_node_proto_rawDescGZIP() []byte {
+	file_attic_node_v1_node_proto_rawDescOnce.Do(func() {
+		file_attic_node_v1_node_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_attic_node_v1_node_proto_rawDesc), len(file_attic_node_v1_node_proto_rawDesc)))
 	})
-	return file_homecloud_node_v1_node_proto_rawDescData
+	return file_attic_node_v1_node_proto_rawDescData
 }
 
-var file_homecloud_node_v1_node_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_homecloud_node_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
-var file_homecloud_node_v1_node_proto_goTypes = []any{
-	(RuntimeState)(0),             // 0: homecloud.node.v1.RuntimeState
-	(GuestJobState)(0),            // 1: homecloud.node.v1.GuestJobState
-	(*Capacity)(nil),              // 2: homecloud.node.v1.Capacity
-	(*GetCapacityRequest)(nil),    // 3: homecloud.node.v1.GetCapacityRequest
-	(*GetCapacityResponse)(nil),   // 4: homecloud.node.v1.GetCapacityResponse
-	(*RegisterImageRequest)(nil),  // 5: homecloud.node.v1.RegisterImageRequest
-	(*RegisterImageResponse)(nil), // 6: homecloud.node.v1.RegisterImageResponse
-	(*DeleteImageRequest)(nil),    // 7: homecloud.node.v1.DeleteImageRequest
-	(*DeleteImageResponse)(nil),   // 8: homecloud.node.v1.DeleteImageResponse
-	(*CreateDiskRequest)(nil),     // 9: homecloud.node.v1.CreateDiskRequest
-	(*CreateDiskResponse)(nil),    // 10: homecloud.node.v1.CreateDiskResponse
-	(*ResizeDiskRequest)(nil),     // 11: homecloud.node.v1.ResizeDiskRequest
-	(*ResizeDiskResponse)(nil),    // 12: homecloud.node.v1.ResizeDiskResponse
-	(*DeleteDiskRequest)(nil),     // 13: homecloud.node.v1.DeleteDiskRequest
-	(*DeleteDiskResponse)(nil),    // 14: homecloud.node.v1.DeleteDiskResponse
-	(*SnapshotDiskRequest)(nil),   // 15: homecloud.node.v1.SnapshotDiskRequest
-	(*SnapshotDiskResponse)(nil),  // 16: homecloud.node.v1.SnapshotDiskResponse
-	(*Runtime)(nil),               // 17: homecloud.node.v1.Runtime
-	(*StartVMRequest)(nil),        // 18: homecloud.node.v1.StartVMRequest
-	(*StartVMResponse)(nil),       // 19: homecloud.node.v1.StartVMResponse
-	(*StopVMRequest)(nil),         // 20: homecloud.node.v1.StopVMRequest
-	(*StopVMResponse)(nil),        // 21: homecloud.node.v1.StopVMResponse
-	(*GetVMRuntimeRequest)(nil),   // 22: homecloud.node.v1.GetVMRuntimeRequest
-	(*GetVMRuntimeResponse)(nil),  // 23: homecloud.node.v1.GetVMRuntimeResponse
-	(*ForgetVMRequest)(nil),       // 24: homecloud.node.v1.ForgetVMRequest
-	(*ForgetVMResponse)(nil),      // 25: homecloud.node.v1.ForgetVMResponse
-	(*JobSpec)(nil),               // 26: homecloud.node.v1.JobSpec
-	(*StartJobRequest)(nil),       // 27: homecloud.node.v1.StartJobRequest
-	(*StartJobResponse)(nil),      // 28: homecloud.node.v1.StartJobResponse
-	(*PollJobRequest)(nil),        // 29: homecloud.node.v1.PollJobRequest
-	(*PollJobResponse)(nil),       // 30: homecloud.node.v1.PollJobResponse
-	(*CancelJobRequest)(nil),      // 31: homecloud.node.v1.CancelJobRequest
-	(*CancelJobResponse)(nil),     // 32: homecloud.node.v1.CancelJobResponse
-	(*PutFileRequest)(nil),        // 33: homecloud.node.v1.PutFileRequest
-	(*PutFileResponse)(nil),       // 34: homecloud.node.v1.PutFileResponse
-	(*GetFileRequest)(nil),        // 35: homecloud.node.v1.GetFileRequest
-	(*GetFileResponse)(nil),       // 36: homecloud.node.v1.GetFileResponse
-	(*GuestFilesystem)(nil),       // 37: homecloud.node.v1.GuestFilesystem
-	(*DiskAllocation)(nil),        // 38: homecloud.node.v1.DiskAllocation
-	(*GetVMMetricsRequest)(nil),   // 39: homecloud.node.v1.GetVMMetricsRequest
-	(*GetVMMetricsResponse)(nil),  // 40: homecloud.node.v1.GetVMMetricsResponse
+var file_attic_node_v1_node_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_attic_node_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
+var file_attic_node_v1_node_proto_goTypes = []any{
+	(RuntimeState)(0),             // 0: attic.node.v1.RuntimeState
+	(GuestJobState)(0),            // 1: attic.node.v1.GuestJobState
+	(*Capacity)(nil),              // 2: attic.node.v1.Capacity
+	(*GetCapacityRequest)(nil),    // 3: attic.node.v1.GetCapacityRequest
+	(*GetCapacityResponse)(nil),   // 4: attic.node.v1.GetCapacityResponse
+	(*RegisterImageRequest)(nil),  // 5: attic.node.v1.RegisterImageRequest
+	(*RegisterImageResponse)(nil), // 6: attic.node.v1.RegisterImageResponse
+	(*DeleteImageRequest)(nil),    // 7: attic.node.v1.DeleteImageRequest
+	(*DeleteImageResponse)(nil),   // 8: attic.node.v1.DeleteImageResponse
+	(*CreateDiskRequest)(nil),     // 9: attic.node.v1.CreateDiskRequest
+	(*CreateDiskResponse)(nil),    // 10: attic.node.v1.CreateDiskResponse
+	(*ResizeDiskRequest)(nil),     // 11: attic.node.v1.ResizeDiskRequest
+	(*ResizeDiskResponse)(nil),    // 12: attic.node.v1.ResizeDiskResponse
+	(*DeleteDiskRequest)(nil),     // 13: attic.node.v1.DeleteDiskRequest
+	(*DeleteDiskResponse)(nil),    // 14: attic.node.v1.DeleteDiskResponse
+	(*SnapshotDiskRequest)(nil),   // 15: attic.node.v1.SnapshotDiskRequest
+	(*SnapshotDiskResponse)(nil),  // 16: attic.node.v1.SnapshotDiskResponse
+	(*Runtime)(nil),               // 17: attic.node.v1.Runtime
+	(*StartVMRequest)(nil),        // 18: attic.node.v1.StartVMRequest
+	(*StartVMResponse)(nil),       // 19: attic.node.v1.StartVMResponse
+	(*StopVMRequest)(nil),         // 20: attic.node.v1.StopVMRequest
+	(*StopVMResponse)(nil),        // 21: attic.node.v1.StopVMResponse
+	(*GetVMRuntimeRequest)(nil),   // 22: attic.node.v1.GetVMRuntimeRequest
+	(*GetVMRuntimeResponse)(nil),  // 23: attic.node.v1.GetVMRuntimeResponse
+	(*ForgetVMRequest)(nil),       // 24: attic.node.v1.ForgetVMRequest
+	(*ForgetVMResponse)(nil),      // 25: attic.node.v1.ForgetVMResponse
+	(*JobSpec)(nil),               // 26: attic.node.v1.JobSpec
+	(*StartJobRequest)(nil),       // 27: attic.node.v1.StartJobRequest
+	(*StartJobResponse)(nil),      // 28: attic.node.v1.StartJobResponse
+	(*PollJobRequest)(nil),        // 29: attic.node.v1.PollJobRequest
+	(*PollJobResponse)(nil),       // 30: attic.node.v1.PollJobResponse
+	(*CancelJobRequest)(nil),      // 31: attic.node.v1.CancelJobRequest
+	(*CancelJobResponse)(nil),     // 32: attic.node.v1.CancelJobResponse
+	(*PutFileRequest)(nil),        // 33: attic.node.v1.PutFileRequest
+	(*PutFileResponse)(nil),       // 34: attic.node.v1.PutFileResponse
+	(*GetFileRequest)(nil),        // 35: attic.node.v1.GetFileRequest
+	(*GetFileResponse)(nil),       // 36: attic.node.v1.GetFileResponse
+	(*GuestFilesystem)(nil),       // 37: attic.node.v1.GuestFilesystem
+	(*DiskAllocation)(nil),        // 38: attic.node.v1.DiskAllocation
+	(*GetVMMetricsRequest)(nil),   // 39: attic.node.v1.GetVMMetricsRequest
+	(*GetVMMetricsResponse)(nil),  // 40: attic.node.v1.GetVMMetricsResponse
 }
-var file_homecloud_node_v1_node_proto_depIdxs = []int32{
-	2,  // 0: homecloud.node.v1.GetCapacityResponse.capacity:type_name -> homecloud.node.v1.Capacity
-	0,  // 1: homecloud.node.v1.Runtime.state:type_name -> homecloud.node.v1.RuntimeState
-	17, // 2: homecloud.node.v1.StartVMResponse.runtime:type_name -> homecloud.node.v1.Runtime
-	17, // 3: homecloud.node.v1.GetVMRuntimeResponse.runtime:type_name -> homecloud.node.v1.Runtime
-	26, // 4: homecloud.node.v1.StartJobRequest.spec:type_name -> homecloud.node.v1.JobSpec
-	1,  // 5: homecloud.node.v1.PollJobResponse.state:type_name -> homecloud.node.v1.GuestJobState
-	37, // 6: homecloud.node.v1.GetVMMetricsResponse.filesystems:type_name -> homecloud.node.v1.GuestFilesystem
-	38, // 7: homecloud.node.v1.GetVMMetricsResponse.disks:type_name -> homecloud.node.v1.DiskAllocation
-	3,  // 8: homecloud.node.v1.NodeService.GetCapacity:input_type -> homecloud.node.v1.GetCapacityRequest
-	5,  // 9: homecloud.node.v1.NodeService.RegisterImage:input_type -> homecloud.node.v1.RegisterImageRequest
-	7,  // 10: homecloud.node.v1.NodeService.DeleteImage:input_type -> homecloud.node.v1.DeleteImageRequest
-	9,  // 11: homecloud.node.v1.NodeService.CreateDisk:input_type -> homecloud.node.v1.CreateDiskRequest
-	11, // 12: homecloud.node.v1.NodeService.ResizeDisk:input_type -> homecloud.node.v1.ResizeDiskRequest
-	13, // 13: homecloud.node.v1.NodeService.DeleteDisk:input_type -> homecloud.node.v1.DeleteDiskRequest
-	15, // 14: homecloud.node.v1.NodeService.SnapshotDisk:input_type -> homecloud.node.v1.SnapshotDiskRequest
-	18, // 15: homecloud.node.v1.NodeService.StartVM:input_type -> homecloud.node.v1.StartVMRequest
-	20, // 16: homecloud.node.v1.NodeService.StopVM:input_type -> homecloud.node.v1.StopVMRequest
-	22, // 17: homecloud.node.v1.NodeService.GetVMRuntime:input_type -> homecloud.node.v1.GetVMRuntimeRequest
-	24, // 18: homecloud.node.v1.NodeService.ForgetVM:input_type -> homecloud.node.v1.ForgetVMRequest
-	27, // 19: homecloud.node.v1.NodeService.StartJob:input_type -> homecloud.node.v1.StartJobRequest
-	29, // 20: homecloud.node.v1.NodeService.PollJob:input_type -> homecloud.node.v1.PollJobRequest
-	31, // 21: homecloud.node.v1.NodeService.CancelJob:input_type -> homecloud.node.v1.CancelJobRequest
-	33, // 22: homecloud.node.v1.NodeService.PutFile:input_type -> homecloud.node.v1.PutFileRequest
-	35, // 23: homecloud.node.v1.NodeService.GetFile:input_type -> homecloud.node.v1.GetFileRequest
-	39, // 24: homecloud.node.v1.NodeService.GetVMMetrics:input_type -> homecloud.node.v1.GetVMMetricsRequest
-	4,  // 25: homecloud.node.v1.NodeService.GetCapacity:output_type -> homecloud.node.v1.GetCapacityResponse
-	6,  // 26: homecloud.node.v1.NodeService.RegisterImage:output_type -> homecloud.node.v1.RegisterImageResponse
-	8,  // 27: homecloud.node.v1.NodeService.DeleteImage:output_type -> homecloud.node.v1.DeleteImageResponse
-	10, // 28: homecloud.node.v1.NodeService.CreateDisk:output_type -> homecloud.node.v1.CreateDiskResponse
-	12, // 29: homecloud.node.v1.NodeService.ResizeDisk:output_type -> homecloud.node.v1.ResizeDiskResponse
-	14, // 30: homecloud.node.v1.NodeService.DeleteDisk:output_type -> homecloud.node.v1.DeleteDiskResponse
-	16, // 31: homecloud.node.v1.NodeService.SnapshotDisk:output_type -> homecloud.node.v1.SnapshotDiskResponse
-	19, // 32: homecloud.node.v1.NodeService.StartVM:output_type -> homecloud.node.v1.StartVMResponse
-	21, // 33: homecloud.node.v1.NodeService.StopVM:output_type -> homecloud.node.v1.StopVMResponse
-	23, // 34: homecloud.node.v1.NodeService.GetVMRuntime:output_type -> homecloud.node.v1.GetVMRuntimeResponse
-	25, // 35: homecloud.node.v1.NodeService.ForgetVM:output_type -> homecloud.node.v1.ForgetVMResponse
-	28, // 36: homecloud.node.v1.NodeService.StartJob:output_type -> homecloud.node.v1.StartJobResponse
-	30, // 37: homecloud.node.v1.NodeService.PollJob:output_type -> homecloud.node.v1.PollJobResponse
-	32, // 38: homecloud.node.v1.NodeService.CancelJob:output_type -> homecloud.node.v1.CancelJobResponse
-	34, // 39: homecloud.node.v1.NodeService.PutFile:output_type -> homecloud.node.v1.PutFileResponse
-	36, // 40: homecloud.node.v1.NodeService.GetFile:output_type -> homecloud.node.v1.GetFileResponse
-	40, // 41: homecloud.node.v1.NodeService.GetVMMetrics:output_type -> homecloud.node.v1.GetVMMetricsResponse
+var file_attic_node_v1_node_proto_depIdxs = []int32{
+	2,  // 0: attic.node.v1.GetCapacityResponse.capacity:type_name -> attic.node.v1.Capacity
+	0,  // 1: attic.node.v1.Runtime.state:type_name -> attic.node.v1.RuntimeState
+	17, // 2: attic.node.v1.StartVMResponse.runtime:type_name -> attic.node.v1.Runtime
+	17, // 3: attic.node.v1.GetVMRuntimeResponse.runtime:type_name -> attic.node.v1.Runtime
+	26, // 4: attic.node.v1.StartJobRequest.spec:type_name -> attic.node.v1.JobSpec
+	1,  // 5: attic.node.v1.PollJobResponse.state:type_name -> attic.node.v1.GuestJobState
+	37, // 6: attic.node.v1.GetVMMetricsResponse.filesystems:type_name -> attic.node.v1.GuestFilesystem
+	38, // 7: attic.node.v1.GetVMMetricsResponse.disks:type_name -> attic.node.v1.DiskAllocation
+	3,  // 8: attic.node.v1.NodeService.GetCapacity:input_type -> attic.node.v1.GetCapacityRequest
+	5,  // 9: attic.node.v1.NodeService.RegisterImage:input_type -> attic.node.v1.RegisterImageRequest
+	7,  // 10: attic.node.v1.NodeService.DeleteImage:input_type -> attic.node.v1.DeleteImageRequest
+	9,  // 11: attic.node.v1.NodeService.CreateDisk:input_type -> attic.node.v1.CreateDiskRequest
+	11, // 12: attic.node.v1.NodeService.ResizeDisk:input_type -> attic.node.v1.ResizeDiskRequest
+	13, // 13: attic.node.v1.NodeService.DeleteDisk:input_type -> attic.node.v1.DeleteDiskRequest
+	15, // 14: attic.node.v1.NodeService.SnapshotDisk:input_type -> attic.node.v1.SnapshotDiskRequest
+	18, // 15: attic.node.v1.NodeService.StartVM:input_type -> attic.node.v1.StartVMRequest
+	20, // 16: attic.node.v1.NodeService.StopVM:input_type -> attic.node.v1.StopVMRequest
+	22, // 17: attic.node.v1.NodeService.GetVMRuntime:input_type -> attic.node.v1.GetVMRuntimeRequest
+	24, // 18: attic.node.v1.NodeService.ForgetVM:input_type -> attic.node.v1.ForgetVMRequest
+	27, // 19: attic.node.v1.NodeService.StartJob:input_type -> attic.node.v1.StartJobRequest
+	29, // 20: attic.node.v1.NodeService.PollJob:input_type -> attic.node.v1.PollJobRequest
+	31, // 21: attic.node.v1.NodeService.CancelJob:input_type -> attic.node.v1.CancelJobRequest
+	33, // 22: attic.node.v1.NodeService.PutFile:input_type -> attic.node.v1.PutFileRequest
+	35, // 23: attic.node.v1.NodeService.GetFile:input_type -> attic.node.v1.GetFileRequest
+	39, // 24: attic.node.v1.NodeService.GetVMMetrics:input_type -> attic.node.v1.GetVMMetricsRequest
+	4,  // 25: attic.node.v1.NodeService.GetCapacity:output_type -> attic.node.v1.GetCapacityResponse
+	6,  // 26: attic.node.v1.NodeService.RegisterImage:output_type -> attic.node.v1.RegisterImageResponse
+	8,  // 27: attic.node.v1.NodeService.DeleteImage:output_type -> attic.node.v1.DeleteImageResponse
+	10, // 28: attic.node.v1.NodeService.CreateDisk:output_type -> attic.node.v1.CreateDiskResponse
+	12, // 29: attic.node.v1.NodeService.ResizeDisk:output_type -> attic.node.v1.ResizeDiskResponse
+	14, // 30: attic.node.v1.NodeService.DeleteDisk:output_type -> attic.node.v1.DeleteDiskResponse
+	16, // 31: attic.node.v1.NodeService.SnapshotDisk:output_type -> attic.node.v1.SnapshotDiskResponse
+	19, // 32: attic.node.v1.NodeService.StartVM:output_type -> attic.node.v1.StartVMResponse
+	21, // 33: attic.node.v1.NodeService.StopVM:output_type -> attic.node.v1.StopVMResponse
+	23, // 34: attic.node.v1.NodeService.GetVMRuntime:output_type -> attic.node.v1.GetVMRuntimeResponse
+	25, // 35: attic.node.v1.NodeService.ForgetVM:output_type -> attic.node.v1.ForgetVMResponse
+	28, // 36: attic.node.v1.NodeService.StartJob:output_type -> attic.node.v1.StartJobResponse
+	30, // 37: attic.node.v1.NodeService.PollJob:output_type -> attic.node.v1.PollJobResponse
+	32, // 38: attic.node.v1.NodeService.CancelJob:output_type -> attic.node.v1.CancelJobResponse
+	34, // 39: attic.node.v1.NodeService.PutFile:output_type -> attic.node.v1.PutFileResponse
+	36, // 40: attic.node.v1.NodeService.GetFile:output_type -> attic.node.v1.GetFileResponse
+	40, // 41: attic.node.v1.NodeService.GetVMMetrics:output_type -> attic.node.v1.GetVMMetricsResponse
 	25, // [25:42] is the sub-list for method output_type
 	8,  // [8:25] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
@@ -2548,28 +2549,28 @@ var file_homecloud_node_v1_node_proto_depIdxs = []int32{
 	0,  // [0:8] is the sub-list for field type_name
 }
 
-func init() { file_homecloud_node_v1_node_proto_init() }
-func file_homecloud_node_v1_node_proto_init() {
-	if File_homecloud_node_v1_node_proto != nil {
+func init() { file_attic_node_v1_node_proto_init() }
+func file_attic_node_v1_node_proto_init() {
+	if File_attic_node_v1_node_proto != nil {
 		return
 	}
-	file_homecloud_node_v1_node_proto_msgTypes[28].OneofWrappers = []any{}
+	file_attic_node_v1_node_proto_msgTypes[28].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_homecloud_node_v1_node_proto_rawDesc), len(file_homecloud_node_v1_node_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_attic_node_v1_node_proto_rawDesc), len(file_attic_node_v1_node_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_homecloud_node_v1_node_proto_goTypes,
-		DependencyIndexes: file_homecloud_node_v1_node_proto_depIdxs,
-		EnumInfos:         file_homecloud_node_v1_node_proto_enumTypes,
-		MessageInfos:      file_homecloud_node_v1_node_proto_msgTypes,
+		GoTypes:           file_attic_node_v1_node_proto_goTypes,
+		DependencyIndexes: file_attic_node_v1_node_proto_depIdxs,
+		EnumInfos:         file_attic_node_v1_node_proto_enumTypes,
+		MessageInfos:      file_attic_node_v1_node_proto_msgTypes,
 	}.Build()
-	File_homecloud_node_v1_node_proto = out.File
-	file_homecloud_node_v1_node_proto_goTypes = nil
-	file_homecloud_node_v1_node_proto_depIdxs = nil
+	File_attic_node_v1_node_proto = out.File
+	file_attic_node_v1_node_proto_goTypes = nil
+	file_attic_node_v1_node_proto_depIdxs = nil
 }

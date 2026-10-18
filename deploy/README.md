@@ -1,7 +1,7 @@
-# Deploying homecloud
+# Deploying Attic Cloud
 
 This directory holds the container images, the local development stack and the admin tooling notes. For running
-homecloud on real hosts, see [docs/OPERATIONS.md](../docs/OPERATIONS.md).
+Attic Cloud on real hosts, see [docs/OPERATIONS.md](../docs/OPERATIONS.md).
 
 ## How the pieces fit
 
@@ -9,12 +9,12 @@ homecloud on real hosts, see [docs/OPERATIONS.md](../docs/OPERATIONS.md).
 | --- | --- | --- |
 | `vmd` (`services/vmd/cmd/vmd`) | Control plane: Connect API, scheduler, state in Postgres. With `--role=node` it runs a VM host. | `Dockerfile.vmd` (control plane only), `Dockerfile.node` (node, `--role=node`) |
 | `agentd` (`services/agentd/cmd/agentd`) | Agent daemon: runs LLM-backed tasks by calling vmd, with Ollama as the model server. | `Dockerfile.agentd` |
-| `hcctl` (`cmd/hcctl`) | Admin CLI: generates signing keys, mints tokens, inspects tokens. Runs on your workstation. | not containerized |
+| `atticctl` (`cmd/atticctl`) | Admin CLI: generates signing keys, mints tokens, inspects tokens. Runs on your workstation. | not containerized |
 
 Request flow:
 
 ```
-client (curl, hcctl token) --Bearer JWT--> vmd API --(Postgres)
+client (curl, atticctl token) --Bearer JWT--> vmd API --(Postgres)
 agentd --service JWT (signed with agentd.key)--> vmd API --(node role)--> qemu on the host
 agentd --> ollama (LLM)
 ```
@@ -22,20 +22,20 @@ agentd --> ollama (LLM)
 Authentication uses Ed25519-signed JWTs. Servers only hold public keys. Each key is trusted under a
 key ID (`kid`), and can be restricted to certain roles:
 
-- `admin` key: signs user tokens with `*:admin` bindings (created with `hcctl`).
+- `admin` key: signs user tokens with `*:admin` bindings (created with `atticctl`).
 - `agentd` key: signs agentd's service tokens. vmd trusts it only for the `service` role, so
   agentd cannot mint admin tokens even if its key leaks into a token.
 
-Roles are listed with `go run ./cmd/hcctl roles -v`. See [docs/AUTH.md](../docs/AUTH.md).
+Roles are listed with `go run ./cmd/atticctl roles -v`. See [docs/AUTH.md](../docs/AUTH.md).
 
 ## Dev stack
 
-Prerequisites: Docker with Compose v2, and Go 1.26 for `hcctl`.
+Prerequisites: Docker with Compose v2, and Go 1.26 for `atticctl`.
 
 1. Create `deploy/.env` with a local database password. Compose refuses to start without it.
 
    ```
-   HOMECLOUD_POSTGRES_PASSWORD=dev-only-change-me
+   ATTIC_POSTGRES_PASSWORD=dev-only-change-me
    ```
 
 2. Generate the keys (see the next section). They go in `deploy/keys/`, which is gitignored.
@@ -57,7 +57,7 @@ Prerequisites: Docker with Compose v2, and Go 1.26 for `hcctl`.
 
 The stack's vmd runs `--role=all` with these flags, each set in `docker-compose.yml`:
 
-- `--ssh-key=/var/lib/homecloud/node_ssh` (required for a node; created on first start).
+- `--ssh-key=/var/lib/attic/node_ssh` (required for a node; created on first start).
 - `--no-firewall`, `--kvm=false`, `--run-as=`: the container has no `iptables` rights, no `/dev/kvm` and no
   separate VM user.
 - `--trusted-key=admin=/keys/admin.pub` and `--trusted-key=agentd=/keys/agentd.pub:service`.
@@ -80,12 +80,12 @@ What the stack can and cannot do:
 Run from the repository root. Keys go to `deploy/keys/`:
 
 ```
-go run ./cmd/hcctl key generate -out deploy/keys -id admin
-go run ./cmd/hcctl key generate -out deploy/keys -id agentd
+go run ./cmd/atticctl key generate -out deploy/keys -id admin
+go run ./cmd/atticctl key generate -out deploy/keys -id agentd
 ```
 
 This writes `admin.key` and `admin.pub` (private key mode 0600, public key mode 0644), and the same
-pair for `agentd`. `hcctl` refuses to overwrite existing files, so rerunning it is safe. To rotate a
+pair for `agentd`. `atticctl` refuses to overwrite existing files, so rerunning it is safe. To rotate a
 key, delete its two files, regenerate, and restart the services that use it.
 
 The compose file expects `admin.pub` and `agentd.key`/`agentd.pub` in `deploy/keys/`. Keep the
@@ -96,7 +96,7 @@ The compose file expects `admin.pub` and `agentd.key`/`agentd.pub` in `deploy/ke
 Mint an admin token for user `robert`. The token is printed alone on stdout, so it can be captured:
 
 ```
-TOKEN=$(go run ./cmd/hcctl token mint \
+TOKEN=$(go run ./cmd/atticctl token mint \
   -key deploy/keys/admin.key \
   -kid admin \
   -sub user:robert \
@@ -109,14 +109,14 @@ Bindings are `project:role`. The project `*` means every project. Flags:
 
 - `-ttl` must be positive and at most 30 days by default. Use `-max-ttl` to raise that ceiling.
 - At least one `-bind` is required. Repeat the flag for more bindings, for example `-bind proj-a:editor`.
-- Unknown roles are rejected. Valid roles come from `go run ./cmd/hcctl roles`.
+- Unknown roles are rejected. Valid roles come from `go run ./cmd/atticctl roles`.
 
 Check the token before using it:
 
 ```
-go run ./cmd/hcctl token inspect -pub deploy/keys/admin.pub -kid admin "$TOKEN"
+go run ./cmd/atticctl token inspect -pub deploy/keys/admin.pub -kid admin "$TOKEN"
 # or read it from stdin:
-echo "$TOKEN" | go run ./cmd/hcctl token inspect -pub deploy/keys/admin.pub -kid admin -
+echo "$TOKEN" | go run ./cmd/atticctl token inspect -pub deploy/keys/admin.pub -kid admin -
 ```
 
 Inspect prints the `token-id` (needed for revocation, see [docs/AUTH.md](../docs/AUTH.md#revoking-a-token)). It exits
@@ -128,7 +128,7 @@ vmd speaks the Connect protocol. A unary call is a plain JSON `POST` to
 `/<package>.<Service>/<Method>`, with the bearer token in the `Authorization` header:
 
 ```
-curl -sS -X POST http://127.0.0.1:8080/homecloud.vmd.v1.VMService/ListVMs \
+curl -sS -X POST http://127.0.0.1:8080/attic.vmd.v1.VMService/ListVMs \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"projectId": "proj-a"}'
@@ -151,5 +151,5 @@ Request and response fields use the protobuf JSON names (camelCase). A token wit
 Build any image from the repository root, for example:
 
 ```
-docker build -f deploy/Dockerfile.vmd -t homecloud/vmd .
+docker build -f deploy/Dockerfile.vmd -t attic/vmd .
 ```

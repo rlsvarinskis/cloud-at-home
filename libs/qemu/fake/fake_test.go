@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
+	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
 

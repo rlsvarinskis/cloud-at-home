@@ -23,7 +23,7 @@ jobs:
       - name: Cache embedded postgres binaries
         uses: actions/cache@v4
         with:
-          path: /tmp/homecloud-pg-cache
+          path: /tmp/attic-pg-cache
           key: pg-cache-${{ runner.os }}-${{ hashFiles('go.work', '**/go.mod') }}
 
       # The repository is a Go workspace (go.work) of separate modules, so the Makefile loops over every module.
@@ -104,6 +104,6 @@ jobs:
           context: .
           file: deploy/Dockerfile.${{ matrix.image }}
           push: false
-          tags: homecloud/${{ matrix.image }}:ci
+          tags: attic/${{ matrix.image }}:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max

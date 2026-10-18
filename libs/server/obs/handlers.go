@@ -116,11 +116,11 @@ func runCheck(parent context.Context, c Check) bool {
 	}
 }
 
-// RegisterBuildInfo registers homecloud_build_info{version,go_version} with value 1, identifying
+// RegisterBuildInfo registers attic_build_info{version,go_version} with value 1, identifying
 // the running build. It panics if already registered with reg.
 func RegisterBuildInfo(reg prometheus.Registerer, version string) {
 	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "homecloud_build_info",
+		Name: "attic_build_info",
 		Help: "Build information. The value is always 1.",
 	}, []string{"version", "go_version"})
 	g.WithLabelValues(version, runtime.Version()).Set(1)

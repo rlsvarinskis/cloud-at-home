@@ -1,24 +1,24 @@
-# cmd/hcctl
+# cmd/atticctl
 
-`cmd/hcctl` is homecloud's administrative command-line tool. It generates the Ed25519 signing keys that the servers
+`cmd/atticctl` is Attic Cloud's administrative command-line tool. It generates the Ed25519 signing keys that the servers
 trust, mints signed tokens for users and services, inspects tokens against a public key, and lists the roles and
 the permissions each one grants. It runs locally and never calls a server.
 
-Module path: `github.com/rlsvarinskis/cloud-at-home/cmd/hcctl`.
+Module path: `github.com/rlsvarinskis/cloud-at-home/cmd/atticctl`.
 
 ## Packages
 
 This module is one package, `main` (`main.go`), with its tests in `main_test.go`. The commands are:
 
-- `hcctl key generate -out DIR -id KEYID`: writes `DIR/KEYID.key` (private) and `DIR/KEYID.pub` (public), and prints
+- `atticctl key generate -out DIR -id KEYID`: writes `DIR/KEYID.key` (private) and `DIR/KEYID.pub` (public), and prints
   the two paths.
-- `hcctl token mint -key FILE -kid KEYID -sub SUBJECT -type user|service -bind project:role [-bind ...] [-ttl 24h]
+- `atticctl token mint -key FILE -kid KEYID -sub SUBJECT -type user|service -bind project:role [-bind ...] [-ttl 24h]
   [-max-ttl 720h]`: prints one signed JWT on stdout. `project` can be `*` for all projects. Bindings must name known
   roles.
-- `hcctl token inspect -pub FILE -kid KEYID (TOKEN | -)`: verifies a token (or one read from stdin with `-`) and
+- `atticctl token inspect -pub FILE -kid KEYID (TOKEN | -)`: verifies a token (or one read from stdin with `-`) and
   prints the subject, type, token ID, key ID, expiry and bindings.
-- `hcctl roles [-v]`: lists the roles; `-v` also prints the permissions each role grants.
-- `hcctl help` (or `-h`) prints the usage text.
+- `atticctl roles [-v]`: lists the roles; `-v` also prints the permissions each role grants.
+- `atticctl help` (or `-h`) prints the usage text.
 
 Exit codes: 0 for success, 1 for a runtime failure (including an invalid token), 2 for a usage error.
 
@@ -39,8 +39,8 @@ There are no exported Go APIs. The entry point is `main()`, which calls `run(arg
 ## Build and test
 
 ```
-cd cmd/hcctl && go build -o hcctl .
-cd cmd/hcctl && go test -race ./...
+cd cmd/atticctl && go build -o atticctl .
+cd cmd/atticctl && go test -race ./...
 ```
 
 `main_test.go` has 17 tests: the key round trip, refusal to overwrite existing keys, bad key IDs and bindings, unknown

@@ -1,8 +1,8 @@
 // Package pgtest gives tests a fresh, empty Postgres database.
 //
-// If HOMECLOUD_TEST_POSTGRES is set it is used as the admin DSN of an existing server. Otherwise a real
+// If ATTIC_TEST_POSTGRES is set it is used as the admin DSN of an existing server. Otherwise a real
 // Postgres is started once per test process with github.com/fergusstrange/embedded-postgres (binaries are
-// downloaded on first use and cached). Set HOMECLOUD_TEST_POSTGRES=skip to skip Postgres tests entirely.
+// downloaded on first use and cached). Set ATTIC_TEST_POSTGRES=skip to skip Postgres tests entirely.
 package pgtest
 
 import (
@@ -49,7 +49,7 @@ func Run(m *testing.M) int {
 }
 
 func start() {
-	if v := os.Getenv("HOMECLOUD_TEST_POSTGRES"); v != "" {
+	if v := os.Getenv("ATTIC_TEST_POSTGRES"); v != "" {
 		adminDSN = v
 		return
 	}
@@ -60,13 +60,13 @@ func start() {
 	}
 	port := uint32(l.Addr().(*net.TCPAddr).Port)
 	l.Close()
-	base, err := os.MkdirTemp("", "homecloud-pg-")
+	base, err := os.MkdirTemp("", "attic-pg-")
 	if err != nil {
 		startErr = err
 		return
 	}
 	baseDir = base
-	cache := filepath.Join(os.TempDir(), "homecloud-pg-cache") // binaries survive between runs
+	cache := filepath.Join(os.TempDir(), "attic-pg-cache") // binaries survive between runs
 	server = embedded.NewDatabase(embedded.DefaultConfig().
 		Port(port).RuntimePath(filepath.Join(base, "run")).DataPath(filepath.Join(base, "data")).
 		BinariesPath(cache).StartTimeout(90 * time.Second))
@@ -80,10 +80,10 @@ func start() {
 // DSN returns the DSN of a new empty database, dropped when the test ends.
 func DSN(t testing.TB) string {
 	t.Helper()
-	if os.Getenv("HOMECLOUD_TEST_POSTGRES") == "skip" {
-		t.Skip("Postgres tests disabled (HOMECLOUD_TEST_POSTGRES=skip)")
+	if os.Getenv("ATTIC_TEST_POSTGRES") == "skip" {
+		t.Skip("Postgres tests disabled (ATTIC_TEST_POSTGRES=skip)")
 	}
-	if os.Getenv("HOMECLOUD_TEST_POSTGRES") == "" && !registered.Load() {
+	if os.Getenv("ATTIC_TEST_POSTGRES") == "" && !registered.Load() {
 		t.Fatal("pgtest: add `func TestMain(m *testing.M) { os.Exit(pgtest.Run(m)) }` to this package's tests")
 	}
 	once.Do(start)

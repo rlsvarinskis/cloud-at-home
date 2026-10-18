@@ -15,8 +15,8 @@ Module path: `github.com/rlsvarinskis/cloud-at-home/libs/common`.
 - `pg`: `Open` creates a pgx connection pool, `Migrate` applies SQL migrations from an `fs.FS` under a Postgres advisory
   lock (so several replicas can start at once), `Placeholders` builds `$n` lists and `IsUniqueViolation` detects
   duplicate keys.
-- `pg/pgtest`: gives tests a fresh, empty database. It uses the server named by `HOMECLOUD_TEST_POSTGRES`, or starts
-  an embedded Postgres once per test process. `HOMECLOUD_TEST_POSTGRES=skip` skips Postgres tests.
+- `pg/pgtest`: gives tests a fresh, empty database. It uses the server named by `ATTIC_TEST_POSTGRES`, or starts
+  an embedded Postgres once per test process. `ATTIC_TEST_POSTGRES=skip` skips Postgres tests.
 
 ## Public entry points
 
@@ -42,9 +42,9 @@ cd libs/common && go build ./...
 cd libs/common && go test -race ./...
 ```
 
-The `pg` and `pgtest` tests need either `HOMECLOUD_TEST_POSTGRES` (an admin DSN for a running server) or the
+The `pg` and `pgtest` tests need either `ATTIC_TEST_POSTGRES` (an admin DSN for a running server) or the
 ability to download and run the embedded Postgres binaries on first use. Without either, set
-`HOMECLOUD_TEST_POSTGRES=skip`.
+`ATTIC_TEST_POSTGRES=skip`.
 
 ## Notes and limitations
 

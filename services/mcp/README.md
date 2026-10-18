@@ -1,9 +1,9 @@
 # services/mcp
 
-The MCP (Model Context Protocol) front end for homecloud. It lets MCP clients such as Claude create machines, run
+The MCP (Model Context Protocol) front end for Attic Cloud. It lets MCP clients such as Claude create machines, run
 commands, move files and give tasks to local-LLM agents, by calling the public **vmd** and **agentd** APIs.
 
-It adds no privileges. A caller presents a homecloud bearer token (the same Ed25519 JWTs vmd and agentd accept); the
+It adds no privileges. A caller presents a Attic Cloud bearer token (the same Ed25519 JWTs vmd and agentd accept); the
 server verifies it and **forwards the same token** on every downstream call, so vmd and agentd apply their own roles
 and project scoping. A viewer can read but not create; an editor of project A cannot see project B.
 

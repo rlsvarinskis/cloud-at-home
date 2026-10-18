@@ -37,7 +37,7 @@ Module path: `github.com/rlsvarinskis/cloud-at-home/services/vmd`.
 
 - Depends on `api`, `libs/common` (`errs`, `ids`, `pg`), `libs/authz` (RBAC and tokens), `libs/qemu` (`node.Driver`,
   `fake`, `qemudriver`, `remote`, `nodeserver`, `sshrunner`) and `libs/server` (`daemon`, `obs`).
-- Must NOT depend on `services/agentd`, `cmd/hcctl` or `e2e`. agentd uses only vmd's public API, and tests that run
+- Must NOT depend on `services/agentd`, `cmd/atticctl` or `e2e`. agentd uses only vmd's public API, and tests that run
   both live in `e2e`. The rule in `scripts/check-boundaries.sh` allows `libs/qemu` and `libs/server` here.
 - External: `connectrpc.com/connect`, `pgx/v5`, `prometheus/client_golang`, `go.uber.org/mock` (for mocks).
 
@@ -49,8 +49,8 @@ cd services/vmd && go test -race ./...
 ```
 
 Store tests run the `storetest` suite against memory, against Postgres (started by `libs/common/pg/pgtest` or
-`HOMECLOUD_TEST_POSTGRES`), and against the shard router over one and three in-memory shards. Setting
-`HOMECLOUD_TEST_SHARDS=3` runs the whole service suite on a sharded store. Reconciler behaviour is tested with the
+`ATTIC_TEST_POSTGRES`), and against the shard router over one and three in-memory shards. Setting
+`ATTIC_TEST_SHARDS=3` runs the whole service suite on a sharded store. Reconciler behaviour is tested with the
 fake node driver and a manual clock.
 
 ## Notes and limitations

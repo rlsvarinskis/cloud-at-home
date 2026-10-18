@@ -6,7 +6,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
 )
 
 // The reference scenario for the harness: create from a shared image, run, stop, start, delete.

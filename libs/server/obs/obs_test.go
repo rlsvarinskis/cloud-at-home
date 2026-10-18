@@ -15,8 +15,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
-	"github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1/vmdv1connect"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
+	"github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1/vmdv1connect"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
@@ -37,11 +37,11 @@ func (vmStub) GetVM(_ context.Context, req *connect.Request[vmdv1.GetVMRequest])
 	}
 }
 
-const getVMProc = "/homecloud.vmd.v1.VMService/GetVM"
+const getVMProc = "/attic.vmd.v1.VMService/GetVM"
 
 func TestSplitProcedure(t *testing.T) {
 	svc, method := splitProcedure(getVMProc)
-	if svc != "homecloud.vmd.v1.VMService" || method != "GetVM" {
+	if svc != "attic.vmd.v1.VMService" || method != "GetVM" {
 		t.Fatalf("got %q %q", svc, method)
 	}
 	if svc, method := splitProcedure("weird"); svc != "" || method != "weird" {
@@ -63,7 +63,7 @@ func TestRPCMetricsOverConnect(t *testing.T) {
 	}
 
 	counter := func(code string) float64 {
-		return testutil.ToFloat64(m.requests.WithLabelValues("homecloud.vmd.v1.VMService", "GetVM", code))
+		return testutil.ToFloat64(m.requests.WithLabelValues("attic.vmd.v1.VMService", "GetVM", code))
 	}
 	if got := counter("ok"); got != 2 {
 		t.Errorf("ok count = %v, want 2", got)
@@ -74,10 +74,10 @@ func TestRPCMetricsOverConnect(t *testing.T) {
 	if got := counter("permission_denied"); got != 1 {
 		t.Errorf("permission_denied count = %v, want 1", got)
 	}
-	if got := testutil.ToFloat64(m.inFlight.WithLabelValues("homecloud.vmd.v1.VMService", "GetVM")); got != 0 {
+	if got := testutil.ToFloat64(m.inFlight.WithLabelValues("attic.vmd.v1.VMService", "GetVM")); got != 0 {
 		t.Errorf("in flight after calls = %v, want 0", got)
 	}
-	if got := histogramCount(t, reg, "homecloud_rpc_duration_seconds"); got != 4 {
+	if got := histogramCount(t, reg, "attic_rpc_duration_seconds"); got != 4 {
 		t.Errorf("histogram sample count = %v, want 4", got)
 	}
 
@@ -87,7 +87,7 @@ func TestRPCMetricsOverConnect(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range families {
-		if !strings.HasPrefix(f.GetName(), "homecloud_rpc_") {
+		if !strings.HasPrefix(f.GetName(), "attic_rpc_") {
 			continue
 		}
 		for _, mt := range f.GetMetric() {
@@ -116,7 +116,7 @@ func TestRPCMetricsClientCallsNotRecorded(t *testing.T) {
 	if _, err := client.GetVM(context.Background(), connect.NewRequest(&vmdv1.GetVMRequest{Id: "ok"})); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := testutil.GatherAndCount(reg, "homecloud_rpc_requests_total"); err != nil || n != 0 {
+	if n, err := testutil.GatherAndCount(reg, "attic_rpc_requests_total"); err != nil || n != 0 {
 		t.Fatalf("client call recorded: %d series, %v", n, err)
 	}
 }
@@ -205,10 +205,10 @@ func TestMetricsHandlerAuthorization(t *testing.T) {
 			if rec.Code != c.want {
 				t.Fatalf("status = %d, want %d", rec.Code, c.want)
 			}
-			if c.want == http.StatusOK && !strings.Contains(rec.Body.String(), "homecloud_rpc_requests_total") {
+			if c.want == http.StatusOK && !strings.Contains(rec.Body.String(), "attic_rpc_requests_total") {
 				t.Fatalf("body lacks rpc metrics:\n%s", rec.Body.String())
 			}
-			if c.want != http.StatusOK && strings.Contains(rec.Body.String(), "homecloud") {
+			if c.want != http.StatusOK && strings.Contains(rec.Body.String(), "attic") {
 				t.Fatalf("error body leaks metrics: %q", rec.Body.String())
 			}
 		})
@@ -219,7 +219,7 @@ func TestMetricsHandlerNilVerifierServesWithoutAuth(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	RegisterBuildInfo(reg, "dev")
 	rec := serve(MetricsHandler(reg, nil), "")
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "homecloud_build_info") {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "attic_build_info") {
 		t.Fatalf("status %d body %q", rec.Code, rec.Body.String())
 	}
 }
@@ -294,11 +294,11 @@ func TestRegisterBuildInfo(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	RegisterBuildInfo(reg, "1.2.3")
 	want := fmt.Sprintf(`
-# HELP homecloud_build_info Build information. The value is always 1.
-# TYPE homecloud_build_info gauge
-homecloud_build_info{go_version=%q,version="1.2.3"} 1
+# HELP attic_build_info Build information. The value is always 1.
+# TYPE attic_build_info gauge
+attic_build_info{go_version=%q,version="1.2.3"} 1
 `, runtime.Version())
-	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), "homecloud_build_info"); err != nil {
+	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), "attic_build_info"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -317,7 +317,7 @@ func TestTwoServersShareRegistry(t *testing.T) {
 	agentd := NewRPCMetrics(reg, "agentd")
 	vmd.requests.WithLabelValues("s", "m", "ok").Inc()
 	agentd.requests.WithLabelValues("s", "m", "ok").Inc()
-	if n, err := testutil.GatherAndCount(reg, "homecloud_rpc_requests_total"); err != nil || n != 2 {
+	if n, err := testutil.GatherAndCount(reg, "attic_rpc_requests_total"); err != nil || n != 2 {
 		t.Fatalf("got %d series, %v; want 2", n, err)
 	}
 }

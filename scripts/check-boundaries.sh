@@ -13,7 +13,7 @@ declare -A ALLOWED=(
   [services/agentd]="api libs/common libs/authz libs/server"
   [services/mcp]="api libs/common libs/authz libs/server"
   [services/auth]="api libs/common libs/authz libs/server"
-  [cmd/hcctl]="api libs/common libs/authz"
+  [cmd/atticctl]="api libs/common libs/authz"
   [e2e]="api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd services/mcp"
 )
 bad=0

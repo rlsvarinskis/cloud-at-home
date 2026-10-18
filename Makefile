@@ -1,7 +1,7 @@
 .PHONY: proto build test vet mocks tidy cover boundaries
 
 PATH := $(PATH):$(HOME)/go/bin
-MODULES := api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd services/mcp cmd/hcctl e2e
+MODULES := api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd services/mcp cmd/atticctl e2e
 
 proto:  ## regenerate api/gen from api/proto (needs protoc, protoc-gen-go, protoc-gen-connect-go)
 	cd api && rm -rf gen && mkdir -p gen && \

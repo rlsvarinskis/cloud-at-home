@@ -5,3 +5,10 @@ cover.out
 .env
 *.pem
 !testdata/*.pem
+
+# Binaries built by `go build` inside a module directory
+/cmd/*/atticctl
+/cmd/*/atticctl
+/services/*/cmd/*/vmd
+/services/*/cmd/*/agentd
+/services/*/cmd/*/mcp

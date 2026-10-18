@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.5
-// source: homecloud/agentd/v1/agentd.proto
+// source: attic/agentd/v1/agentd.proto
 
 // agentd: LLM agents. An agent is always tied to one VM (owned by vmd); many agents may share a VM.
 
@@ -60,11 +60,11 @@ func (x AgentState) String() string {
 }
 
 func (AgentState) Descriptor() protoreflect.EnumDescriptor {
-	return file_homecloud_agentd_v1_agentd_proto_enumTypes[0].Descriptor()
+	return file_attic_agentd_v1_agentd_proto_enumTypes[0].Descriptor()
 }
 
 func (AgentState) Type() protoreflect.EnumType {
-	return &file_homecloud_agentd_v1_agentd_proto_enumTypes[0]
+	return &file_attic_agentd_v1_agentd_proto_enumTypes[0]
 }
 
 func (x AgentState) Number() protoreflect.EnumNumber {
@@ -73,7 +73,7 @@ func (x AgentState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AgentState.Descriptor instead.
 func (AgentState) EnumDescriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{0}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{0}
 }
 
 type TaskState int32
@@ -124,11 +124,11 @@ func (x TaskState) String() string {
 }
 
 func (TaskState) Descriptor() protoreflect.EnumDescriptor {
-	return file_homecloud_agentd_v1_agentd_proto_enumTypes[1].Descriptor()
+	return file_attic_agentd_v1_agentd_proto_enumTypes[1].Descriptor()
 }
 
 func (TaskState) Type() protoreflect.EnumType {
-	return &file_homecloud_agentd_v1_agentd_proto_enumTypes[1]
+	return &file_attic_agentd_v1_agentd_proto_enumTypes[1]
 }
 
 func (x TaskState) Number() protoreflect.EnumNumber {
@@ -137,7 +137,7 @@ func (x TaskState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TaskState.Descriptor instead.
 func (TaskState) EnumDescriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{1}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{1}
 }
 
 type Agent struct {
@@ -149,7 +149,7 @@ type Agent struct {
 	Model         string                 `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`                                   // Ollama model name; no default, the creator chooses
 	SystemPrompt  string                 `protobuf:"bytes,6,opt,name=system_prompt,json=systemPrompt,proto3" json:"system_prompt,omitempty"` // appended to the built-in system prompt
 	Workdir       string                 `protobuf:"bytes,7,opt,name=workdir,proto3" json:"workdir,omitempty"`                               // directory in the VM this agent works in
-	State         AgentState             `protobuf:"varint,8,opt,name=state,proto3,enum=homecloud.agentd.v1.AgentState" json:"state,omitempty"`
+	State         AgentState             `protobuf:"varint,8,opt,name=state,proto3,enum=attic.agentd.v1.AgentState" json:"state,omitempty"`
 	Labels        map[string]string      `protobuf:"bytes,9,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
@@ -159,7 +159,7 @@ type Agent struct {
 
 func (x *Agent) Reset() {
 	*x = Agent{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[0]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -171,7 +171,7 @@ func (x *Agent) String() string {
 func (*Agent) ProtoMessage() {}
 
 func (x *Agent) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[0]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -184,7 +184,7 @@ func (x *Agent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Agent.ProtoReflect.Descriptor instead.
 func (*Agent) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{0}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Agent) GetId() string {
@@ -280,7 +280,7 @@ type CreateAgentRequest struct {
 
 func (x *CreateAgentRequest) Reset() {
 	*x = CreateAgentRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[1]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -292,7 +292,7 @@ func (x *CreateAgentRequest) String() string {
 func (*CreateAgentRequest) ProtoMessage() {}
 
 func (x *CreateAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[1]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -305,7 +305,7 @@ func (x *CreateAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAgentRequest.ProtoReflect.Descriptor instead.
 func (*CreateAgentRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{1}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CreateAgentRequest) GetProjectId() string {
@@ -373,7 +373,7 @@ type GetAgentRequest struct {
 
 func (x *GetAgentRequest) Reset() {
 	*x = GetAgentRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[2]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -385,7 +385,7 @@ func (x *GetAgentRequest) String() string {
 func (*GetAgentRequest) ProtoMessage() {}
 
 func (x *GetAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[2]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -398,7 +398,7 @@ func (x *GetAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAgentRequest.ProtoReflect.Descriptor instead.
 func (*GetAgentRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{2}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetAgentRequest) GetId() string {
@@ -420,7 +420,7 @@ type ListAgentsRequest struct {
 
 func (x *ListAgentsRequest) Reset() {
 	*x = ListAgentsRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[3]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -432,7 +432,7 @@ func (x *ListAgentsRequest) String() string {
 func (*ListAgentsRequest) ProtoMessage() {}
 
 func (x *ListAgentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[3]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -445,7 +445,7 @@ func (x *ListAgentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAgentsRequest.ProtoReflect.Descriptor instead.
 func (*ListAgentsRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{3}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListAgentsRequest) GetProjectId() string {
@@ -486,7 +486,7 @@ type ListAgentsResponse struct {
 
 func (x *ListAgentsResponse) Reset() {
 	*x = ListAgentsResponse{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[4]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -498,7 +498,7 @@ func (x *ListAgentsResponse) String() string {
 func (*ListAgentsResponse) ProtoMessage() {}
 
 func (x *ListAgentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[4]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -511,7 +511,7 @@ func (x *ListAgentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAgentsResponse.ProtoReflect.Descriptor instead.
 func (*ListAgentsResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{4}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListAgentsResponse) GetAgents() []*Agent {
@@ -539,7 +539,7 @@ type UpdateAgentRequest struct {
 
 func (x *UpdateAgentRequest) Reset() {
 	*x = UpdateAgentRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[5]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -551,7 +551,7 @@ func (x *UpdateAgentRequest) String() string {
 func (*UpdateAgentRequest) ProtoMessage() {}
 
 func (x *UpdateAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[5]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -564,7 +564,7 @@ func (x *UpdateAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAgentRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAgentRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{5}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UpdateAgentRequest) GetId() string {
@@ -597,7 +597,7 @@ type DeleteAgentRequest struct {
 
 func (x *DeleteAgentRequest) Reset() {
 	*x = DeleteAgentRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[6]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -609,7 +609,7 @@ func (x *DeleteAgentRequest) String() string {
 func (*DeleteAgentRequest) ProtoMessage() {}
 
 func (x *DeleteAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[6]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -622,7 +622,7 @@ func (x *DeleteAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAgentRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAgentRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{6}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DeleteAgentRequest) GetId() string {
@@ -640,7 +640,7 @@ type DeleteAgentResponse struct {
 
 func (x *DeleteAgentResponse) Reset() {
 	*x = DeleteAgentResponse{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[7]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -652,7 +652,7 @@ func (x *DeleteAgentResponse) String() string {
 func (*DeleteAgentResponse) ProtoMessage() {}
 
 func (x *DeleteAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[7]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -665,7 +665,7 @@ func (x *DeleteAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAgentResponse.ProtoReflect.Descriptor instead.
 func (*DeleteAgentResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{7}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{7}
 }
 
 type Task struct {
@@ -676,7 +676,7 @@ type Task struct {
 	Prompt          string                 `protobuf:"bytes,4,opt,name=prompt,proto3" json:"prompt,omitempty"`
 	CheckCommand    string                 `protobuf:"bytes,5,opt,name=check_command,json=checkCommand,proto3" json:"check_command,omitempty"`
 	MaxSteps        int32                  `protobuf:"varint,6,opt,name=max_steps,json=maxSteps,proto3" json:"max_steps,omitempty"`
-	State           TaskState              `protobuf:"varint,7,opt,name=state,proto3,enum=homecloud.agentd.v1.TaskState" json:"state,omitempty"`
+	State           TaskState              `protobuf:"varint,7,opt,name=state,proto3,enum=attic.agentd.v1.TaskState" json:"state,omitempty"`
 	Verdict         string                 `protobuf:"bytes,8,opt,name=verdict,proto3" json:"verdict,omitempty"` // SUCCESS / FAILED / "" as stated by the model
 	Result          string                 `protobuf:"bytes,9,opt,name=result,proto3" json:"result,omitempty"`   // the final report
 	Steps           int32                  `protobuf:"varint,10,opt,name=steps,proto3" json:"steps,omitempty"`
@@ -691,7 +691,7 @@ type Task struct {
 
 func (x *Task) Reset() {
 	*x = Task{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[8]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -703,7 +703,7 @@ func (x *Task) String() string {
 func (*Task) ProtoMessage() {}
 
 func (x *Task) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[8]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -716,7 +716,7 @@ func (x *Task) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Task.ProtoReflect.Descriptor instead.
 func (*Task) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{8}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Task) GetId() string {
@@ -837,7 +837,7 @@ type CreateTaskRequest struct {
 
 func (x *CreateTaskRequest) Reset() {
 	*x = CreateTaskRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[9]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -849,7 +849,7 @@ func (x *CreateTaskRequest) String() string {
 func (*CreateTaskRequest) ProtoMessage() {}
 
 func (x *CreateTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[9]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -862,7 +862,7 @@ func (x *CreateTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTaskRequest.ProtoReflect.Descriptor instead.
 func (*CreateTaskRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{9}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CreateTaskRequest) GetAgentId() string {
@@ -903,15 +903,15 @@ func (x *CreateTaskRequest) GetIdempotencyKey() string {
 type GetTaskRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	WaitForNot    TaskState              `protobuf:"varint,2,opt,name=wait_for_not,json=waitForNot,proto3,enum=homecloud.agentd.v1.TaskState" json:"wait_for_not,omitempty"` // long-poll: return when the task leaves this state (e.g. RUNNING)
-	WaitSeconds   int32                  `protobuf:"varint,3,opt,name=wait_seconds,json=waitSeconds,proto3" json:"wait_seconds,omitempty"`                                   // max 30
+	WaitForNot    TaskState              `protobuf:"varint,2,opt,name=wait_for_not,json=waitForNot,proto3,enum=attic.agentd.v1.TaskState" json:"wait_for_not,omitempty"` // long-poll: return when the task leaves this state (e.g. RUNNING)
+	WaitSeconds   int32                  `protobuf:"varint,3,opt,name=wait_seconds,json=waitSeconds,proto3" json:"wait_seconds,omitempty"`                               // max 30
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetTaskRequest) Reset() {
 	*x = GetTaskRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[10]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -923,7 +923,7 @@ func (x *GetTaskRequest) String() string {
 func (*GetTaskRequest) ProtoMessage() {}
 
 func (x *GetTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[10]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -936,7 +936,7 @@ func (x *GetTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTaskRequest.ProtoReflect.Descriptor instead.
 func (*GetTaskRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{10}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetTaskRequest) GetId() string {
@@ -964,7 +964,7 @@ type ListTasksRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
 	ProjectId     string                 `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"` // one of agent_id / project_id
-	State         TaskState              `protobuf:"varint,3,opt,name=state,proto3,enum=homecloud.agentd.v1.TaskState" json:"state,omitempty"`
+	State         TaskState              `protobuf:"varint,3,opt,name=state,proto3,enum=attic.agentd.v1.TaskState" json:"state,omitempty"`
 	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	PageToken     string                 `protobuf:"bytes,5,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -973,7 +973,7 @@ type ListTasksRequest struct {
 
 func (x *ListTasksRequest) Reset() {
 	*x = ListTasksRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[11]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -985,7 +985,7 @@ func (x *ListTasksRequest) String() string {
 func (*ListTasksRequest) ProtoMessage() {}
 
 func (x *ListTasksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[11]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -998,7 +998,7 @@ func (x *ListTasksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTasksRequest.ProtoReflect.Descriptor instead.
 func (*ListTasksRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{11}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListTasksRequest) GetAgentId() string {
@@ -1046,7 +1046,7 @@ type ListTasksResponse struct {
 
 func (x *ListTasksResponse) Reset() {
 	*x = ListTasksResponse{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[12]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1058,7 +1058,7 @@ func (x *ListTasksResponse) String() string {
 func (*ListTasksResponse) ProtoMessage() {}
 
 func (x *ListTasksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[12]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1071,7 +1071,7 @@ func (x *ListTasksResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTasksResponse.ProtoReflect.Descriptor instead.
 func (*ListTasksResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{12}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListTasksResponse) GetTasks() []*Task {
@@ -1097,7 +1097,7 @@ type CancelTaskRequest struct {
 
 func (x *CancelTaskRequest) Reset() {
 	*x = CancelTaskRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[13]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1109,7 +1109,7 @@ func (x *CancelTaskRequest) String() string {
 func (*CancelTaskRequest) ProtoMessage() {}
 
 func (x *CancelTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[13]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1122,7 +1122,7 @@ func (x *CancelTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelTaskRequest.ProtoReflect.Descriptor instead.
 func (*CancelTaskRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{13}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CancelTaskRequest) GetId() string {
@@ -1145,7 +1145,7 @@ type Step struct {
 
 func (x *Step) Reset() {
 	*x = Step{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[14]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1157,7 +1157,7 @@ func (x *Step) String() string {
 func (*Step) ProtoMessage() {}
 
 func (x *Step) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[14]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1170,7 +1170,7 @@ func (x *Step) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Step.ProtoReflect.Descriptor instead.
 func (*Step) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{14}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Step) GetSeq() int32 {
@@ -1219,7 +1219,7 @@ type ListStepsRequest struct {
 
 func (x *ListStepsRequest) Reset() {
 	*x = ListStepsRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[15]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1231,7 +1231,7 @@ func (x *ListStepsRequest) String() string {
 func (*ListStepsRequest) ProtoMessage() {}
 
 func (x *ListStepsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[15]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1244,7 +1244,7 @@ func (x *ListStepsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListStepsRequest.ProtoReflect.Descriptor instead.
 func (*ListStepsRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{15}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListStepsRequest) GetTaskId() string {
@@ -1277,7 +1277,7 @@ type ListStepsResponse struct {
 
 func (x *ListStepsResponse) Reset() {
 	*x = ListStepsResponse{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[16]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1289,7 +1289,7 @@ func (x *ListStepsResponse) String() string {
 func (*ListStepsResponse) ProtoMessage() {}
 
 func (x *ListStepsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[16]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1302,7 +1302,7 @@ func (x *ListStepsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListStepsResponse.ProtoReflect.Descriptor instead.
 func (*ListStepsResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{16}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListStepsResponse) GetSteps() []*Step {
@@ -1322,7 +1322,7 @@ type Model struct {
 
 func (x *Model) Reset() {
 	*x = Model{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[17]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1334,7 +1334,7 @@ func (x *Model) String() string {
 func (*Model) ProtoMessage() {}
 
 func (x *Model) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[17]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1347,7 +1347,7 @@ func (x *Model) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Model.ProtoReflect.Descriptor instead.
 func (*Model) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{17}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Model) GetName() string {
@@ -1372,7 +1372,7 @@ type ListModelsRequest struct {
 
 func (x *ListModelsRequest) Reset() {
 	*x = ListModelsRequest{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[18]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1384,7 +1384,7 @@ func (x *ListModelsRequest) String() string {
 func (*ListModelsRequest) ProtoMessage() {}
 
 func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[18]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1397,7 +1397,7 @@ func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsRequest.ProtoReflect.Descriptor instead.
 func (*ListModelsRequest) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{18}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{18}
 }
 
 type ListModelsResponse struct {
@@ -1409,7 +1409,7 @@ type ListModelsResponse struct {
 
 func (x *ListModelsResponse) Reset() {
 	*x = ListModelsResponse{}
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[19]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1421,7 +1421,7 @@ func (x *ListModelsResponse) String() string {
 func (*ListModelsResponse) ProtoMessage() {}
 
 func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_homecloud_agentd_v1_agentd_proto_msgTypes[19]
+	mi := &file_attic_agentd_v1_agentd_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1434,7 +1434,7 @@ func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsResponse.ProtoReflect.Descriptor instead.
 func (*ListModelsResponse) Descriptor() ([]byte, []int) {
-	return file_homecloud_agentd_v1_agentd_proto_rawDescGZIP(), []int{19}
+	return file_attic_agentd_v1_agentd_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListModelsResponse) GetModels() []*Model {
@@ -1444,11 +1444,11 @@ func (x *ListModelsResponse) GetModels() []*Model {
 	return nil
 }
 
-var File_homecloud_agentd_v1_agentd_proto protoreflect.FileDescriptor
+var File_attic_agentd_v1_agentd_proto protoreflect.FileDescriptor
 
-const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
+const file_attic_agentd_v1_agentd_proto_rawDesc = "" +
 	"\n" +
-	" homecloud/agentd/v1/agentd.proto\x12\x13homecloud.agentd.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdc\x03\n" +
+	"\x1cattic/agentd/v1/agentd.proto\x12\x0fattic.agentd.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd4\x03\n" +
 	"\x05Agent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -1457,9 +1457,9 @@ const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x05vm_id\x18\x04 \x01(\tR\x04vmId\x12\x14\n" +
 	"\x05model\x18\x05 \x01(\tR\x05model\x12#\n" +
 	"\rsystem_prompt\x18\x06 \x01(\tR\fsystemPrompt\x12\x18\n" +
-	"\aworkdir\x18\a \x01(\tR\aworkdir\x125\n" +
-	"\x05state\x18\b \x01(\x0e2\x1f.homecloud.agentd.v1.AgentStateR\x05state\x12>\n" +
-	"\x06labels\x18\t \x03(\v2&.homecloud.agentd.v1.Agent.LabelsEntryR\x06labels\x129\n" +
+	"\aworkdir\x18\a \x01(\tR\aworkdir\x121\n" +
+	"\x05state\x18\b \x01(\x0e2\x1b.attic.agentd.v1.AgentStateR\x05state\x12:\n" +
+	"\x06labels\x18\t \x03(\v2\".attic.agentd.v1.Agent.LabelsEntryR\x06labels\x129\n" +
 	"\n" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
@@ -1467,7 +1467,7 @@ const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
 	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe2\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xde\x02\n" +
 	"\x12CreateAgentRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x12\n" +
@@ -1475,8 +1475,8 @@ const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x05vm_id\x18\x03 \x01(\tR\x04vmId\x12\x14\n" +
 	"\x05model\x18\x04 \x01(\tR\x05model\x12#\n" +
 	"\rsystem_prompt\x18\x05 \x01(\tR\fsystemPrompt\x12\x18\n" +
-	"\aworkdir\x18\x06 \x01(\tR\aworkdir\x12K\n" +
-	"\x06labels\x18\a \x03(\v23.homecloud.agentd.v1.CreateAgentRequest.LabelsEntryR\x06labels\x12'\n" +
+	"\aworkdir\x18\x06 \x01(\tR\aworkdir\x12G\n" +
+	"\x06labels\x18\a \x03(\v2/.attic.agentd.v1.CreateAgentRequest.LabelsEntryR\x06labels\x12'\n" +
 	"\x0fidempotency_key\x18\b \x01(\tR\x0eidempotencyKey\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -1489,9 +1489,9 @@ const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x05vm_id\x18\x02 \x01(\tR\x04vmId\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x04 \x01(\tR\tpageToken\"p\n" +
-	"\x12ListAgentsResponse\x122\n" +
-	"\x06agents\x18\x01 \x03(\v2\x1a.homecloud.agentd.v1.AgentR\x06agents\x12&\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\"l\n" +
+	"\x12ListAgentsResponse\x12.\n" +
+	"\x06agents\x18\x01 \x03(\v2\x16.attic.agentd.v1.AgentR\x06agents\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x85\x01\n" +
 	"\x12UpdateAgentRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
@@ -1501,7 +1501,7 @@ const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x0e_system_prompt\"$\n" +
 	"\x12DeleteAgentRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x15\n" +
-	"\x13DeleteAgentResponse\"\xa2\x04\n" +
+	"\x13DeleteAgentResponse\"\x9e\x04\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x1d\n" +
@@ -1509,8 +1509,8 @@ const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
 	"project_id\x18\x03 \x01(\tR\tprojectId\x12\x16\n" +
 	"\x06prompt\x18\x04 \x01(\tR\x06prompt\x12#\n" +
 	"\rcheck_command\x18\x05 \x01(\tR\fcheckCommand\x12\x1b\n" +
-	"\tmax_steps\x18\x06 \x01(\x05R\bmaxSteps\x124\n" +
-	"\x05state\x18\a \x01(\x0e2\x1e.homecloud.agentd.v1.TaskStateR\x05state\x12\x18\n" +
+	"\tmax_steps\x18\x06 \x01(\x05R\bmaxSteps\x120\n" +
+	"\x05state\x18\a \x01(\x0e2\x1a.attic.agentd.v1.TaskStateR\x05state\x12\x18\n" +
 	"\averdict\x18\b \x01(\tR\averdict\x12\x16\n" +
 	"\x06result\x18\t \x01(\tR\x06result\x12\x14\n" +
 	"\x05steps\x18\n" +
@@ -1528,22 +1528,22 @@ const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x06prompt\x18\x02 \x01(\tR\x06prompt\x12#\n" +
 	"\rcheck_command\x18\x03 \x01(\tR\fcheckCommand\x12\x1b\n" +
 	"\tmax_steps\x18\x04 \x01(\x05R\bmaxSteps\x12'\n" +
-	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"\x85\x01\n" +
+	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"\x81\x01\n" +
 	"\x0eGetTaskRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12@\n" +
-	"\fwait_for_not\x18\x02 \x01(\x0e2\x1e.homecloud.agentd.v1.TaskStateR\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12<\n" +
+	"\fwait_for_not\x18\x02 \x01(\x0e2\x1a.attic.agentd.v1.TaskStateR\n" +
 	"waitForNot\x12!\n" +
-	"\fwait_seconds\x18\x03 \x01(\x05R\vwaitSeconds\"\xbe\x01\n" +
+	"\fwait_seconds\x18\x03 \x01(\x05R\vwaitSeconds\"\xba\x01\n" +
 	"\x10ListTasksRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1d\n" +
 	"\n" +
-	"project_id\x18\x02 \x01(\tR\tprojectId\x124\n" +
-	"\x05state\x18\x03 \x01(\x0e2\x1e.homecloud.agentd.v1.TaskStateR\x05state\x12\x1b\n" +
+	"project_id\x18\x02 \x01(\tR\tprojectId\x120\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x1a.attic.agentd.v1.TaskStateR\x05state\x12\x1b\n" +
 	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x05 \x01(\tR\tpageToken\"l\n" +
-	"\x11ListTasksResponse\x12/\n" +
-	"\x05tasks\x18\x01 \x03(\v2\x19.homecloud.agentd.v1.TaskR\x05tasks\x12&\n" +
+	"page_token\x18\x05 \x01(\tR\tpageToken\"h\n" +
+	"\x11ListTasksResponse\x12+\n" +
+	"\x05tasks\x18\x01 \x03(\v2\x15.attic.agentd.v1.TaskR\x05tasks\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"#\n" +
 	"\x11CancelTaskRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\xa6\x01\n" +
@@ -1558,16 +1558,16 @@ const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x10ListStepsRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x1b\n" +
 	"\tafter_seq\x18\x02 \x01(\x05R\bafterSeq\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"D\n" +
-	"\x11ListStepsResponse\x12/\n" +
-	"\x05steps\x18\x01 \x03(\v2\x19.homecloud.agentd.v1.StepR\x05steps\":\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"@\n" +
+	"\x11ListStepsResponse\x12+\n" +
+	"\x05steps\x18\x01 \x03(\v2\x15.attic.agentd.v1.StepR\x05steps\":\n" +
 	"\x05Model\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x02 \x01(\x03R\tsizeBytes\"\x13\n" +
-	"\x11ListModelsRequest\"H\n" +
-	"\x12ListModelsResponse\x122\n" +
-	"\x06models\x18\x01 \x03(\v2\x1a.homecloud.agentd.v1.ModelR\x06models*u\n" +
+	"\x11ListModelsRequest\"D\n" +
+	"\x12ListModelsResponse\x12.\n" +
+	"\x06models\x18\x01 \x03(\v2\x16.attic.agentd.v1.ModelR\x06models*u\n" +
 	"\n" +
 	"AgentState\x12\x1b\n" +
 	"\x17AGENT_STATE_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -1582,106 +1582,106 @@ const file_homecloud_agentd_v1_agentd_proto_rawDesc = "" +
 	"\x11TASK_STATE_FAILED\x10\x04\x12\x16\n" +
 	"\x12TASK_STATE_GAVE_UP\x10\x05\x12\x18\n" +
 	"\x14TASK_STATE_CANCELLED\x10\x06\x12\x14\n" +
-	"\x10TASK_STATE_ERROR\x10\a2\xc5\x03\n" +
-	"\fAgentService\x12R\n" +
-	"\vCreateAgent\x12'.homecloud.agentd.v1.CreateAgentRequest\x1a\x1a.homecloud.agentd.v1.Agent\x12L\n" +
-	"\bGetAgent\x12$.homecloud.agentd.v1.GetAgentRequest\x1a\x1a.homecloud.agentd.v1.Agent\x12]\n" +
+	"\x10TASK_STATE_ERROR\x10\a2\x9d\x03\n" +
+	"\fAgentService\x12J\n" +
+	"\vCreateAgent\x12#.attic.agentd.v1.CreateAgentRequest\x1a\x16.attic.agentd.v1.Agent\x12D\n" +
+	"\bGetAgent\x12 .attic.agentd.v1.GetAgentRequest\x1a\x16.attic.agentd.v1.Agent\x12U\n" +
 	"\n" +
-	"ListAgents\x12&.homecloud.agentd.v1.ListAgentsRequest\x1a'.homecloud.agentd.v1.ListAgentsResponse\x12R\n" +
-	"\vUpdateAgent\x12'.homecloud.agentd.v1.UpdateAgentRequest\x1a\x1a.homecloud.agentd.v1.Agent\x12`\n" +
-	"\vDeleteAgent\x12'.homecloud.agentd.v1.DeleteAgentRequest\x1a(.homecloud.agentd.v1.DeleteAgentResponse2\xb2\x03\n" +
-	"\vTaskService\x12O\n" +
+	"ListAgents\x12\".attic.agentd.v1.ListAgentsRequest\x1a#.attic.agentd.v1.ListAgentsResponse\x12J\n" +
+	"\vUpdateAgent\x12#.attic.agentd.v1.UpdateAgentRequest\x1a\x16.attic.agentd.v1.Agent\x12X\n" +
+	"\vDeleteAgent\x12#.attic.agentd.v1.DeleteAgentRequest\x1a$.attic.agentd.v1.DeleteAgentResponse2\x8a\x03\n" +
+	"\vTaskService\x12G\n" +
 	"\n" +
-	"CreateTask\x12&.homecloud.agentd.v1.CreateTaskRequest\x1a\x19.homecloud.agentd.v1.Task\x12I\n" +
-	"\aGetTask\x12#.homecloud.agentd.v1.GetTaskRequest\x1a\x19.homecloud.agentd.v1.Task\x12Z\n" +
-	"\tListTasks\x12%.homecloud.agentd.v1.ListTasksRequest\x1a&.homecloud.agentd.v1.ListTasksResponse\x12O\n" +
+	"CreateTask\x12\".attic.agentd.v1.CreateTaskRequest\x1a\x15.attic.agentd.v1.Task\x12A\n" +
+	"\aGetTask\x12\x1f.attic.agentd.v1.GetTaskRequest\x1a\x15.attic.agentd.v1.Task\x12R\n" +
+	"\tListTasks\x12!.attic.agentd.v1.ListTasksRequest\x1a\".attic.agentd.v1.ListTasksResponse\x12G\n" +
 	"\n" +
-	"CancelTask\x12&.homecloud.agentd.v1.CancelTaskRequest\x1a\x19.homecloud.agentd.v1.Task\x12Z\n" +
-	"\tListSteps\x12%.homecloud.agentd.v1.ListStepsRequest\x1a&.homecloud.agentd.v1.ListStepsResponse2m\n" +
-	"\fModelService\x12]\n" +
+	"CancelTask\x12\".attic.agentd.v1.CancelTaskRequest\x1a\x15.attic.agentd.v1.Task\x12R\n" +
+	"\tListSteps\x12!.attic.agentd.v1.ListStepsRequest\x1a\".attic.agentd.v1.ListStepsResponse2e\n" +
+	"\fModelService\x12U\n" +
 	"\n" +
-	"ListModels\x12&.homecloud.agentd.v1.ListModelsRequest\x1a'.homecloud.agentd.v1.ListModelsResponseBLZJgithub.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1;agentdv1b\x06proto3"
+	"ListModels\x12\".attic.agentd.v1.ListModelsRequest\x1a#.attic.agentd.v1.ListModelsResponseBHZFgithub.com/rlsvarinskis/cloud-at-home/api/gen/attic/agentd/v1;agentdv1b\x06proto3"
 
 var (
-	file_homecloud_agentd_v1_agentd_proto_rawDescOnce sync.Once
-	file_homecloud_agentd_v1_agentd_proto_rawDescData []byte
+	file_attic_agentd_v1_agentd_proto_rawDescOnce sync.Once
+	file_attic_agentd_v1_agentd_proto_rawDescData []byte
 )
 
-func file_homecloud_agentd_v1_agentd_proto_rawDescGZIP() []byte {
-	file_homecloud_agentd_v1_agentd_proto_rawDescOnce.Do(func() {
-		file_homecloud_agentd_v1_agentd_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_homecloud_agentd_v1_agentd_proto_rawDesc), len(file_homecloud_agentd_v1_agentd_proto_rawDesc)))
+func file_attic_agentd_v1_agentd_proto_rawDescGZIP() []byte {
+	file_attic_agentd_v1_agentd_proto_rawDescOnce.Do(func() {
+		file_attic_agentd_v1_agentd_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_attic_agentd_v1_agentd_proto_rawDesc), len(file_attic_agentd_v1_agentd_proto_rawDesc)))
 	})
-	return file_homecloud_agentd_v1_agentd_proto_rawDescData
+	return file_attic_agentd_v1_agentd_proto_rawDescData
 }
 
-var file_homecloud_agentd_v1_agentd_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_homecloud_agentd_v1_agentd_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
-var file_homecloud_agentd_v1_agentd_proto_goTypes = []any{
-	(AgentState)(0),               // 0: homecloud.agentd.v1.AgentState
-	(TaskState)(0),                // 1: homecloud.agentd.v1.TaskState
-	(*Agent)(nil),                 // 2: homecloud.agentd.v1.Agent
-	(*CreateAgentRequest)(nil),    // 3: homecloud.agentd.v1.CreateAgentRequest
-	(*GetAgentRequest)(nil),       // 4: homecloud.agentd.v1.GetAgentRequest
-	(*ListAgentsRequest)(nil),     // 5: homecloud.agentd.v1.ListAgentsRequest
-	(*ListAgentsResponse)(nil),    // 6: homecloud.agentd.v1.ListAgentsResponse
-	(*UpdateAgentRequest)(nil),    // 7: homecloud.agentd.v1.UpdateAgentRequest
-	(*DeleteAgentRequest)(nil),    // 8: homecloud.agentd.v1.DeleteAgentRequest
-	(*DeleteAgentResponse)(nil),   // 9: homecloud.agentd.v1.DeleteAgentResponse
-	(*Task)(nil),                  // 10: homecloud.agentd.v1.Task
-	(*CreateTaskRequest)(nil),     // 11: homecloud.agentd.v1.CreateTaskRequest
-	(*GetTaskRequest)(nil),        // 12: homecloud.agentd.v1.GetTaskRequest
-	(*ListTasksRequest)(nil),      // 13: homecloud.agentd.v1.ListTasksRequest
-	(*ListTasksResponse)(nil),     // 14: homecloud.agentd.v1.ListTasksResponse
-	(*CancelTaskRequest)(nil),     // 15: homecloud.agentd.v1.CancelTaskRequest
-	(*Step)(nil),                  // 16: homecloud.agentd.v1.Step
-	(*ListStepsRequest)(nil),      // 17: homecloud.agentd.v1.ListStepsRequest
-	(*ListStepsResponse)(nil),     // 18: homecloud.agentd.v1.ListStepsResponse
-	(*Model)(nil),                 // 19: homecloud.agentd.v1.Model
-	(*ListModelsRequest)(nil),     // 20: homecloud.agentd.v1.ListModelsRequest
-	(*ListModelsResponse)(nil),    // 21: homecloud.agentd.v1.ListModelsResponse
-	nil,                           // 22: homecloud.agentd.v1.Agent.LabelsEntry
-	nil,                           // 23: homecloud.agentd.v1.CreateAgentRequest.LabelsEntry
+var file_attic_agentd_v1_agentd_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_attic_agentd_v1_agentd_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_attic_agentd_v1_agentd_proto_goTypes = []any{
+	(AgentState)(0),               // 0: attic.agentd.v1.AgentState
+	(TaskState)(0),                // 1: attic.agentd.v1.TaskState
+	(*Agent)(nil),                 // 2: attic.agentd.v1.Agent
+	(*CreateAgentRequest)(nil),    // 3: attic.agentd.v1.CreateAgentRequest
+	(*GetAgentRequest)(nil),       // 4: attic.agentd.v1.GetAgentRequest
+	(*ListAgentsRequest)(nil),     // 5: attic.agentd.v1.ListAgentsRequest
+	(*ListAgentsResponse)(nil),    // 6: attic.agentd.v1.ListAgentsResponse
+	(*UpdateAgentRequest)(nil),    // 7: attic.agentd.v1.UpdateAgentRequest
+	(*DeleteAgentRequest)(nil),    // 8: attic.agentd.v1.DeleteAgentRequest
+	(*DeleteAgentResponse)(nil),   // 9: attic.agentd.v1.DeleteAgentResponse
+	(*Task)(nil),                  // 10: attic.agentd.v1.Task
+	(*CreateTaskRequest)(nil),     // 11: attic.agentd.v1.CreateTaskRequest
+	(*GetTaskRequest)(nil),        // 12: attic.agentd.v1.GetTaskRequest
+	(*ListTasksRequest)(nil),      // 13: attic.agentd.v1.ListTasksRequest
+	(*ListTasksResponse)(nil),     // 14: attic.agentd.v1.ListTasksResponse
+	(*CancelTaskRequest)(nil),     // 15: attic.agentd.v1.CancelTaskRequest
+	(*Step)(nil),                  // 16: attic.agentd.v1.Step
+	(*ListStepsRequest)(nil),      // 17: attic.agentd.v1.ListStepsRequest
+	(*ListStepsResponse)(nil),     // 18: attic.agentd.v1.ListStepsResponse
+	(*Model)(nil),                 // 19: attic.agentd.v1.Model
+	(*ListModelsRequest)(nil),     // 20: attic.agentd.v1.ListModelsRequest
+	(*ListModelsResponse)(nil),    // 21: attic.agentd.v1.ListModelsResponse
+	nil,                           // 22: attic.agentd.v1.Agent.LabelsEntry
+	nil,                           // 23: attic.agentd.v1.CreateAgentRequest.LabelsEntry
 	(*timestamppb.Timestamp)(nil), // 24: google.protobuf.Timestamp
 }
-var file_homecloud_agentd_v1_agentd_proto_depIdxs = []int32{
-	0,  // 0: homecloud.agentd.v1.Agent.state:type_name -> homecloud.agentd.v1.AgentState
-	22, // 1: homecloud.agentd.v1.Agent.labels:type_name -> homecloud.agentd.v1.Agent.LabelsEntry
-	24, // 2: homecloud.agentd.v1.Agent.created_at:type_name -> google.protobuf.Timestamp
-	24, // 3: homecloud.agentd.v1.Agent.updated_at:type_name -> google.protobuf.Timestamp
-	23, // 4: homecloud.agentd.v1.CreateAgentRequest.labels:type_name -> homecloud.agentd.v1.CreateAgentRequest.LabelsEntry
-	2,  // 5: homecloud.agentd.v1.ListAgentsResponse.agents:type_name -> homecloud.agentd.v1.Agent
-	1,  // 6: homecloud.agentd.v1.Task.state:type_name -> homecloud.agentd.v1.TaskState
-	24, // 7: homecloud.agentd.v1.Task.created_at:type_name -> google.protobuf.Timestamp
-	24, // 8: homecloud.agentd.v1.Task.started_at:type_name -> google.protobuf.Timestamp
-	24, // 9: homecloud.agentd.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
-	1,  // 10: homecloud.agentd.v1.GetTaskRequest.wait_for_not:type_name -> homecloud.agentd.v1.TaskState
-	1,  // 11: homecloud.agentd.v1.ListTasksRequest.state:type_name -> homecloud.agentd.v1.TaskState
-	10, // 12: homecloud.agentd.v1.ListTasksResponse.tasks:type_name -> homecloud.agentd.v1.Task
-	24, // 13: homecloud.agentd.v1.Step.at:type_name -> google.protobuf.Timestamp
-	16, // 14: homecloud.agentd.v1.ListStepsResponse.steps:type_name -> homecloud.agentd.v1.Step
-	19, // 15: homecloud.agentd.v1.ListModelsResponse.models:type_name -> homecloud.agentd.v1.Model
-	3,  // 16: homecloud.agentd.v1.AgentService.CreateAgent:input_type -> homecloud.agentd.v1.CreateAgentRequest
-	4,  // 17: homecloud.agentd.v1.AgentService.GetAgent:input_type -> homecloud.agentd.v1.GetAgentRequest
-	5,  // 18: homecloud.agentd.v1.AgentService.ListAgents:input_type -> homecloud.agentd.v1.ListAgentsRequest
-	7,  // 19: homecloud.agentd.v1.AgentService.UpdateAgent:input_type -> homecloud.agentd.v1.UpdateAgentRequest
-	8,  // 20: homecloud.agentd.v1.AgentService.DeleteAgent:input_type -> homecloud.agentd.v1.DeleteAgentRequest
-	11, // 21: homecloud.agentd.v1.TaskService.CreateTask:input_type -> homecloud.agentd.v1.CreateTaskRequest
-	12, // 22: homecloud.agentd.v1.TaskService.GetTask:input_type -> homecloud.agentd.v1.GetTaskRequest
-	13, // 23: homecloud.agentd.v1.TaskService.ListTasks:input_type -> homecloud.agentd.v1.ListTasksRequest
-	15, // 24: homecloud.agentd.v1.TaskService.CancelTask:input_type -> homecloud.agentd.v1.CancelTaskRequest
-	17, // 25: homecloud.agentd.v1.TaskService.ListSteps:input_type -> homecloud.agentd.v1.ListStepsRequest
-	20, // 26: homecloud.agentd.v1.ModelService.ListModels:input_type -> homecloud.agentd.v1.ListModelsRequest
-	2,  // 27: homecloud.agentd.v1.AgentService.CreateAgent:output_type -> homecloud.agentd.v1.Agent
-	2,  // 28: homecloud.agentd.v1.AgentService.GetAgent:output_type -> homecloud.agentd.v1.Agent
-	6,  // 29: homecloud.agentd.v1.AgentService.ListAgents:output_type -> homecloud.agentd.v1.ListAgentsResponse
-	2,  // 30: homecloud.agentd.v1.AgentService.UpdateAgent:output_type -> homecloud.agentd.v1.Agent
-	9,  // 31: homecloud.agentd.v1.AgentService.DeleteAgent:output_type -> homecloud.agentd.v1.DeleteAgentResponse
-	10, // 32: homecloud.agentd.v1.TaskService.CreateTask:output_type -> homecloud.agentd.v1.Task
-	10, // 33: homecloud.agentd.v1.TaskService.GetTask:output_type -> homecloud.agentd.v1.Task
-	14, // 34: homecloud.agentd.v1.TaskService.ListTasks:output_type -> homecloud.agentd.v1.ListTasksResponse
-	10, // 35: homecloud.agentd.v1.TaskService.CancelTask:output_type -> homecloud.agentd.v1.Task
-	18, // 36: homecloud.agentd.v1.TaskService.ListSteps:output_type -> homecloud.agentd.v1.ListStepsResponse
-	21, // 37: homecloud.agentd.v1.ModelService.ListModels:output_type -> homecloud.agentd.v1.ListModelsResponse
+var file_attic_agentd_v1_agentd_proto_depIdxs = []int32{
+	0,  // 0: attic.agentd.v1.Agent.state:type_name -> attic.agentd.v1.AgentState
+	22, // 1: attic.agentd.v1.Agent.labels:type_name -> attic.agentd.v1.Agent.LabelsEntry
+	24, // 2: attic.agentd.v1.Agent.created_at:type_name -> google.protobuf.Timestamp
+	24, // 3: attic.agentd.v1.Agent.updated_at:type_name -> google.protobuf.Timestamp
+	23, // 4: attic.agentd.v1.CreateAgentRequest.labels:type_name -> attic.agentd.v1.CreateAgentRequest.LabelsEntry
+	2,  // 5: attic.agentd.v1.ListAgentsResponse.agents:type_name -> attic.agentd.v1.Agent
+	1,  // 6: attic.agentd.v1.Task.state:type_name -> attic.agentd.v1.TaskState
+	24, // 7: attic.agentd.v1.Task.created_at:type_name -> google.protobuf.Timestamp
+	24, // 8: attic.agentd.v1.Task.started_at:type_name -> google.protobuf.Timestamp
+	24, // 9: attic.agentd.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
+	1,  // 10: attic.agentd.v1.GetTaskRequest.wait_for_not:type_name -> attic.agentd.v1.TaskState
+	1,  // 11: attic.agentd.v1.ListTasksRequest.state:type_name -> attic.agentd.v1.TaskState
+	10, // 12: attic.agentd.v1.ListTasksResponse.tasks:type_name -> attic.agentd.v1.Task
+	24, // 13: attic.agentd.v1.Step.at:type_name -> google.protobuf.Timestamp
+	16, // 14: attic.agentd.v1.ListStepsResponse.steps:type_name -> attic.agentd.v1.Step
+	19, // 15: attic.agentd.v1.ListModelsResponse.models:type_name -> attic.agentd.v1.Model
+	3,  // 16: attic.agentd.v1.AgentService.CreateAgent:input_type -> attic.agentd.v1.CreateAgentRequest
+	4,  // 17: attic.agentd.v1.AgentService.GetAgent:input_type -> attic.agentd.v1.GetAgentRequest
+	5,  // 18: attic.agentd.v1.AgentService.ListAgents:input_type -> attic.agentd.v1.ListAgentsRequest
+	7,  // 19: attic.agentd.v1.AgentService.UpdateAgent:input_type -> attic.agentd.v1.UpdateAgentRequest
+	8,  // 20: attic.agentd.v1.AgentService.DeleteAgent:input_type -> attic.agentd.v1.DeleteAgentRequest
+	11, // 21: attic.agentd.v1.TaskService.CreateTask:input_type -> attic.agentd.v1.CreateTaskRequest
+	12, // 22: attic.agentd.v1.TaskService.GetTask:input_type -> attic.agentd.v1.GetTaskRequest
+	13, // 23: attic.agentd.v1.TaskService.ListTasks:input_type -> attic.agentd.v1.ListTasksRequest
+	15, // 24: attic.agentd.v1.TaskService.CancelTask:input_type -> attic.agentd.v1.CancelTaskRequest
+	17, // 25: attic.agentd.v1.TaskService.ListSteps:input_type -> attic.agentd.v1.ListStepsRequest
+	20, // 26: attic.agentd.v1.ModelService.ListModels:input_type -> attic.agentd.v1.ListModelsRequest
+	2,  // 27: attic.agentd.v1.AgentService.CreateAgent:output_type -> attic.agentd.v1.Agent
+	2,  // 28: attic.agentd.v1.AgentService.GetAgent:output_type -> attic.agentd.v1.Agent
+	6,  // 29: attic.agentd.v1.AgentService.ListAgents:output_type -> attic.agentd.v1.ListAgentsResponse
+	2,  // 30: attic.agentd.v1.AgentService.UpdateAgent:output_type -> attic.agentd.v1.Agent
+	9,  // 31: attic.agentd.v1.AgentService.DeleteAgent:output_type -> attic.agentd.v1.DeleteAgentResponse
+	10, // 32: attic.agentd.v1.TaskService.CreateTask:output_type -> attic.agentd.v1.Task
+	10, // 33: attic.agentd.v1.TaskService.GetTask:output_type -> attic.agentd.v1.Task
+	14, // 34: attic.agentd.v1.TaskService.ListTasks:output_type -> attic.agentd.v1.ListTasksResponse
+	10, // 35: attic.agentd.v1.TaskService.CancelTask:output_type -> attic.agentd.v1.Task
+	18, // 36: attic.agentd.v1.TaskService.ListSteps:output_type -> attic.agentd.v1.ListStepsResponse
+	21, // 37: attic.agentd.v1.ModelService.ListModels:output_type -> attic.agentd.v1.ListModelsResponse
 	27, // [27:38] is the sub-list for method output_type
 	16, // [16:27] is the sub-list for method input_type
 	16, // [16:16] is the sub-list for extension type_name
@@ -1689,29 +1689,29 @@ var file_homecloud_agentd_v1_agentd_proto_depIdxs = []int32{
 	0,  // [0:16] is the sub-list for field type_name
 }
 
-func init() { file_homecloud_agentd_v1_agentd_proto_init() }
-func file_homecloud_agentd_v1_agentd_proto_init() {
-	if File_homecloud_agentd_v1_agentd_proto != nil {
+func init() { file_attic_agentd_v1_agentd_proto_init() }
+func file_attic_agentd_v1_agentd_proto_init() {
+	if File_attic_agentd_v1_agentd_proto != nil {
 		return
 	}
-	file_homecloud_agentd_v1_agentd_proto_msgTypes[5].OneofWrappers = []any{}
-	file_homecloud_agentd_v1_agentd_proto_msgTypes[14].OneofWrappers = []any{}
+	file_attic_agentd_v1_agentd_proto_msgTypes[5].OneofWrappers = []any{}
+	file_attic_agentd_v1_agentd_proto_msgTypes[14].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_homecloud_agentd_v1_agentd_proto_rawDesc), len(file_homecloud_agentd_v1_agentd_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_attic_agentd_v1_agentd_proto_rawDesc), len(file_attic_agentd_v1_agentd_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   3,
 		},
-		GoTypes:           file_homecloud_agentd_v1_agentd_proto_goTypes,
-		DependencyIndexes: file_homecloud_agentd_v1_agentd_proto_depIdxs,
-		EnumInfos:         file_homecloud_agentd_v1_agentd_proto_enumTypes,
-		MessageInfos:      file_homecloud_agentd_v1_agentd_proto_msgTypes,
+		GoTypes:           file_attic_agentd_v1_agentd_proto_goTypes,
+		DependencyIndexes: file_attic_agentd_v1_agentd_proto_depIdxs,
+		EnumInfos:         file_attic_agentd_v1_agentd_proto_enumTypes,
+		MessageInfos:      file_attic_agentd_v1_agentd_proto_msgTypes,
 	}.Build()
-	File_homecloud_agentd_v1_agentd_proto = out.File
-	file_homecloud_agentd_v1_agentd_proto_goTypes = nil
-	file_homecloud_agentd_v1_agentd_proto_depIdxs = nil
+	File_attic_agentd_v1_agentd_proto = out.File
+	file_attic_agentd_v1_agentd_proto_goTypes = nil
+	file_attic_agentd_v1_agentd_proto_depIdxs = nil
 }

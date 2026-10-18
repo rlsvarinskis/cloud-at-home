@@ -8,7 +8,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
+	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1"
 	nodemock "github.com/rlsvarinskis/cloud-at-home/libs/qemu/node/mock"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/service"

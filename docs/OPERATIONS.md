@@ -1,8 +1,8 @@
 # Operations
 
-This document covers running homecloud: deployment shapes, the host setup a node needs, the flags, how the
+This document covers running Attic Cloud: deployment shapes, the host setup a node needs, the flags, how the
 reconciler behaves, draining nodes, what happens when parts fail, metrics and alerts, quotas and capacity, backups
-and upgrades. Flags are those of `services/vmd/cmd/vmd` (`vmd -h`), `services/agentd/cmd/agentd` (`agentd -h`) and `cmd/hcctl`. The design
+and upgrades. Flags are those of `services/vmd/cmd/vmd` (`vmd -h`), `services/agentd/cmd/agentd` (`agentd -h`) and `cmd/atticctl`. The design
 behind these behaviours is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Contents
@@ -25,7 +25,7 @@ behind these behaviours is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Deployment shapes
 
-homecloud has three roles for `vmd`, chosen with `--role`:
+Attic Cloud has three roles for `vmd`, chosen with `--role`:
 
 | `--role` | Runs | Use |
 | --- | --- | --- |
@@ -40,13 +40,13 @@ key. See [Running agentd](#running-agentd).
 
 ```
 vmd --role=all --postgres-dsn=postgres://... \
-  --trusted-key=admin=/etc/homecloud/admin.pub \
-  --ssh-key=/etc/homecloud/ssh_ed25519 \
-  --data-dir=/var/lib/homecloud --run-as=qemu
+  --trusted-key=admin=/etc/attic/admin.pub \
+  --ssh-key=/etc/attic/ssh_ed25519 \
+  --data-dir=/var/lib/attic --run-as=qemu
 ```
 
 `--role=all` and `--role=node` require `--ssh-key`. Without `--no-firewall`, they also need root or
-`CAP_NET_ADMIN` for the network rules. Without `--postgres-dsn` (or `HOMECLOUD_POSTGRES_DSN`) state is kept in
+`CAP_NET_ADMIN` for the network rules. Without `--postgres-dsn` (or `ATTIC_POSTGRES_DSN`) state is kept in
 memory and lost on restart; vmd logs a warning.
 
 The repository's [`deploy/docker-compose.yml`](../deploy/docker-compose.yml) is a development stack, not a
@@ -60,11 +60,11 @@ Control plane (one or more replicas; they share one Postgres):
 ```
 vmd --role=control \
   --postgres-dsn=postgres://... \
-  --trusted-key=admin=/etc/homecloud/admin.pub \
-  --trusted-key=agentd=/etc/homecloud/agentd.pub:service \
+  --trusted-key=admin=/etc/attic/admin.pub \
+  --trusted-key=agentd=/etc/attic/agentd.pub:service \
   --node=node-1=http://node-1.internal:8443 \
   --node=node-2=http://node-2.internal:8443 \
-  --service-key=/etc/homecloud/vmd.key --service-key-id=vmd
+  --service-key=/etc/attic/vmd.key --service-key-id=vmd
 ```
 
 At least one `--node` is required with `--role=control`. Each `--node id=URL` names a node. The id is the
@@ -75,10 +75,10 @@ Each node (one per host):
 
 ```
 vmd --role=node --listen=:8443 \
-  --trusted-key=vmd=/etc/homecloud/vmd.pub:node \
-  --ssh-key=/var/lib/homecloud/ssh_ed25519 \
-  --data-dir=/var/lib/homecloud --run-as=qemu \
-  --tls-cert=/etc/homecloud/node.crt --tls-key=/etc/homecloud/node.key
+  --trusted-key=vmd=/etc/attic/vmd.pub:node \
+  --ssh-key=/var/lib/attic/ssh_ed25519 \
+  --data-dir=/var/lib/attic --run-as=qemu \
+  --tls-cert=/etc/attic/node.crt --tls-key=/etc/attic/node.key
 ```
 
 Node daemons do not serve `/metrics`; the control plane collects everything operators need.
@@ -89,9 +89,9 @@ Pass `--postgres-dsn` more than once to spread projects over several databases:
 
 ```
 vmd --role=control \
-  --postgres-dsn=postgres://.../homecloud_a \
-  --postgres-dsn=postgres://.../homecloud_b \
-  --postgres-dsn=postgres://.../homecloud_c \
+  --postgres-dsn=postgres://.../attic_a \
+  --postgres-dsn=postgres://.../attic_b \
+  --postgres-dsn=postgres://.../attic_c \
   ...
 ```
 
@@ -105,7 +105,7 @@ vmd --role=control \
   and existing rows become unreachable. There is no rebalancing tool. Choose the list before the first write.
 - With one DSN, vmd uses a single database and no shard suffixes are added.
 
-A single database can also be given with the environment variable `HOMECLOUD_POSTGRES_DSN`, which is used only when
+A single database can also be given with the environment variable `ATTIC_POSTGRES_DSN`, which is used only when
 no `--postgres-dsn` flag is given.
 
 ## Node host requirements
@@ -122,7 +122,7 @@ A node needs the following on the host. The names are the programs the node runs
 | `iptables` and `ip6tables` | Guest network lockdown, unless `--no-firewall`. | `libs/qemu/qemudriver/firewall.go` |
 | Root, or `CAP_NET_ADMIN` for the firewall; `chown` rights for the shared folder and VM directories when `--run-as` is set | Installs the firewall rules and hands `shared/` and the VM directories to the run-as user. | `libs/qemu/qemudriver/driver.go`, `libs/qemu/qemudriver/firewall.go` |
 | A user named by `--run-as` (default `qemu`) | QEMU processes run as this user, and the shared folder belongs to it. Use `--run-as=` (empty) to run as the current user, for development. | `services/vmd/cmd/vmd` flag `-run-as` |
-| `--data-dir` (default `/var/lib/homecloud`), an absolute path, writable by the node | All state (below). | `libs/qemu/qemudriver/driver.go` |
+| `--data-dir` (default `/var/lib/attic`), an absolute path, writable by the node | All state (below). | `libs/qemu/qemudriver/driver.go` |
 | An SSH key at `--ssh-key` | The control plane's guest access key. Created with mode 0600 if missing, and its public half is written to `<path>.pub`. The public key is injected into each guest for user `agent`. | `libs/qemu/sshrunner/sshrunner.go` |
 
 ### Network lockdown
@@ -172,7 +172,7 @@ Flags that matter in production (see `vmd -h` for all):
 | --- | --- | --- |
 | `--listen` | `:8080` | Address for the API, `/healthz`, `/readyz` and `/metrics`. |
 | `--role` | `all` | `all`, `control` or `node`. See [Deployment shapes](#deployment-shapes). |
-| `--postgres-dsn` | `$HOMECLOUD_POSTGRES_DSN` | Postgres for the control plane. Repeatable: several databases shard the projects (see above). Empty means memory. |
+| `--postgres-dsn` | `$ATTIC_POSTGRES_DSN` | Postgres for the control plane. Repeatable: several databases shard the projects (see above). Empty means memory. |
 | `--trusted-key` | none | `kid=path[:role,role]`, repeatable. At least one is required. |
 | `--max-token-ttl` | `24h` | Longest token lifetime accepted. |
 | `--revoked-tokens` | none | File of revoked token ids, reloaded when it changes. See [AUTH.md](AUTH.md#revoking-a-token). |
@@ -217,17 +217,17 @@ trusted keys.
 ```
 agentd --listen=:8081 \
   --postgres-dsn=postgres://... \
-  --trusted-key=admin=/etc/homecloud/admin.pub \
+  --trusted-key=admin=/etc/attic/admin.pub \
   --vmd-url=https://vmd.internal:8080 \
   --ollama-url=http://127.0.0.1:11434 \
-  --service-key=/etc/homecloud/agentd.key --service-key-id=agentd \
+  --service-key=/etc/attic/agentd.key --service-key-id=agentd \
   --workers=4
 ```
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--listen` | `:8081` | Address for the API, `/healthz`, `/readyz` and `/metrics`. |
-| `--postgres-dsn` | `$HOMECLOUD_POSTGRES_DSN` | Postgres for agents and tasks. Empty means memory. Migrations run at start-up. |
+| `--postgres-dsn` | `$ATTIC_POSTGRES_DSN` | Postgres for agents and tasks. Empty means memory. Migrations run at start-up. |
 | `--trusted-key` | none | `kid=path[:role,role]` for user tokens. Repeatable. |
 | `--max-token-ttl` | `24h` | Longest user token lifetime accepted. |
 | `--revoked-tokens` | none | File of revoked token ids, reloaded when it changes. |
@@ -241,7 +241,7 @@ agentd --listen=:8081 \
 | `--log-level` | `info` | `debug`, `info`, `warn` or `error`. |
 
 vmd side: vmd must trust agentd's public key with the `service` role, for example
-`--trusted-key=agentd=/etc/homecloud/agentd.pub:service`.
+`--trusted-key=agentd=/etc/attic/agentd.pub:service`.
 
 Service tokens: agentd mints tokens with subject `svc:agentd`, type `service`, binding `*:service` and a five-minute
 lifetime. The `service` role on vmd is what lets agentd place holds, run commands and read files, and list models.
@@ -314,7 +314,7 @@ The reconciler keeps two counters per VM, and they are separate:
   A host-tool failure such as a missing `genisoimage` is also reported this way.
 - **Not transient.** An error that is not transient (not found, invalid argument, failed precondition, already
   exists, permission denied) puts the VM in `ERROR`. The VM is checked again every 60 s, in case the cause was
-  fixed outside homecloud.
+  fixed outside Attic Cloud.
 - `StartVM` on a VM in `ERROR` clears both counters and retries at once.
 
 A start that fails with a transient error leaves the VM in its previous observed state (`STOPPED`, or `PENDING`)
@@ -331,7 +331,7 @@ reads it. Nothing marks it in the background. The `killed_reason` says why, for 
 
 ## Node lifecycle
 
-A node is `ready`, `draining` or `down`. The state reported by `GetCapacity` and `homecloud_node_*` metrics is the
+A node is `ready`, `draining` or `down`. The state reported by `GetCapacity` and `attic_node_*` metrics is the
 combination of two facts that are stored separately:
 
 - **Health**, observed by the control plane. The control plane polls each node every 5 s with a 5 s timeout. A node
@@ -350,13 +350,13 @@ The effective state is `down` if the node is down, otherwise `draining` if drain
 ### Draining a node
 
 ```
-curl -sS -X POST http://127.0.0.1:8080/homecloud.vmd.v1.ClusterService/SetNodeDraining \
+curl -sS -X POST http://127.0.0.1:8080/attic.vmd.v1.ClusterService/SetNodeDraining \
   -H "Authorization: Bearer $OPS_TOKEN" -H "Content-Type: application/json" \
   -d '{"nodeId":"node-1","draining":true}'
 ```
 
 Resume with `"draining":false`. The token needs the `operator` role (`node.drain`, on project `*`). A token with
-`-bind '*:operator'` is minted with `hcctl token mint -key ... -kid admin -sub user:ops -type user -bind '*:operator' -ttl 1h`.
+`-bind '*:operator'` is minted with `atticctl token mint -key ... -kid admin -sub user:ops -type user -bind '*:operator' -ttl 1h`.
 
 What a drain does:
 
@@ -367,8 +367,8 @@ What a drain does:
 - **New VMs are created.** `CreateVM` does not check the node's state, so a new VM whose image is on the draining
   node is created and waits. A disk created without an image is placed only on a ready node; a disk created with an
   explicit `node_id` is not checked against drain.
-- **Visible.** `GetCapacity` shows `state: "draining"` for the node, `homecloud_node_draining` is `1` and
-  `homecloud_node_up` is `0`. If the node also goes down, `state` is `down`.
+- **Visible.** `GetCapacity` shows `state: "draining"` for the node, `attic_node_draining` is `1` and
+  `attic_node_up` is `0`. If the node also goes down, `state` is `down`.
 - **Survives restarts and outages.** The drain is stored in the database. Restarting vmd or losing the node does not
   clear it.
 
@@ -390,7 +390,7 @@ an operator who wants them to stay down must stop them first.
    ```
 
    `StopVM` sets the VM's desired state to stopped. It stays stopped after the node is undrained.
-4. **Confirm** that `homecloud_node_vms_running` for the node is `0`, or that `GetCapacity` shows no running
+4. **Confirm** that `attic_node_vms_running` for the node is `0`, or that `GetCapacity` shows no running
    VMs on it.
 5. **Do the maintenance.** The node daemon can be restarted without stopping VMs, but none are running at this point.
 6. **Undrain** with `"draining":false`, then **start the VMs again** with `VMService/StartVM` for each one you stopped.
@@ -420,9 +420,9 @@ the `capacity.get` permission on project `*` gets `403`. The `operator` role gra
 Mint a token for Prometheus:
 
 ```
-hcctl token mint -key /etc/homecloud/admin.key -kid admin \
-  -sub svc:prometheus -type service -bind '*:operator' -ttl 24h > /etc/prometheus/homecloud.token
-chmod 0600 /etc/prometheus/homecloud.token
+atticctl token mint -key /etc/attic/admin.key -kid admin \
+  -sub svc:prometheus -type service -bind '*:operator' -ttl 24h > /etc/prometheus/attic.token
+chmod 0600 /etc/prometheus/attic.token
 ```
 
 The `-ttl` must not exceed the server's `--max-token-ttl`, which is 24 hours by default. Either re-mint the
@@ -432,20 +432,20 @@ Scrape configuration (standard Prometheus syntax; not part of this repository):
 
 ```yaml
 scrape_configs:
-  - job_name: homecloud-vmd
+  - job_name: attic-vmd
     scheme: https                 # http if vmd runs without TLS
     metrics_path: /metrics
     scrape_interval: 30s
     authorization:
       type: Bearer
-      credentials_file: /etc/prometheus/homecloud.token
+      credentials_file: /etc/prometheus/attic.token
     static_configs:
       - targets: ["vmd.internal:8080"]
 ```
 
 ## Metric catalogue
 
-All metric names start with `homecloud_`, except the standard Go and process collectors. Each server registers
+All metric names start with `attic_`, except the standard Go and process collectors. Each server registers
 only the collectors listed here.
 
 The names and meanings below are from `services/vmd/promcollect` (`descs.go`, `promcollect.go`, `capacity.go`
@@ -455,10 +455,10 @@ and `sampler.go`), `libs/server/obs` and `services/agentd/metrics`.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `homecloud_rpc_requests_total` | counter | `server`, `service`, `method`, `code` | Completed server-side RPCs, by Connect code. `code="ok"` is success. |
-| `homecloud_rpc_duration_seconds` | histogram | `server`, `service`, `method` | Duration in seconds. Buckets from 5 ms to 30 s. Streaming calls are timed for the whole stream. |
-| `homecloud_rpc_in_flight` | gauge | `server`, `service`, `method` | RPCs being handled now. |
-| `homecloud_build_info` | gauge | `version`, `go_version` | Always 1. Identifies the build. |
+| `attic_rpc_requests_total` | counter | `server`, `service`, `method`, `code` | Completed server-side RPCs, by Connect code. `code="ok"` is success. |
+| `attic_rpc_duration_seconds` | histogram | `server`, `service`, `method` | Duration in seconds. Buckets from 5 ms to 30 s. Streaming calls are timed for the whole stream. |
+| `attic_rpc_in_flight` | gauge | `server`, `service`, `method` | RPCs being handled now. |
+| `attic_build_info` | gauge | `version`, `go_version` | Always 1. Identifies the build. |
 
 `server` is `vmd` or `agentd`.
 
@@ -468,28 +468,28 @@ Units: CPU counts are threads or vCPUs; memory is bytes; disk is bytes.
 
 | Metric | Labels | Meaning |
 | --- | --- | --- |
-| `homecloud_node_up` | `node` | 1 if the node's effective state is `ready`, 0 if draining or down. |
-| `homecloud_node_draining` | `node` | 1 if the node's effective state is `draining`. |
-| `homecloud_node_cpu_threads` | `node` | Physical CPU threads on the node. |
-| `homecloud_node_cpu_allocated_vcpus` | `node` | vCPUs of VMs that should be running on the node. |
-| `homecloud_node_cpu_available_vcpus` | `node` | vCPUs the scheduler can still hand out on the node, after overcommit. |
-| `homecloud_node_memory_total_bytes` | `node` | Physical memory on the node. |
-| `homecloud_node_memory_allocated_bytes` | `node` | Memory of VMs that should be running on the node. |
-| `homecloud_node_memory_available_bytes` | `node` | Memory the scheduler can still hand out, after the reserve and overcommit. |
-| `homecloud_node_disk_total_bytes` | `node` | Disk capacity on the node. |
-| `homecloud_node_disk_free_bytes` | `node` | Free disk on the node for new disks. |
-| `homecloud_node_vms` | `node` | VMs placed on the node, any state. |
-| `homecloud_node_vms_running` | `node` | VMs on the node in state `RUNNING`. |
-| `homecloud_node_last_heartbeat_timestamp_seconds` | `node` | Unix time of the last successful poll; 0 if it never answered. |
-| `homecloud_cluster_cpu_threads`, `homecloud_cluster_cpu_allocated_vcpus`, `homecloud_cluster_cpu_available_vcpus` | none | The same, summed over ready nodes. |
-| `homecloud_cluster_memory_total_bytes`, `homecloud_cluster_memory_allocated_bytes`, `homecloud_cluster_memory_available_bytes` | none | Summed over ready nodes. |
-| `homecloud_cluster_disk_total_bytes`, `homecloud_cluster_disk_free_bytes` | none | Summed over ready nodes. |
-| `homecloud_cluster_vms`, `homecloud_cluster_vms_running` | none | Summed over ready nodes. |
-| `homecloud_cluster_nodes_ready` | none | Nodes in state `ready`. |
-| `homecloud_vms` | `state` | VMs per observed state across all nodes. Every state is present, zeros included. |
-| `homecloud_vms_desired_running` | none | VMs whose desired state is running. |
+| `attic_node_up` | `node` | 1 if the node's effective state is `ready`, 0 if draining or down. |
+| `attic_node_draining` | `node` | 1 if the node's effective state is `draining`. |
+| `attic_node_cpu_threads` | `node` | Physical CPU threads on the node. |
+| `attic_node_cpu_allocated_vcpus` | `node` | vCPUs of VMs that should be running on the node. |
+| `attic_node_cpu_available_vcpus` | `node` | vCPUs the scheduler can still hand out on the node, after overcommit. |
+| `attic_node_memory_total_bytes` | `node` | Physical memory on the node. |
+| `attic_node_memory_allocated_bytes` | `node` | Memory of VMs that should be running on the node. |
+| `attic_node_memory_available_bytes` | `node` | Memory the scheduler can still hand out, after the reserve and overcommit. |
+| `attic_node_disk_total_bytes` | `node` | Disk capacity on the node. |
+| `attic_node_disk_free_bytes` | `node` | Free disk on the node for new disks. |
+| `attic_node_vms` | `node` | VMs placed on the node, any state. |
+| `attic_node_vms_running` | `node` | VMs on the node in state `RUNNING`. |
+| `attic_node_last_heartbeat_timestamp_seconds` | `node` | Unix time of the last successful poll; 0 if it never answered. |
+| `attic_cluster_cpu_threads`, `attic_cluster_cpu_allocated_vcpus`, `attic_cluster_cpu_available_vcpus` | none | The same, summed over ready nodes. |
+| `attic_cluster_memory_total_bytes`, `attic_cluster_memory_allocated_bytes`, `attic_cluster_memory_available_bytes` | none | Summed over ready nodes. |
+| `attic_cluster_disk_total_bytes`, `attic_cluster_disk_free_bytes` | none | Summed over ready nodes. |
+| `attic_cluster_vms`, `attic_cluster_vms_running` | none | Summed over ready nodes. |
+| `attic_cluster_nodes_ready` | none | Nodes in state `ready`. |
+| `attic_vms` | `state` | VMs per observed state across all nodes. Every state is present, zeros included. |
+| `attic_vms_desired_running` | none | VMs whose desired state is running. |
 
-`state` values for `homecloud_vms`: `pending`, `stopped`, `starting`, `running`, `stopping`, `error`, `deleting`.
+`state` values for `attic_vms`: `pending`, `stopped`, `starting`, `running`, `stopping`, `error`, `deleting`.
 
 ### Guest metrics (sampled, per running VM)
 
@@ -500,32 +500,32 @@ are removed.
 
 | Metric | Unit | Meaning |
 | --- | --- | --- |
-| `homecloud_vm_cpu_percent` | percent | Guest CPU use, like `top`: 100 per busy vCPU. An 8-vCPU guest can reach 800. |
-| `homecloud_vm_cpu_cores` | count | vCPUs the guest sees. |
-| `homecloud_vm_load1`, `homecloud_vm_load5`, `homecloud_vm_load15` | load average | Guest load over 1, 5 and 15 minutes. |
-| `homecloud_vm_memory_total_bytes` | bytes | Guest memory. |
-| `homecloud_vm_memory_used_bytes` | bytes | Guest memory in use. |
-| `homecloud_vm_memory_available_bytes` | bytes | Guest memory available for new work. |
-| `homecloud_vm_swap_total_bytes`, `homecloud_vm_swap_used_bytes` | bytes | Guest swap. |
-| `homecloud_vm_uptime_seconds` | seconds | Guest uptime. |
-| `homecloud_vm_metrics_age_seconds` | seconds | Age of the cached sample. |
-| `homecloud_vm_filesystem_size_bytes`, `homecloud_vm_filesystem_used_bytes` | bytes | A guest filesystem, attributed to the VM disk it lives on (`disk_id`; empty when it cannot be attributed). |
-| `homecloud_vm_disk_virtual_size_bytes` | bytes | Virtual size of a VM disk. |
-| `homecloud_vm_disk_allocated_bytes` | bytes | Host space the disk's qcow2 file occupies. Thin provisioning makes this smaller than the virtual size. |
+| `attic_vm_cpu_percent` | percent | Guest CPU use, like `top`: 100 per busy vCPU. An 8-vCPU guest can reach 800. |
+| `attic_vm_cpu_cores` | count | vCPUs the guest sees. |
+| `attic_vm_load1`, `attic_vm_load5`, `attic_vm_load15` | load average | Guest load over 1, 5 and 15 minutes. |
+| `attic_vm_memory_total_bytes` | bytes | Guest memory. |
+| `attic_vm_memory_used_bytes` | bytes | Guest memory in use. |
+| `attic_vm_memory_available_bytes` | bytes | Guest memory available for new work. |
+| `attic_vm_swap_total_bytes`, `attic_vm_swap_used_bytes` | bytes | Guest swap. |
+| `attic_vm_uptime_seconds` | seconds | Guest uptime. |
+| `attic_vm_metrics_age_seconds` | seconds | Age of the cached sample. |
+| `attic_vm_filesystem_size_bytes`, `attic_vm_filesystem_used_bytes` | bytes | A guest filesystem, attributed to the VM disk it lives on (`disk_id`; empty when it cannot be attributed). |
+| `attic_vm_disk_virtual_size_bytes` | bytes | Virtual size of a VM disk. |
+| `attic_vm_disk_allocated_bytes` | bytes | Host space the disk's qcow2 file occupies. Thin provisioning makes this smaller than the virtual size. |
 
 ### Self-instrumentation (vmd)
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `homecloud_vmd_scrape_errors_total` | counter | `source` | Scrapes that could not read the store (`source="capacity"`). |
-| `homecloud_vm_sample_errors_total` | counter | none | Guest samples that failed. |
-| `homecloud_vm_samples_last_duration_seconds` | gauge | none | How long the last sampling pass took. |
-| `homecloud_vm_samples_last_timestamp_seconds` | gauge | none | Unix time at which the last sampling pass finished. |
-| `homecloud_reconcile_vm_total` | counter | `outcome` (`ok`, `error`) | VM reconciliation steps, by outcome. Counts failed steps, including transient ones. |
-| `homecloud_reconcile_vm_duration_seconds` | histogram | none | Time to reconcile one VM. |
-| `homecloud_reconcile_ticks_total` | counter | none | Reconciler ticks completed. |
-| `homecloud_reconcile_tick_duration_seconds` | histogram | none | Time per tick. |
-| `homecloud_reconcile_last_tick_claimed` | gauge | none | VMs claimed by the last tick. |
+| `attic_vmd_scrape_errors_total` | counter | `source` | Scrapes that could not read the store (`source="capacity"`). |
+| `attic_vm_sample_errors_total` | counter | none | Guest samples that failed. |
+| `attic_vm_samples_last_duration_seconds` | gauge | none | How long the last sampling pass took. |
+| `attic_vm_samples_last_timestamp_seconds` | gauge | none | Unix time at which the last sampling pass finished. |
+| `attic_reconcile_vm_total` | counter | `outcome` (`ok`, `error`) | VM reconciliation steps, by outcome. Counts failed steps, including transient ones. |
+| `attic_reconcile_vm_duration_seconds` | histogram | none | Time to reconcile one VM. |
+| `attic_reconcile_ticks_total` | counter | none | Reconciler ticks completed. |
+| `attic_reconcile_tick_duration_seconds` | histogram | none | Time per tick. |
+| `attic_reconcile_last_tick_claimed` | gauge | none | VMs claimed by the last tick. |
 
 ### agentd metrics
 
@@ -533,10 +533,10 @@ agentd serves the RPC metrics (`server="agentd"`) and these task metrics:
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `homecloud_agent_tasks_finished_total` | counter | `state` (`succeeded`, `failed`, `gave_up`, `cancelled`, `error`) | Tasks that reached a final state. |
-| `homecloud_agent_task_duration_seconds` | histogram | none | Time from start to final state. |
-| `homecloud_agent_steps_total` | counter | none | Commands run by agents inside VMs. |
-| `homecloud_agent_lease_lost_total` | counter | none | Tasks whose lease was taken over while this worker ran them. |
+| `attic_agent_tasks_finished_total` | counter | `state` (`succeeded`, `failed`, `gave_up`, `cancelled`, `error`) | Tasks that reached a final state. |
+| `attic_agent_task_duration_seconds` | histogram | none | Time from start to final state. |
+| `attic_agent_steps_total` | counter | none | Commands run by agents inside VMs. |
+| `attic_agent_lease_lost_total` | counter | none | Tasks whose lease was taken over while this worker ran them. |
 
 There is no gauge for the queue depth. Count queued tasks with `TaskService.ListTasks` (`state=TASK_STATE_QUEUED`)
 or with a query on the database.
@@ -547,89 +547,89 @@ These are examples in Prometheus rule syntax. Thresholds are starting points.
 
 ```yaml
 groups:
-  - name: homecloud
+  - name: attic
     rules:
-      - alert: HomecloudNodeDown
-        expr: homecloud_node_up == 0 and homecloud_node_draining == 0
+      - alert: AtticNodeDown
+        expr: attic_node_up == 0 and attic_node_draining == 0
         for: 2m
         labels: {severity: page}
 
-      - alert: HomecloudNodeDrainedLongTerm
-        expr: homecloud_node_draining == 1
+      - alert: AtticNodeDrainedLongTerm
+        expr: attic_node_draining == 1
         for: 24h
         labels: {severity: warn}
         annotations:
           summary: "A node has been draining for a day. Undrain it or plan its maintenance."
 
-      - alert: HomecloudNoCapacity
-        expr: homecloud_cluster_cpu_available_vcpus <= 0 or homecloud_cluster_memory_available_bytes < 1073741824
+      - alert: AtticNoCapacity
+        expr: attic_cluster_cpu_available_vcpus <= 0 or attic_cluster_memory_available_bytes < 1073741824
         for: 10m
         labels: {severity: warn}
         annotations:
           summary: "No CPU or less than 1 GiB of memory left to start VMs. Pending VMs wait with 'waiting for capacity'."
 
-      - alert: HomecloudVMInError
-        expr: homecloud_vms{state="error"} > 0
+      - alert: AtticVMInError
+        expr: attic_vms{state="error"} > 0
         for: 5m
         labels: {severity: page}
         annotations:
           summary: "A VM is in ERROR (crash loop or failed step). Read its state_reason."
 
-      - alert: HomecloudReconcileErrors
-        expr: sum(rate(homecloud_reconcile_vm_total{outcome="error"}[10m])) > 0.05
+      - alert: AtticReconcileErrors
+        expr: sum(rate(attic_reconcile_vm_total{outcome="error"}[10m])) > 0.05
         for: 10m
         labels: {severity: warn}
 
-      - alert: HomecloudReconcilerStalled
-        expr: rate(homecloud_reconcile_ticks_total[5m]) == 0
+      - alert: AtticReconcilerStalled
+        expr: rate(attic_reconcile_ticks_total[5m]) == 0
         for: 5m
         labels: {severity: page}
 
-      - alert: HomecloudNodeDiskNearlyFull
-        expr: homecloud_node_disk_free_bytes / homecloud_node_disk_total_bytes < 0.10
+      - alert: AtticNodeDiskNearlyFull
+        expr: attic_node_disk_free_bytes / attic_node_disk_total_bytes < 0.10
         for: 15m
         labels: {severity: warn}
 
-      - alert: HomecloudGuestFilesystemNearlyFull
-        expr: homecloud_vm_filesystem_used_bytes / homecloud_vm_filesystem_size_bytes > 0.90
+      - alert: AtticGuestFilesystemNearlyFull
+        expr: attic_vm_filesystem_used_bytes / attic_vm_filesystem_size_bytes > 0.90
         for: 15m
         labels: {severity: warn}
 
-      - alert: HomecloudInternalErrors
-        expr: sum(rate(homecloud_rpc_requests_total{code="internal"}[5m])) > 0
+      - alert: AtticInternalErrors
+        expr: sum(rate(attic_rpc_requests_total{code="internal"}[5m])) > 0
         for: 5m
         labels: {severity: warn}
         annotations:
           summary: "API calls return internal errors. Check Postgres and the server log."
 
-      - alert: HomecloudScrapeErrors
-        expr: rate(homecloud_vmd_scrape_errors_total[5m]) > 0
+      - alert: AtticScrapeErrors
+        expr: rate(attic_vmd_scrape_errors_total[5m]) > 0
         for: 10m
         labels: {severity: warn}
 
-      - alert: HomecloudGuestSamplesStale
-        expr: time() - homecloud_vm_samples_last_timestamp_seconds > 300
+      - alert: AtticGuestSamplesStale
+        expr: time() - attic_vm_samples_last_timestamp_seconds > 300
         for: 5m
         labels: {severity: warn}
 
-      - alert: HomecloudAgentLeaseLost
-        expr: increase(homecloud_agent_lease_lost_total[10m]) > 0
+      - alert: AtticAgentLeaseLost
+        expr: increase(attic_agent_lease_lost_total[10m]) > 0
         labels: {severity: warn}
         annotations:
           summary: "An agentd worker lost a task lease. Check worker health and Postgres latency."
 
-      - alert: HomecloudAgentTaskError
-        expr: increase(homecloud_agent_tasks_finished_total{state="error"}[30m]) > 0
+      - alert: AtticAgentTaskError
+        expr: increase(attic_agent_tasks_finished_total{state="error"}[30m]) > 0
         labels: {severity: warn}
         annotations:
           summary: "Agent tasks ended in ERROR (agent not active, VM gone, model error). Read the task result."
 ```
 
-Not covered: a VM crash counter is not exported. Use `homecloud_vms{state="error"}` and the reconcile failure rate.
+Not covered: a VM crash counter is not exported. Use `attic_vms{state="error"}` and the reconcile failure rate.
 vmd exports no task queue gauge.
 
 A transient start failure (for example, a missing `genisoimage`) does not show as `error`; the VM stays
-`stopped` with a `state_reason`. Watch `homecloud_reconcile_vm_total{outcome="error"}` for those.
+`stopped` with a `state_reason`. Watch `attic_reconcile_vm_total{outcome="error"}` for those.
 
 ## Capacity planning
 
@@ -718,4 +718,4 @@ Guest job directories are not backed up. They are short-lived.
   files of the running VMs. Calls to that node fail with `unavailable` while it restarts, and the reconciler
   retries.
 - The build version is set at link time (`-ldflags "-X main.version=..."`). `vmd -version` prints it, and the
-  `homecloud_build_info` metric carries it.
+  `attic_build_info` metric carries it.

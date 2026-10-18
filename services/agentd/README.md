@@ -48,7 +48,7 @@ cd services/agentd && go test -race ./...
 
 Tests run the store conformance suite against memory and Postgres, and the service and runner tests use the fake
 LLM and the mock VM client. Postgres tests start a database through `libs/common/pg/pgtest` unless
-`HOMECLOUD_TEST_POSTGRES` points at one. Runner lease tests use short real-time TTLs, which can be sensitive to
+`ATTIC_TEST_POSTGRES` points at one. Runner lease tests use short real-time TTLs, which can be sensitive to
 load.
 
 ## Notes and limitations

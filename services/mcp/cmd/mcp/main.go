@@ -1,4 +1,4 @@
-// Command mcp serves homecloud to MCP clients (such as Claude) over streamable HTTP. Callers present the same
+// Command mcp serves Attic Cloud to MCP clients (such as Claude) over streamable HTTP. Callers present the same
 // bearer tokens vmd and agentd accept; the server forwards them, so it can do nothing its caller could not.
 package main
 

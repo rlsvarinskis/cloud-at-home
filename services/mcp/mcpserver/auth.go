@@ -27,13 +27,13 @@ func tokenFrom(ctx context.Context) (string, error) {
 	return t, nil
 }
 
-// requireBearer rejects requests without a valid homecloud token, and puts the token and principal in the context.
+// requireBearer rejects requests without a valid Attic Cloud token, and puts the token and principal in the context.
 func requireBearer(v *authz.Verifier, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := r.Header.Get("Authorization")
 		tok, ok := strings.CutPrefix(h, "Bearer ")
 		if !ok || tok == "" {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="homecloud-mcp"`)
+			w.Header().Set("WWW-Authenticate", `Bearer realm="attic-mcp"`)
 			http.Error(w, "missing bearer token", http.StatusUnauthorized)
 			return
 		}

@@ -1,4 +1,4 @@
-// Command hcctl is the homecloud admin CLI. It generates Ed25519 signing keys, mints signed
+// Command atticctl is the Attic Cloud admin CLI. It generates Ed25519 signing keys, mints signed
 // tokens, and inspects tokens against a public key.
 //
 // Secrets are never written to stdout or stderr. The only stdout output that carries sensitive
@@ -35,14 +35,14 @@ const defaultMaxTTL = 30 * 24 * time.Hour
 // keyIDPattern limits key IDs to characters that are safe in file names and JWT headers.
 var keyIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
-// knownRoles lists the roles hcctl can grant (every role defined in libs/authz).
+// knownRoles lists the roles atticctl can grant (every role defined in libs/authz).
 var knownRoles = authz.Roles()
 
 const usageText = `usage:
-  hcctl key generate -out DIR -id KEYID
-  hcctl token mint -key FILE -kid KEYID -sub SUBJECT -type user|service -bind project:role [-bind ...] [-ttl 24h] [-max-ttl 720h]
-  hcctl token inspect -pub FILE -kid KEYID (TOKEN | -)
-  hcctl roles [-v]        list roles (-v: with the permissions each grants)
+  atticctl key generate -out DIR -id KEYID
+  atticctl token mint -key FILE -kid KEYID -sub SUBJECT -type user|service -bind project:role [-bind ...] [-ttl 24h] [-max-ttl 720h]
+  atticctl token inspect -pub FILE -kid KEYID (TOKEN | -)
+  atticctl roles [-v]        list roles (-v: with the permissions each grants)
 
 Flags must come before positional arguments.
 `
@@ -51,7 +51,7 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
-// run executes one hcctl invocation and returns the process exit code.
+// run executes one atticctl invocation and returns the process exit code.
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usageText)
@@ -68,13 +68,13 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprint(stdout, usageText)
 		return exitOK
 	}
-	fmt.Fprintf(stderr, "hcctl: unknown command %q\n", args[0])
+	fmt.Fprintf(stderr, "atticctl: unknown command %q\n", args[0])
 	fmt.Fprint(stderr, usageText)
 	return exitUsage
 }
 
 func newFlagSet(name string, stderr io.Writer) *flag.FlagSet {
-	fl := flag.NewFlagSet("hcctl "+name, flag.ContinueOnError)
+	fl := flag.NewFlagSet("atticctl "+name, flag.ContinueOnError)
 	fl.SetOutput(stderr)
 	return fl
 }
@@ -91,12 +91,12 @@ func parseFlags(fl *flag.FlagSet, args []string) (int, bool) {
 }
 
 func usageErr(stderr io.Writer, format string, a ...any) int {
-	fmt.Fprintf(stderr, "hcctl: "+format+"\n", a...)
+	fmt.Fprintf(stderr, "atticctl: "+format+"\n", a...)
 	return exitUsage
 }
 
 func failErr(stderr io.Writer, err error) int {
-	fmt.Fprintf(stderr, "hcctl: %v\n", err)
+	fmt.Fprintf(stderr, "atticctl: %v\n", err)
 	return exitFailure
 }
 
@@ -220,7 +220,7 @@ func parseBinding(s string) (authz.Binding, error) {
 	}
 	r := authz.Role(role)
 	if !authz.KnownRole(r) {
-		return authz.Binding{}, fmt.Errorf("binding %q: unknown role %q (see hcctl roles)", s, role)
+		return authz.Binding{}, fmt.Errorf("binding %q: unknown role %q (see atticctl roles)", s, role)
 	}
 	return authz.Binding{Project: project, Role: r}, nil
 }
@@ -322,7 +322,7 @@ func runInspect(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	verifier := &authz.Verifier{Keys: map[string]authz.TrustedKey{*kid: {Public: pub}}}
 	p, err := verifier.Verify(token)
 	if err != nil {
-		fmt.Fprintf(stderr, "hcctl: invalid token: %v\n", err)
+		fmt.Fprintf(stderr, "atticctl: invalid token: %v\n", err)
 		return exitFailure
 	}
 
@@ -360,7 +360,7 @@ func runRoles(args []string, stdout, stderr io.Writer) int {
 	case len(args) == 1 && (args[0] == "-v" || args[0] == "--verbose"):
 		verbose = true
 	case len(args) != 0:
-		return usageErr(stderr, "usage: hcctl roles [-v]")
+		return usageErr(stderr, "usage: atticctl roles [-v]")
 	}
 	for _, r := range knownRoles {
 		fmt.Fprintln(stdout, r)

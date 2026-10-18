@@ -44,7 +44,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("agentd", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	listen := fs.String("listen", ":8081", "address to listen on")
-	dsn := fs.String("postgres-dsn", os.Getenv("HOMECLOUD_POSTGRES_DSN"), "Postgres DSN; empty = in-memory store, development only")
+	dsn := fs.String("postgres-dsn", os.Getenv("ATTIC_POSTGRES_DSN"), "Postgres DSN; empty = in-memory store, development only")
 	logLevel := fs.String("log-level", "info", "debug | info | warn | error")
 	maxTTL := fs.Duration("max-token-ttl", 24*time.Hour, "reject tokens valid for longer than this")
 	var trusted daemon.TrustedKeys

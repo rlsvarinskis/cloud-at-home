@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #
 # mcp: the MCP server that exposes vmd and agentd to MCP clients such as Claude. Build from the repository root:
-#   docker build -f deploy/Dockerfile.mcp -t homecloud/mcp .
+#   docker build -f deploy/Dockerfile.mcp -t attic/mcp .
 
 FROM golang:1.26 AS build
 WORKDIR /src
@@ -18,7 +18,7 @@ COPY libs/server/go.mod libs/server/go.sum libs/server/
 COPY services/vmd/go.mod services/vmd/go.sum services/vmd/
 COPY services/agentd/go.mod services/agentd/go.sum services/agentd/
 COPY services/mcp/go.mod services/mcp/go.sum services/mcp/
-COPY cmd/hcctl/go.mod cmd/hcctl/go.sum cmd/hcctl/
+COPY cmd/atticctl/go.mod cmd/atticctl/go.sum cmd/atticctl/
 COPY e2e/go.mod e2e/go.sum e2e/
 RUN --mount=type=cache,target=/go/pkg/mod cd services/mcp && go mod download
 

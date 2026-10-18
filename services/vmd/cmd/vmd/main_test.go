@@ -119,7 +119,7 @@ func TestVMDAllInOneWithPostgres(t *testing.T) {
 		t.Fatalf("readyz (store reachable): %v %v", res, err)
 	}
 
-	cap := base + "/homecloud.vmd.v1.MetricsService/GetCapacity"
+	cap := base + "/attic.vmd.v1.MetricsService/GetCapacity"
 	if code, _ := call(t, cap, "", "{}"); code != 401 {
 		t.Errorf("no token: %d, want 401", code)
 	}
@@ -153,7 +153,7 @@ func TestVMDAllInOneWithPostgres(t *testing.T) {
 		t.Fatalf("metrics: %v %v", res, err)
 	}
 	text, _ := io.ReadAll(res.Body)
-	for _, want := range []string{"homecloud_cluster_cpu_threads", "homecloud_node_up", "homecloud_rpc_requests_total"} {
+	for _, want := range []string{"attic_cluster_cpu_threads", "attic_node_up", "attic_rpc_requests_total"} {
 		if !strings.Contains(string(text), want) {
 			t.Errorf("/metrics lacks %s", want)
 		}
@@ -184,7 +184,7 @@ func TestVMDRefusesBadConfiguration(t *testing.T) {
 	}
 }
 
-func capacityURL(base string) string { return base + "/homecloud.vmd.v1.MetricsService/GetCapacity" }
+func capacityURL(base string) string { return base + "/attic.vmd.v1.MetricsService/GetCapacity" }
 
 // Several -postgres-dsn flags shard projects across the databases: every database gets its schema AND receives
 // rows, the rows of a project stay together, and the API behaves as with one database.
@@ -200,7 +200,7 @@ func TestVMDShardsAcrossSeveralDatabases(t *testing.T) {
 	if res, err := http.Get(base + "/readyz"); err != nil || res.StatusCode != 200 { // pings every database
 		t.Fatalf("readyz: %v %v", res, err)
 	}
-	create := base + "/homecloud.vmd.v1.DiskService/CreateDisk"
+	create := base + "/attic.vmd.v1.DiskService/CreateDisk"
 	const projects = 30 // enough that an empty shard is practically impossible by chance
 	for i := range projects {
 		p := fmt.Sprintf("proj-%02d", i)
@@ -217,7 +217,7 @@ func TestVMDShardsAcrossSeveralDatabases(t *testing.T) {
 			t.Fatalf("create disk in %s: %d %s", p, code, body)
 		}
 		// Reading it back through the API finds it on whichever shard holds the project.
-		code, body = call(t, base+"/homecloud.vmd.v1.DiskService/ListDisks", k.token(t, authz.RoleViewer, p), `{"projectId":"`+p+`"}`)
+		code, body = call(t, base+"/attic.vmd.v1.DiskService/ListDisks", k.token(t, authz.RoleViewer, p), `{"projectId":"`+p+`"}`)
 		if code != 200 || strings.Count(body, `"name":"data"`) != 1 {
 			t.Fatalf("list disks in %s: %d %s", p, code, body)
 		}
@@ -250,7 +250,7 @@ func TestVMDQuotaFlags(t *testing.T) {
 	args := append([]string{"-role", "all", "-listen", "127.0.0.1:0", "-node-id", "n1", "-quota-disk-gb", "10"}, k.args...)
 	base := start(t, append(args, nodeArgs(t)...)...)
 	ed := k.token(t, authz.RoleEditor, "p1")
-	create := base + "/homecloud.vmd.v1.DiskService/CreateDisk"
+	create := base + "/attic.vmd.v1.DiskService/CreateDisk"
 
 	var code int
 	var body string

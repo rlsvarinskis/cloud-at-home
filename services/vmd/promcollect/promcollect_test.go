@@ -16,7 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
+	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/fake"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/scheduler"
@@ -278,111 +278,111 @@ func TestOptionsDefaults(t *testing.T) {
 func TestNodeAndClusterCapacity(t *testing.T) {
 	f := newFixture(t, nil)
 	// n2 is draining, so it is excluded from the cluster totals, and a draining node hands out nothing.
-	f.want("homecloud_node_up", `{node="n1"} 1`, `{node="n2"} 0`)
-	f.want("homecloud_node_draining", `{node="n1"} 0`, `{node="n2"} 1`)
-	f.want("homecloud_node_cpu_threads", `{node="n1"} 16`, `{node="n2"} 8`)
-	f.want("homecloud_node_cpu_allocated_vcpus", `{node="n1"} 10`, `{node="n2"} 4`)
-	f.want("homecloud_node_cpu_available_vcpus", `{node="n1"} 6`, `{node="n2"} 0`)
-	f.want("homecloud_node_memory_total_bytes", `{node="n1"} 34359738368`, `{node="n2"} 17179869184`)
-	f.want("homecloud_node_memory_allocated_bytes", `{node="n1"} 6442450944`, `{node="n2"} 1073741824`)
-	f.want("homecloud_node_memory_available_bytes", `{node="n1"} 27917287424`, `{node="n2"} 0`)
-	f.want("homecloud_node_disk_total_bytes", `{node="n1"} 107374182400`, `{node="n2"} 53687091200`)
-	f.want("homecloud_node_disk_free_bytes", `{node="n1"} 42949672960`, `{node="n2"} 10737418240`)
-	f.want("homecloud_node_vms", `{node="n1"} 2`, `{node="n2"} 2`)
-	f.want("homecloud_node_vms_running", `{node="n1"} 2`, `{node="n2"} 0`)
-	f.want("homecloud_node_last_heartbeat_timestamp_seconds", `{node="n1"} 1800000000`, `{node="n2"} 1800000000`)
+	f.want("attic_node_up", `{node="n1"} 1`, `{node="n2"} 0`)
+	f.want("attic_node_draining", `{node="n1"} 0`, `{node="n2"} 1`)
+	f.want("attic_node_cpu_threads", `{node="n1"} 16`, `{node="n2"} 8`)
+	f.want("attic_node_cpu_allocated_vcpus", `{node="n1"} 10`, `{node="n2"} 4`)
+	f.want("attic_node_cpu_available_vcpus", `{node="n1"} 6`, `{node="n2"} 0`)
+	f.want("attic_node_memory_total_bytes", `{node="n1"} 34359738368`, `{node="n2"} 17179869184`)
+	f.want("attic_node_memory_allocated_bytes", `{node="n1"} 6442450944`, `{node="n2"} 1073741824`)
+	f.want("attic_node_memory_available_bytes", `{node="n1"} 27917287424`, `{node="n2"} 0`)
+	f.want("attic_node_disk_total_bytes", `{node="n1"} 107374182400`, `{node="n2"} 53687091200`)
+	f.want("attic_node_disk_free_bytes", `{node="n1"} 42949672960`, `{node="n2"} 10737418240`)
+	f.want("attic_node_vms", `{node="n1"} 2`, `{node="n2"} 2`)
+	f.want("attic_node_vms_running", `{node="n1"} 2`, `{node="n2"} 0`)
+	f.want("attic_node_last_heartbeat_timestamp_seconds", `{node="n1"} 1800000000`, `{node="n2"} 1800000000`)
 
-	f.want("homecloud_cluster_cpu_threads", "16")
-	f.want("homecloud_cluster_cpu_allocated_vcpus", "10")
-	f.want("homecloud_cluster_cpu_available_vcpus", "6")
-	f.want("homecloud_cluster_memory_total_bytes", "34359738368")
-	f.want("homecloud_cluster_memory_allocated_bytes", "6442450944")
-	f.want("homecloud_cluster_memory_available_bytes", "27917287424")
-	f.want("homecloud_cluster_disk_total_bytes", "107374182400")
-	f.want("homecloud_cluster_disk_free_bytes", "42949672960")
-	f.want("homecloud_cluster_vms", "2")
-	f.want("homecloud_cluster_vms_running", "2")
-	f.want("homecloud_cluster_nodes_ready", "1")
+	f.want("attic_cluster_cpu_threads", "16")
+	f.want("attic_cluster_cpu_allocated_vcpus", "10")
+	f.want("attic_cluster_cpu_available_vcpus", "6")
+	f.want("attic_cluster_memory_total_bytes", "34359738368")
+	f.want("attic_cluster_memory_allocated_bytes", "6442450944")
+	f.want("attic_cluster_memory_available_bytes", "27917287424")
+	f.want("attic_cluster_disk_total_bytes", "107374182400")
+	f.want("attic_cluster_disk_free_bytes", "42949672960")
+	f.want("attic_cluster_vms", "2")
+	f.want("attic_cluster_vms_running", "2")
+	f.want("attic_cluster_nodes_ready", "1")
 }
 
 func TestVMCountsIncludeZeroStates(t *testing.T) {
 	f := newFixture(t, nil)
-	f.want("homecloud_vms",
+	f.want("attic_vms",
 		`{state="deleting"} 0`, `{state="error"} 1`, `{state="pending"} 0`, `{state="running"} 2`,
 		`{state="starting"} 0`, `{state="stopped"} 1`, `{state="stopping"} 0`)
-	f.want("homecloud_vms_desired_running", "3") // vm-1, vm-2 and vm-4
+	f.want("attic_vms_desired_running", "3") // vm-1, vm-2 and vm-4
 
 	for _, id := range []string{"vm-1", "vm-2", "vm-3", "vm-4"} {
 		if err := f.st.DeleteVM(f.ctx, id); err != nil {
 			t.Fatal(err)
 		}
 	}
-	f.want("homecloud_vms",
+	f.want("attic_vms",
 		`{state="deleting"} 0`, `{state="error"} 0`, `{state="pending"} 0`, `{state="running"} 0`,
 		`{state="starting"} 0`, `{state="stopped"} 0`, `{state="stopping"} 0`)
-	f.want("homecloud_vms_desired_running", "0")
+	f.want("attic_vms_desired_running", "0")
 }
 
 func TestExpositionFormat(t *testing.T) {
 	f := newFixture(t, nil)
-	want := `# HELP homecloud_vms VMs per state across all nodes.
-# TYPE homecloud_vms gauge
-homecloud_vms{state="deleting"} 0
-homecloud_vms{state="error"} 1
-homecloud_vms{state="pending"} 0
-homecloud_vms{state="running"} 2
-homecloud_vms{state="starting"} 0
-homecloud_vms{state="stopped"} 1
-homecloud_vms{state="stopping"} 0
-# HELP homecloud_vms_desired_running VMs whose desired power state is running.
-# TYPE homecloud_vms_desired_running gauge
-homecloud_vms_desired_running 3
+	want := `# HELP attic_vms VMs per state across all nodes.
+# TYPE attic_vms gauge
+attic_vms{state="deleting"} 0
+attic_vms{state="error"} 1
+attic_vms{state="pending"} 0
+attic_vms{state="running"} 2
+attic_vms{state="starting"} 0
+attic_vms{state="stopped"} 1
+attic_vms{state="stopping"} 0
+# HELP attic_vms_desired_running VMs whose desired power state is running.
+# TYPE attic_vms_desired_running gauge
+attic_vms_desired_running 3
 `
-	if err := testutil.GatherAndCompare(f.reg, strings.NewReader(want), "homecloud_vms", "homecloud_vms_desired_running"); err != nil {
+	if err := testutil.GatherAndCompare(f.reg, strings.NewReader(want), "attic_vms", "attic_vms_desired_running"); err != nil {
 		t.Error(err)
 	}
 }
 
 func TestPerVMSeriesAfterSample(t *testing.T) {
 	f := newFixture(t, nil)
-	f.want("homecloud_vm_cpu_percent") // nothing until the first sampling pass
+	f.want("attic_vm_cpu_percent") // nothing until the first sampling pass
 	f.c.SampleOnce(f.ctx)
 
 	// vm-1 is an 8-vCPU guest busy on every vCPU: 800 plus its 12.5 of other work reads 812.5.
-	f.want("homecloud_vm_cpu_percent",
+	f.want("attic_vm_cpu_percent",
 		`{name="web",node="n1",project="alpha",vm_id="vm-1"} 812.5`,
 		`{name="db",node="n1",project="beta",vm_id="vm-2"} 12.5`)
-	f.want("homecloud_vm_cpu_cores",
+	f.want("attic_vm_cpu_cores",
 		`{name="web",node="n1",project="alpha",vm_id="vm-1"} 8`,
 		`{name="db",node="n1",project="beta",vm_id="vm-2"} 2`)
-	f.want("homecloud_vm_memory_used_bytes",
+	f.want("attic_vm_memory_used_bytes",
 		`{name="web",node="n1",project="alpha",vm_id="vm-1"} 1073741824`,
 		`{name="db",node="n1",project="beta",vm_id="vm-2"} 536870912`)
-	f.want("homecloud_vm_load1",
+	f.want("attic_vm_load1",
 		`{name="web",node="n1",project="alpha",vm_id="vm-1"} 3.25`,
 		`{name="db",node="n1",project="beta",vm_id="vm-2"} 0.5`)
-	f.want("homecloud_vm_metrics_age_seconds",
+	f.want("attic_vm_metrics_age_seconds",
 		`{name="web",node="n1",project="alpha",vm_id="vm-1"} 0`,
 		`{name="db",node="n1",project="beta",vm_id="vm-2"} 0`)
-	f.want("homecloud_vm_filesystem_size_bytes",
+	f.want("attic_vm_filesystem_size_bytes",
 		`{device="/dev/vda1",disk_id="vm-1-os",mount_point="/",name="web",node="n1",project="alpha",vm_id="vm-1"} 21474836480`,
 		`{device="/dev/vdb1",disk_id="vm-1-data",mount_point="/srv/data",name="web",node="n1",project="alpha",vm_id="vm-1"} 107374182400`,
 		`{device="/dev/vda1",disk_id="vm-2-os",mount_point="/",name="db",node="n1",project="beta",vm_id="vm-2"} 10737418240`)
-	f.want("homecloud_vm_filesystem_used_bytes",
+	f.want("attic_vm_filesystem_used_bytes",
 		`{device="/dev/vda1",disk_id="vm-1-os",mount_point="/",name="web",node="n1",project="alpha",vm_id="vm-1"} 8589934592`,
 		`{device="/dev/vdb1",disk_id="vm-1-data",mount_point="/srv/data",name="web",node="n1",project="alpha",vm_id="vm-1"} 53687091200`,
 		`{device="/dev/vda1",disk_id="vm-2-os",mount_point="/",name="db",node="n1",project="beta",vm_id="vm-2"} 1073741824`)
-	f.want("homecloud_vm_disk_virtual_size_bytes",
+	f.want("attic_vm_disk_virtual_size_bytes",
 		`{disk_id="vm-1-os",name="web",node="n1",project="alpha",vm_id="vm-1"} 21474836480`,
 		`{disk_id="vm-1-data",name="web",node="n1",project="alpha",vm_id="vm-1"} 107374182400`,
 		`{disk_id="vm-2-os",name="db",node="n1",project="beta",vm_id="vm-2"} 10737418240`)
-	f.want("homecloud_vm_disk_allocated_bytes",
+	f.want("attic_vm_disk_allocated_bytes",
 		`{disk_id="vm-1-os",name="web",node="n1",project="alpha",vm_id="vm-1"} 8589934592`,
 		`{disk_id="vm-1-data",name="web",node="n1",project="alpha",vm_id="vm-1"} 53687091200`,
 		`{disk_id="vm-2-os",name="db",node="n1",project="beta",vm_id="vm-2"} 2147483648`)
 
-	f.want("homecloud_vm_sample_errors_total", "0")
-	f.want("homecloud_vm_samples_last_timestamp_seconds", strconv.FormatInt(t0.Unix(), 10))
+	f.want("attic_vm_sample_errors_total", "0")
+	f.want("attic_vm_samples_last_timestamp_seconds", strconv.FormatInt(t0.Unix(), 10))
 }
 
 func TestStoppedVMSeriesVanish(t *testing.T) {
@@ -396,11 +396,11 @@ func TestStoppedVMSeriesVanish(t *testing.T) {
 	f.setVM("vm-2", func(v *domain.VM) { v.State, v.Desired = domain.VMStopped, domain.PowerStopped })
 	f.c.SampleOnce(f.ctx)
 
-	f.want("homecloud_vm_cpu_percent", `{name="web",node="n1",project="alpha",vm_id="vm-1"} 812.5`)
-	f.want("homecloud_vm_disk_allocated_bytes",
+	f.want("attic_vm_cpu_percent", `{name="web",node="n1",project="alpha",vm_id="vm-1"} 812.5`)
+	f.want("attic_vm_disk_allocated_bytes",
 		`{disk_id="vm-1-os",name="web",node="n1",project="alpha",vm_id="vm-1"} 8589934592`,
 		`{disk_id="vm-1-data",name="web",node="n1",project="alpha",vm_id="vm-1"} 53687091200`)
-	f.want("homecloud_vms", `{state="deleting"} 0`, `{state="error"} 1`, `{state="pending"} 0`,
+	f.want("attic_vms", `{state="deleting"} 0`, `{state="error"} 1`, `{state="pending"} 0`,
 		`{state="running"} 1`, `{state="starting"} 0`, `{state="stopped"} 2`, `{state="stopping"} 0`)
 }
 
@@ -411,22 +411,22 @@ func TestSamplesExpireAfterThreeIntervals(t *testing.T) {
 	f.n1.SetDown(true)
 	f.clk.Advance(30 * time.Second)
 	f.c.SampleOnce(f.ctx) // both samples fail; the old ones are kept
-	f.want("homecloud_vm_sample_errors_total", "2")
-	f.want("homecloud_vm_metrics_age_seconds",
+	f.want("attic_vm_sample_errors_total", "2")
+	f.want("attic_vm_metrics_age_seconds",
 		`{name="web",node="n1",project="alpha",vm_id="vm-1"} 30`,
 		`{name="db",node="n1",project="beta",vm_id="vm-2"} 30`)
 
 	f.clk.Advance(60 * time.Second) // age 90: still exported
-	f.want("homecloud_vm_metrics_age_seconds",
+	f.want("attic_vm_metrics_age_seconds",
 		`{name="web",node="n1",project="alpha",vm_id="vm-1"} 90`,
 		`{name="db",node="n1",project="beta",vm_id="vm-2"} 90`)
 
 	f.clk.Advance(time.Second) // age 91: dropped
-	f.want("homecloud_vm_cpu_percent")
+	f.want("attic_vm_cpu_percent")
 
 	f.n1.SetDown(false)
 	f.c.SampleOnce(f.ctx)
-	f.want("homecloud_vm_cpu_percent",
+	f.want("attic_vm_cpu_percent",
 		`{name="web",node="n1",project="alpha",vm_id="vm-1"} 812.5`,
 		`{name="db",node="n1",project="beta",vm_id="vm-2"} 12.5`)
 }
@@ -437,8 +437,8 @@ func TestSampleFailureKeepsNoNewSample(t *testing.T) {
 	f.c.SampleOnce(f.ctx)
 
 	// One VM was sampled, the other failed and had no earlier sample to keep.
-	f.want("homecloud_vm_sample_errors_total", "1")
-	if got := testutil.CollectAndCount(f.c, "homecloud_vm_cpu_percent"); got != 1 {
+	f.want("attic_vm_sample_errors_total", "1")
+	if got := testutil.CollectAndCount(f.c, "attic_vm_cpu_percent"); got != 1 {
 		t.Errorf("cpu series after one failed sample: got %d, want 1", got)
 	}
 }
@@ -450,9 +450,9 @@ func TestCapacityErrorIsCountedAndSkipped(t *testing.T) {
 	register(t, reg, broken)
 
 	got := gather(t, reg) // one gather, so the error counter moves exactly once
-	checkLines(t, "homecloud_vmd_scrape_errors_total", got["homecloud_vmd_scrape_errors_total"],
+	checkLines(t, "attic_vmd_scrape_errors_total", got["attic_vmd_scrape_errors_total"],
 		[]string{`{source="capacity"} 1`})
-	for _, family := range []string{"homecloud_node_up", "homecloud_cluster_cpu_threads", "homecloud_vms"} {
+	for _, family := range []string{"attic_node_up", "attic_cluster_cpu_threads", "attic_vms"} {
 		checkLines(t, family, got[family], nil)
 	}
 }
@@ -473,13 +473,13 @@ func TestHooksCountReconciliations(t *testing.T) {
 	h.OnTick(2, 500*time.Millisecond)
 	h.OnTick(0, 2*time.Second)
 
-	f.want("homecloud_reconcile_vm_total", `{outcome="error"} 1`, `{outcome="ok"} 1`)
-	f.want("homecloud_reconcile_ticks_total", "2")
-	f.want("homecloud_reconcile_last_tick_claimed", "0")
-	if n, sum := histogramStats(t, f.reg, "homecloud_reconcile_vm_duration_seconds"); n != 2 || sum != 3.25 {
+	f.want("attic_reconcile_vm_total", `{outcome="error"} 1`, `{outcome="ok"} 1`)
+	f.want("attic_reconcile_ticks_total", "2")
+	f.want("attic_reconcile_last_tick_claimed", "0")
+	if n, sum := histogramStats(t, f.reg, "attic_reconcile_vm_duration_seconds"); n != 2 || sum != 3.25 {
 		t.Errorf("vm duration: count %d sum %v, want 2 and 3.25", n, sum)
 	}
-	if n, sum := histogramStats(t, f.reg, "homecloud_reconcile_tick_duration_seconds"); n != 2 || sum != 2.5 {
+	if n, sum := histogramStats(t, f.reg, "attic_reconcile_tick_duration_seconds"); n != 2 || sum != 2.5 {
 		t.Errorf("tick duration: count %d sum %v, want 2 and 2.5", n, sum)
 	}
 }
@@ -525,7 +525,7 @@ func TestLabelValuesAreEscaped(t *testing.T) {
 	f.n1.SetMetrics("vm-5", &nodev1.GetVMMetricsResponse{CpuCores: 1})
 	f.c.SampleOnce(f.ctx)
 
-	f.want("homecloud_vm_cpu_cores",
+	f.want("attic_vm_cpu_cores",
 		`{name="web",node="n1",project="alpha",vm_id="vm-1"} 8`,
 		`{name="db",node="n1",project="beta",vm_id="vm-2"} 2`,
 		`{name="odd",node="n1",project="we\"ird\\proj\nx",vm_id="vm-5"} 1`)
@@ -537,7 +537,7 @@ func TestRunSamplesThenReturnsOnCancel(t *testing.T) {
 	cancel()
 	// Run samples once before it looks at the context, then returns.
 	f.c.Run(ctx)
-	if got := testutil.CollectAndCount(f.c, "homecloud_vm_cpu_percent"); got != 2 {
+	if got := testutil.CollectAndCount(f.c, "attic_vm_cpu_percent"); got != 2 {
 		t.Errorf("series after Run with a cancelled context: got %d, want 2", got)
 	}
 }

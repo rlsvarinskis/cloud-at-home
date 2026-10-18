@@ -1,10 +1,10 @@
 # Authentication and authorization
 
-homecloud authenticates callers with signed bearer tokens and authorizes them with project-scoped roles.
+Attic Cloud authenticates callers with signed bearer tokens and authorizes them with project-scoped roles.
 Servers hold only public keys, so no server can mint a token it is not configured to trust with a key
 it holds privately. This document describes the token model, the roles, revocation, service-to-service calls,
 key rotation and hardening. The code is in [`libs/authz`](../libs/authz/) (package `authz`), the admin tool is
-[`cmd/hcctl`](../cmd/hcctl/). The system design is in [ARCHITECTURE.md](ARCHITECTURE.md#identity-and-authorization).
+[`cmd/atticctl`](../cmd/atticctl/). The system design is in [ARCHITECTURE.md](ARCHITECTURE.md#identity-and-authorization).
 
 > **Planned, not implemented:** a `services/auth` identity service, which would hold users, API keys and service
 > accounts, offer OIDC login for Google and GitHub, keep an audit log and publish JWKS, so that services verify its
@@ -58,8 +58,8 @@ as an `authentication failed` warning with the procedure name, and is not sent t
 
 | Setting | Default | Effect |
 | --- | --- | --- |
-| `hcctl token mint -ttl` | 24 h | Lifetime of the token. Must be positive and not above `-max-ttl`. |
-| `hcctl token mint -max-ttl` | 720 h (30 days) | Ceiling for `-ttl` at mint time. |
+| `atticctl token mint -ttl` | 24 h | Lifetime of the token. Must be positive and not above `-max-ttl`. |
+| `atticctl token mint -max-ttl` | 720 h (30 days) | Ceiling for `-ttl` at mint time. |
 | `vmd -max-token-ttl`, `agentd -max-token-ttl` | 24 h | The longest lifetime the server accepts. A token minted with a longer `-ttl` is refused with `unauthenticated`. |
 
 The server's `-max-token-ttl` is the effective limit. Raise it on the server to accept longer tokens. Short
@@ -68,20 +68,20 @@ lifetimes are safer: a leaked token is useful until it expires.
 ### Inspecting a token
 
 ```
-hcctl token inspect -pub keys/admin.pub -kid admin "$TOKEN"
+atticctl token inspect -pub keys/admin.pub -kid admin "$TOKEN"
 # or from stdin:
-echo "$TOKEN" | hcctl token inspect -pub keys/admin.pub -kid admin -
+echo "$TOKEN" | atticctl token inspect -pub keys/admin.pub -kid admin -
 ```
 
 The output lists `subject`, `type`, `token-id`, `key-id`, `expires` and `bindings`. It exits with 1 and an error on
 stderr if the signature, key id or expiry is wrong.
 
-`hcctl token mint` prints only the token. Its id appears in `token inspect`, so inspect a token when you need its
+`atticctl token mint` prints only the token. Its id appears in `token inspect`, so inspect a token when you need its
 id, for example before you revoke it.
 
 ## Keys
 
-`hcctl key generate -out DIR -id KEYID` writes two files and refuses to overwrite either one:
+`atticctl key generate -out DIR -id KEYID` writes two files and refuses to overwrite either one:
 
 | File | Content | Mode |
 | --- | --- | --- |
@@ -96,7 +96,7 @@ Verifiers are configured with `-trusted-key kid=path[:role,role]`, which may be 
 - The optional role list limits the roles this key may grant. An unknown role refuses to start.
 - Without a role list, the key may grant any role, including `node`.
 
-`hcctl` (for user tokens) and the services that call other services (for service tokens) hold private keys.
+`atticctl` (for user tokens) and the services that call other services (for service tokens) hold private keys.
 Servers never need a private key except the one they sign with.
 
 ## Projects and bindings
@@ -123,7 +123,7 @@ Shared images (empty project) are readable by any caller who has the permission 
 ## Roles and permissions
 
 Roles are fixed sets of permissions in [`libs/authz/rbac.go`](../libs/authz/rbac.go). The table below is
-the output of `cd cmd/hcctl && go run . roles -v`, reformatted as a table. Regenerate it with that command after any
+the output of `cd cmd/atticctl && go run . roles -v`, reformatted as a table. Regenerate it with that command after any
 change to `rbac.go`.
 
 Notes on the table:
@@ -198,7 +198,7 @@ Tokens are valid until they expire unless the server is told otherwise. `-revoke
 tok_01m5611vsv4gv1njmdxk8jymgp
 ```
 
-- **Finding the id.** `hcctl token inspect` prints it as `token-id`. The id is not printed at mint time.
+- **Finding the id.** `atticctl token inspect` prints it as `token-id`. The id is not printed at mint time.
 - **Revoking.** Append the id to the file. Each server reloads the file when its modification time changes; the
   check runs every 5 s. Afterwards the token is refused with `unauthenticated` (logged as
   `token revoked`).
@@ -238,10 +238,10 @@ The control plane calls each node with its own service key. The key id defaults 
 ```
 # on the control plane
 vmd --role=control --node node-1=http://node-1:8080 \
-  --service-key=/etc/homecloud/vmd.key --service-key-id=vmd
+  --service-key=/etc/attic/vmd.key --service-key-id=vmd
 
 # on each node
-vmd --role=node --trusted-key=vmd=/etc/homecloud/vmd.pub:node ...
+vmd --role=node --trusted-key=vmd=/etc/attic/vmd.pub:node ...
 ```
 
 The control plane mints tokens with subject `svc:vmd`, type `service` and binding `*:node`, valid for five
@@ -258,7 +258,7 @@ to `authz.ClientInterceptor` on a Connect client. See the snippet in [API.md](AP
 The `kid` is part of each token's header and issuer, and each server maps a `kid` to one public key. Rotate by
 adding a new `kid`, then removing the old one:
 
-1. Generate the new key pair with a new id: `hcctl key generate -out keys -id admin-2026-11`.
+1. Generate the new key pair with a new id: `atticctl key generate -out keys -id admin-2026-11`.
 2. Add `-trusted-key admin-2026-11=keys/admin-2026-11.pub` to every server that must accept the new tokens,
    and restart them (keys are read at start-up).
 3. Mint new tokens with `-kid admin-2026-11` and move clients over. For service keys, change the

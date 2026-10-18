@@ -1,6 +1,6 @@
 # api
 
-`api` is the wire contract of homecloud: the Protocol Buffers definitions and the Go code generated from them
+`api` is the wire contract of Attic Cloud: the Protocol Buffers definitions and the Go code generated from them
 for the Connect RPC protocol. It contains no hand-written logic. The `.proto` files under `proto/` are the source
 of truth; `gen/` is generated code that is committed to the repository.
 
@@ -8,12 +8,12 @@ of truth; `gen/` is generated code that is committed to the repository.
 
 | Import path | Package | Contents |
 |---|---|---|
-| `.../api/gen/homecloud/vmd/v1` | `vmdv1` | Messages for vmd's VMService, ImageService, DiskService, ExecService, ClusterService and MetricsService |
-| `.../api/gen/homecloud/vmd/v1/vmdv1connect` | `vmdv1connect` | Connect client and handler constructors for the vmd API |
-| `.../api/gen/homecloud/agentd/v1` | `agentdv1` | Messages for agentd's AgentService, TaskService and ModelService |
-| `.../api/gen/homecloud/agentd/v1/agentdv1connect` | `agentdv1connect` | Connect client and handler constructors for the agentd API |
-| `.../api/gen/homecloud/node/v1` | `nodev1` | Messages for NodeService, the host API behind `node.Driver` |
-| `.../api/gen/homecloud/node/v1/nodev1connect` | `nodev1connect` | Connect client and handler constructors for the node API |
+| `.../api/gen/attic/vmd/v1` | `vmdv1` | Messages for vmd's VMService, ImageService, DiskService, ExecService, ClusterService and MetricsService |
+| `.../api/gen/attic/vmd/v1/vmdv1connect` | `vmdv1connect` | Connect client and handler constructors for the vmd API |
+| `.../api/gen/attic/agentd/v1` | `agentdv1` | Messages for agentd's AgentService, TaskService and ModelService |
+| `.../api/gen/attic/agentd/v1/agentdv1connect` | `agentdv1connect` | Connect client and handler constructors for the agentd API |
+| `.../api/gen/attic/node/v1` | `nodev1` | Messages for NodeService, the host API behind `node.Driver` |
+| `.../api/gen/attic/node/v1/nodev1connect` | `nodev1connect` | Connect client and handler constructors for the node API |
 
 Module path: `github.com/rlsvarinskis/cloud-at-home/api`.
 
@@ -26,8 +26,8 @@ The same pattern exists for `NewImageService*`, `NewDiskService*`, `NewExecServi
 Enum name maps (for example `vmdv1.VMState_name`) and the `File_*` descriptors are also exported by the generated
 packages.
 
-The proto packages are `homecloud.vmd.v1`, `homecloud.agentd.v1` and `homecloud.node.v1`. The `.proto` files are in
-`proto/homecloud/<service>/v1/`.
+The proto packages are `attic.vmd.v1`, `attic.agentd.v1` and `attic.node.v1`. The `.proto` files are in
+`proto/attic/<service>/v1/`.
 
 ## Dependencies
 

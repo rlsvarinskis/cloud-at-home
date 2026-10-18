@@ -1,6 +1,6 @@
 # libs/authz
 
-`libs/authz` (Go package `authz`) is how homecloud decides who a caller is and what it may do. It issues and verifies
+`libs/authz` (Go package `authz`) is how Attic Cloud decides who a caller is and what it may do. It issues and verifies
 Ed25519-signed JWTs, maps a token's role bindings to permissions per project, provides Connect interceptors that
 authenticate requests and attach the caller to the context, and keeps a file-based revocation list of token IDs.
 
@@ -37,7 +37,7 @@ This module is a single package, `authz`, spread over these files:
 
 - Depends on `libs/common` (`errs` and `ids`) in its code. Its test file imports the `api` vmd stubs.
 - External: `connectrpc.com/connect`, `golang-jwt/jwt/v5`.
-- Must NOT depend on `libs/qemu`, `libs/server`, any service or `cmd/hcctl`. Its `go.mod` has `replace` lines for
+- Must NOT depend on `libs/qemu`, `libs/server`, any service or `cmd/atticctl`. Its `go.mod` has `replace` lines for
   those modules, but they are not imports; do not turn them into imports. The servers depend on authz, not the
   other way round.
 

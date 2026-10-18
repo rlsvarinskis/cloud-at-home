@@ -9,6 +9,6 @@ use (
 	./services/vmd
 	./services/agentd
 	./services/mcp
-	./cmd/hcctl
+	./cmd/atticctl
 	./e2e
 )

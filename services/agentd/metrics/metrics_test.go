@@ -23,25 +23,25 @@ func TestHooksFeedTheSeries(t *testing.T) {
 	h.OnTaskFinished(&domain.Task{State: domain.TaskError}, time.Second)
 
 	want := `
-# HELP homecloud_agent_tasks_finished_total Tasks that reached a final state, by state.
-# TYPE homecloud_agent_tasks_finished_total counter
-homecloud_agent_tasks_finished_total{state="cancelled"} 0
-homecloud_agent_tasks_finished_total{state="error"} 1
-homecloud_agent_tasks_finished_total{state="failed"} 0
-homecloud_agent_tasks_finished_total{state="gave_up"} 0
-homecloud_agent_tasks_finished_total{state="succeeded"} 2
-# HELP homecloud_agent_steps_total Commands run by agents inside VMs.
-# TYPE homecloud_agent_steps_total counter
-homecloud_agent_steps_total 2
-# HELP homecloud_agent_lease_lost_total Tasks whose lease was taken over while a worker was running them.
-# TYPE homecloud_agent_lease_lost_total counter
-homecloud_agent_lease_lost_total 1
+# HELP attic_agent_tasks_finished_total Tasks that reached a final state, by state.
+# TYPE attic_agent_tasks_finished_total counter
+attic_agent_tasks_finished_total{state="cancelled"} 0
+attic_agent_tasks_finished_total{state="error"} 1
+attic_agent_tasks_finished_total{state="failed"} 0
+attic_agent_tasks_finished_total{state="gave_up"} 0
+attic_agent_tasks_finished_total{state="succeeded"} 2
+# HELP attic_agent_steps_total Commands run by agents inside VMs.
+# TYPE attic_agent_steps_total counter
+attic_agent_steps_total 2
+# HELP attic_agent_lease_lost_total Tasks whose lease was taken over while a worker was running them.
+# TYPE attic_agent_lease_lost_total counter
+attic_agent_lease_lost_total 1
 `
 	if err := testutil.GatherAndCompare(reg, strings.NewReader(want),
-		"homecloud_agent_tasks_finished_total", "homecloud_agent_steps_total", "homecloud_agent_lease_lost_total"); err != nil {
+		"attic_agent_tasks_finished_total", "attic_agent_steps_total", "attic_agent_lease_lost_total"); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := testutil.GatherAndCount(reg, "homecloud_agent_task_duration_seconds"); err != nil || n != 1 {
+	if n, err := testutil.GatherAndCount(reg, "attic_agent_task_duration_seconds"); err != nil || n != 1 {
 		t.Fatalf("duration histogram: %d series, %v", n, err)
 	}
 }

@@ -6,7 +6,7 @@ package node
 import (
 	"context"
 
-	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
+	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1"
 )
 
 // Driver is the node API as plain Go calls. Errors use the sentinels in libs/common/errs

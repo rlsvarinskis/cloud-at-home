@@ -22,7 +22,7 @@ type claims struct {
 	Bindings []Binding     `json:"b"`
 }
 
-// Issuer mints tokens with one Ed25519 private key. Used by hcctl (user tokens) and by services
+// Issuer mints tokens with one Ed25519 private key. Used by atticctl (user tokens) and by services
 // that call other services (service tokens). Servers only ever hold the matching *public* keys.
 type Issuer struct {
 	KeyID string

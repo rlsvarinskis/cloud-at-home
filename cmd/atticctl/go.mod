@@ -1,4 +1,4 @@
-module github.com/rlsvarinskis/cloud-at-home/cmd/hcctl
+module github.com/rlsvarinskis/cloud-at-home/cmd/atticctl
 
 go 1.26.0
 

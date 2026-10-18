@@ -42,9 +42,9 @@ cd e2e && go vet ./...
 cd e2e && go test -race ./...
 ```
 
-Scenarios run on the memory backend without any setup. Postgres scenarios need `HOMECLOUD_TEST_POSTGRES` (an
+Scenarios run on the memory backend without any setup. Postgres scenarios need `ATTIC_TEST_POSTGRES` (an
 admin DSN of a running server), or the embedded Postgres binaries, which are downloaded on first use. Set
-`HOMECLOUD_TEST_POSTGRES=skip` to skip them. Use `-count=1` to avoid cached results.
+`ATTIC_TEST_POSTGRES=skip` to skip them. Use `-count=1` to avoid cached results.
 
 ## Notes and limitations
 

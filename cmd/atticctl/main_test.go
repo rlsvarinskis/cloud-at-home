@@ -10,7 +10,7 @@ import (
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 )
 
-// invoke runs hcctl with the given stdin and arguments and returns the exit code and output.
+// invoke runs atticctl with the given stdin and arguments and returns the exit code and output.
 func invoke(stdin string, args ...string) (code int, stdout, stderr string) {
 	var out, errb bytes.Buffer
 	code = run(args, strings.NewReader(stdin), &out, &errb)
@@ -28,7 +28,7 @@ func generateTestKey(t *testing.T, kid string) string {
 }
 
 // keyBodyLines returns the base64 body lines of a PEM file. Secret material must never appear in
-// hcctl's output, so tests use these lines as needles.
+// atticctl's output, so tests use these lines as needles.
 func keyBodyLines(t *testing.T, path string) []string {
 	t.Helper()
 	raw, err := os.ReadFile(path)

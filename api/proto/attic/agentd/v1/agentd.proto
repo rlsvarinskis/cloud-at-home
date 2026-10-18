@@ -1,11 +1,11 @@
 syntax = "proto3";
 
 // agentd: LLM agents. An agent is always tied to one VM (owned by vmd); many agents may share a VM.
-package homecloud.agentd.v1;
+package attic.agentd.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1;agentdv1";
+option go_package = "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/agentd/v1;agentdv1";
 
 enum AgentState {
   AGENT_STATE_UNSPECIFIED = 0;

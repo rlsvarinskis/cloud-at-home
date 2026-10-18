@@ -40,7 +40,7 @@ Module path: `github.com/rlsvarinskis/cloud-at-home/libs/qemu`.
 
 - Depends on `api` (node API stubs), `libs/common` (`errs`) and `libs/authz` (token source and verifier for the node
   API).
-- Must NOT depend on `libs/server`, `services/*`, `cmd/hcctl` or `e2e`. Service code reaches hosts only through
+- Must NOT depend on `libs/server`, `services/*`, `cmd/atticctl` or `e2e`. Service code reaches hosts only through
   `node.Driver`, so the driver code stays free of control-plane logic. `services/vmd` depends on this module, not the
   reverse.
 - External: `connectrpc.com/connect`, `golang.org/x/crypto/ssh`, and `go.uber.org/mock` for the generated mock.

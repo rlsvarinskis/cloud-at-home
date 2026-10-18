@@ -1,4 +1,4 @@
-// Package mcpserver exposes homecloud (vmd + agentd) to MCP clients such as Claude. It is a thin adapter: every
+// Package mcpserver exposes Attic Cloud (vmd + agentd) to MCP clients such as Claude. It is a thin adapter: every
 // tool maps to calls on the public vmd/agentd APIs, made with the caller's own token, so it adds no privileges.
 //
 // Tools keep the names of the original Python gateway (agent_create, agent_exec, agent_task, ...). An MCP "agent"
@@ -47,7 +47,7 @@ func New(cfg Config) *Server {
 	if cfg.Version == "" {
 		cfg.Version = "dev"
 	}
-	s := &Server{cfg: cfg, mcp: mcp.NewServer(&mcp.Implementation{Name: "homecloud", Version: cfg.Version}, nil)}
+	s := &Server{cfg: cfg, mcp: mcp.NewServer(&mcp.Implementation{Name: "attic", Version: cfg.Version}, nil)}
 	s.registerMachineTools()
 	s.registerExecTools()
 	s.registerFileTools()

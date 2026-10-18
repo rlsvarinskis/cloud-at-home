@@ -22,17 +22,17 @@ type Runner struct {
 func New(reg prometheus.Registerer) *Runner {
 	m := &Runner{
 		finished: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "homecloud_agent_tasks_finished_total", Help: "Tasks that reached a final state, by state.",
+			Name: "attic_agent_tasks_finished_total", Help: "Tasks that reached a final state, by state.",
 		}, []string{"state"}),
 		duration: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name: "homecloud_agent_task_duration_seconds", Help: "Wall time from start to final state.",
+			Name: "attic_agent_task_duration_seconds", Help: "Wall time from start to final state.",
 			Buckets: []float64{1, 5, 15, 30, 60, 120, 300, 600, 1800, 3600},
 		}),
 		steps: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "homecloud_agent_steps_total", Help: "Commands run by agents inside VMs.",
+			Name: "attic_agent_steps_total", Help: "Commands run by agents inside VMs.",
 		}),
 		leaseLost: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "homecloud_agent_lease_lost_total", Help: "Tasks whose lease was taken over while a worker was running them.",
+			Name: "attic_agent_lease_lost_total", Help: "Tasks whose lease was taken over while a worker was running them.",
 		}),
 	}
 	reg.MustRegister(m.finished, m.duration, m.steps, m.leaseLost)

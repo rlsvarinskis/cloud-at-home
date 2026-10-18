@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
 	gomock "go.uber.org/mock/gomock"
 )
 

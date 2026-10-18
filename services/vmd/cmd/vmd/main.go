@@ -77,7 +77,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 	fs.SetOutput(stderr)
 	fs.StringVar(&o.role, "role", "all", "all | control | node")
 	fs.StringVar(&o.listen, "listen", ":8080", "address to listen on")
-	fs.Var(&o.dsns, "postgres-dsn", "Postgres DSN (control plane; env HOMECLOUD_POSTGRES_DSN). Repeat to shard projects across several databases (the set is part of your data layout: do not change it once data exists). None = in-memory store, development only")
+	fs.Var(&o.dsns, "postgres-dsn", "Postgres DSN (control plane; env ATTIC_POSTGRES_DSN). Repeat to shard projects across several databases (the set is part of your data layout: do not change it once data exists). None = in-memory store, development only")
 	fs.StringVar(&o.revoked, "revoked-tokens", "", "file of revoked token ids (jti), one per line; reloaded when it changes")
 	fs.IntVar(&o.quotaVMs, "quota-vms", 0, "max VMs per project (0 = unlimited)")
 	fs.IntVar(&o.quotaVCPUs, "quota-vcpus", 0, "max vCPUs of running VMs per project (0 = unlimited)")
@@ -93,7 +93,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 	fs.StringVar(&o.serviceKey, "service-key", "", "private key this control plane uses to call nodes (role node)")
 	fs.StringVar(&o.serviceKeyID, "service-key-id", "vmd", "key id of -service-key; nodes must trust it with -trusted-key")
 	fs.StringVar(&o.nodeID, "node-id", hostname(), "id of this host as a node")
-	fs.StringVar(&o.dataDir, "data-dir", "/var/lib/homecloud", "node: directory for images, disks and VM runtime state")
+	fs.StringVar(&o.dataDir, "data-dir", "/var/lib/attic", "node: directory for images, disks and VM runtime state")
 	fs.StringVar(&o.sharedDir, "shared-dir", "", "node: folder shared into every guest at /shared (default <data-dir>/shared)")
 	fs.StringVar(&o.sshKey, "ssh-key", "", "node: private key used to reach guests (public key is injected via cloud-init)")
 	fs.StringVar(&o.runAs, "run-as", "qemu", "node: unprivileged user the VMs run as")
@@ -107,8 +107,8 @@ func run(ctx context.Context, args []string, stderr io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if len(o.dsns) == 0 && os.Getenv("HOMECLOUD_POSTGRES_DSN") != "" {
-		o.dsns = multi{os.Getenv("HOMECLOUD_POSTGRES_DSN")}
+	if len(o.dsns) == 0 && os.Getenv("ATTIC_POSTGRES_DSN") != "" {
+		o.dsns = multi{os.Getenv("ATTIC_POSTGRES_DSN")}
 	}
 	if *showVersion {
 		fmt.Println(version)

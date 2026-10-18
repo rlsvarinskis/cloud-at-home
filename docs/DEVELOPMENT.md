@@ -1,6 +1,6 @@
 # Development
 
-This document is for people changing homecloud's code: the layout, the generated code, the test strategy, how
+This document is for people changing Attic Cloud's code: the layout, the generated code, the test strategy, how
 to add an RPC, a permission or a store method, the coding conventions, and the known limitations. The design is in
 [ARCHITECTURE.md](ARCHITECTURE.md); the decisions are in [adr/](adr/).
 
@@ -24,11 +24,11 @@ The code is a Go workspace (`go.work`) with one module per directory listed belo
 
 | Path | Contents |
 | --- | --- |
-| `api/proto/homecloud/{vmd,agentd,node}/v1/*.proto` | The API definitions. The source of truth for the wire format. |
+| `api/proto/attic/{vmd,agentd,node}/v1/*.proto` | The API definitions. The source of truth for the wire format. |
 | `api/gen/` | Generated Go code for `api/proto/`. Committed. Never edit by hand. |
 | `services/vmd/cmd/vmd` | The vmd binary: flags, wiring of stores (one or several Postgres databases), drivers, the reconciler and the HTTP server. |
 | `services/agentd/cmd/agentd` | The agentd binary: flags, Postgres or memory store, service tokens, runner and HTTP server. |
-| `cmd/hcctl` | The admin CLI: keys, tokens, roles. |
+| `cmd/atticctl` | The admin CLI: keys, tokens, roles. |
 | `libs/authz` | Package `authz`. Tokens (`token.go`), keys, principals, RBAC (`rbac.go`), revocation list (`revocations.go`), Connect interceptors (`connect.go`), service tokens. |
 | `libs/common/errs` | Error sentinels and the mapping to Connect codes. `Sanitize` turns downstream failures into `unavailable` without addresses. |
 | `libs/common/ids` | Prefixed ULID IDs, and shard-suffixed IDs (`sharded.go`). |
@@ -110,11 +110,11 @@ with these arguments"). State-based tests use the hand-written fakes instead.
 | `make boundaries` | Runs `scripts/check-boundaries.sh`: fails if a module imports a sibling it may not. |
 
 The modules are `api`, `libs/common`, `libs/authz`, `libs/qemu`, `libs/server`, `services/vmd`, `services/agentd`,
-`cmd/hcctl` and `e2e`. There is no root module, so `go test ./...` at the repository root does not work. Run commands
+`cmd/atticctl` and `e2e`. There is no root module, so `go test ./...` at the repository root does not work. Run commands
 inside a module, for example `cd services/vmd && go test ./...`, or use the make targets.
 
 To build binaries, pass an output directory from the repository root:
-`go build -o bin/ ./services/vmd/cmd/vmd ./services/agentd/cmd/agentd ./cmd/hcctl`.
+`go build -o bin/ ./services/vmd/cmd/vmd ./services/agentd/cmd/agentd ./cmd/atticctl`.
 
 CI runs the build, vet, the gofmt check, the tests with the race detector, the protobuf check, and a Docker build of
 the `vmd`, `agentd` and `node` images. Run `gofmt -l .` before committing.
@@ -139,7 +139,7 @@ Tests are layered by what they need. Each layer runs fast, and none sleeps for r
 
 Postgres tests use `libs/common/pg/pgtest`, which gives each test a fresh database. Without configuration a real
 Postgres is started once per test process with `embedded-postgres`. Its binaries are downloaded on first use and
-cached. Set `HOMECLOUD_TEST_POSTGRES` to an admin DSN to use an existing server, or to `skip` to skip these tests.
+cached. Set `ATTIC_TEST_POSTGRES` to an admin DSN to use an existing server, or to `skip` to skip these tests.
 
 **Service tests.** `services/vmd/service/testenv_test.go` builds the real vmd HTTP surface with `httptest`, using:
 
@@ -155,10 +155,10 @@ The reconciler is driven one tick at a time with `e.tick(n)`. `e.until(max, what
 holds or fails the test. Tests cover the authorization matrix (not-found versus permission-denied), validation,
 the reconciler's backoff and crash loops, drains (`drain_test.go`), idempotency, and the job lifecycle.
 
-To run the whole vmd service suite on a sharded store, set `HOMECLOUD_TEST_SHARDS`:
+To run the whole vmd service suite on a sharded store, set `ATTIC_TEST_SHARDS`:
 
 ```
-cd services/vmd && HOMECLOUD_TEST_SHARDS=3 go test ./service
+cd services/vmd && ATTIC_TEST_SHARDS=3 go test ./service
 ```
 
 **End to end.** `e2e/` runs vmd and agentd in one process and lets them talk over their real HTTP APIs. It
@@ -181,7 +181,7 @@ replies `Chat` hands out in order). The runner tests use the same fakes.
 
 ```
 cd libs/authz && go test -race -count=1 -run TestRolePermissionMatrix .
-cd services/vmd && HOMECLOUD_TEST_POSTGRES=skip go test -count=1 ./service/
+cd services/vmd && ATTIC_TEST_POSTGRES=skip go test -count=1 ./service/
 ```
 
 ### Checking that tests catch a broken rule
@@ -192,7 +192,7 @@ is a habit to keep, not a CI step.
 
 ## Adding an RPC
 
-1. **Define it.** Add the message types and the `rpc` line to the service in `api/proto/homecloud/<svc>/v1/*.proto`.
+1. **Define it.** Add the message types and the `rpc` line to the service in `api/proto/attic/<svc>/v1/*.proto`.
    Put the limits and waiting rules in the comments, as the existing messages do. Each request names its project
    (`project_id`) or resource (`id`), or it is global (as `ClusterService` is).
 2. **Regenerate.** `make proto`. Commit `api/gen/`.
@@ -211,7 +211,7 @@ is a habit to keep, not a CI step.
    (`unauthenticated`), a caller with no binding on the project (`not_found` for IDs, `permission_denied` for lists),
    a caller with a lower role (`permission_denied`), validation, the happy path, and the state preconditions.
 6. **Documentation.** Add the RPC to [API.md](API.md), with its permission, errors and limits. If the permission
-   or role table changed, regenerate it with `cd cmd/hcctl && go run . roles -v` and update [AUTH.md](AUTH.md).
+   or role table changed, regenerate it with `cd cmd/atticctl && go run . roles -v` and update [AUTH.md](AUTH.md).
 7. **Node work, if the RPC needs a host.** Add the call to `node.proto`, to the `node.Driver` interface in
    `libs/qemu/node/driver.go`, and implement it in every driver: `libs/qemu/qemudriver` (real), `libs/qemu/remote`
    (client to a node), `libs/qemu/fake` (tests), and the `libs/qemu/nodeserver` handler that serves the node API. Then
@@ -225,12 +225,12 @@ Permissions and roles live in `libs/authz/rbac.go`.
   sets that should have it. `viewer` is the base of `editor`, which is the base of `admin`. Put read-only
   permissions in `viewer`.
 - **Role.** Add a constant and an entry in `rolePerms`. `Roles()` and `KnownRole` follow the map, so
-  `hcctl token mint -bind` and `-trusted-key` accept the new role without other changes.
+  `atticctl token mint -bind` and `-trusted-key` accept the new role without other changes.
 - **Global permissions.** Check them with `authz.Require(ctx, perm, "")`. Only a binding on project `*` satisfies
   them. Shared resources (for example shared images) use `authz.RequireAnyProject` for read permissions.
 - **Tests.** `TestRolePermissionMatrix` and `TestRolePermissionsAreListed` in `libs/authz/auth_test.go` pin the
   matrix. Update them with the change.
-- **Docs.** Regenerate the table in [AUTH.md](AUTH.md) with `cd cmd/hcctl && go run . roles -v`.
+- **Docs.** Regenerate the table in [AUTH.md](AUTH.md) with `cd cmd/atticctl && go run . roles -v`.
 
 ## Adding a store method
 

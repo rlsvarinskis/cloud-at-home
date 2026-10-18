@@ -7,8 +7,8 @@ import (
 
 	"connectrpc.com/connect"
 
-	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/agentd/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
 )
 
 // Scenario 3: a VM that agents hold cannot be deleted until its agents are gone; a force delete orphans them.

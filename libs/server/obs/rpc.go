@@ -20,9 +20,9 @@ var rpcBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 
 // RPCMetrics records server-side Connect RPC traffic. It is a connect.Interceptor: add it to a
 // handler with connect.WithInterceptors. Client-side calls are not recorded.
 type RPCMetrics struct {
-	requests *prometheus.CounterVec   // homecloud_rpc_requests_total{service,method,code}
-	duration *prometheus.HistogramVec // homecloud_rpc_duration_seconds{service,method}
-	inFlight *prometheus.GaugeVec     // homecloud_rpc_in_flight{service,method}
+	requests *prometheus.CounterVec   // attic_rpc_requests_total{service,method,code}
+	duration *prometheus.HistogramVec // attic_rpc_duration_seconds{service,method}
+	inFlight *prometheus.GaugeVec     // attic_rpc_in_flight{service,method}
 }
 
 var _ connect.Interceptor = (*RPCMetrics)(nil)
@@ -34,18 +34,18 @@ func NewRPCMetrics(reg prometheus.Registerer, subsystem string) *RPCMetrics {
 	constLabels := prometheus.Labels{"server": subsystem}
 	m := &RPCMetrics{
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        "homecloud_rpc_requests_total",
+			Name:        "attic_rpc_requests_total",
 			Help:        "Completed server-side RPCs, by service, method and Connect status code.",
 			ConstLabels: constLabels,
 		}, []string{"service", "method", "code"}),
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:        "homecloud_rpc_duration_seconds",
+			Name:        "attic_rpc_duration_seconds",
 			Help:        "Server-side RPC duration in seconds. Streaming RPCs are timed for the whole stream.",
 			Buckets:     rpcBuckets,
 			ConstLabels: constLabels,
 		}, []string{"service", "method"}),
 		inFlight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name:        "homecloud_rpc_in_flight",
+			Name:        "attic_rpc_in_flight",
 			Help:        "Server-side RPCs currently being handled.",
 			ConstLabels: constLabels,
 		}, []string{"service", "method"}),

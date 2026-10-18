@@ -3,7 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"io"
 	"net/http"
@@ -12,7 +12,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
+	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/agentd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/server/obs"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/service"
 )
@@ -270,9 +270,9 @@ func TestMetricsEndpointAuthAndCounters(t *testing.T) {
 		t.Fatalf("operator: %d", status)
 	}
 	for _, want := range []string{
-		`homecloud_rpc_requests_total{code="ok",method="CreateAgent",server="agentd",service="homecloud.agentd.v1.AgentService"} 1`,
+		`attic_rpc_requests_total{code="ok",method="CreateAgent",server="agentd",service="attic.agentd.v1.AgentService"} 1`,
 		`code="not_found",method="GetAgent"`,
-		`homecloud_rpc_duration_seconds`,
+		`attic_rpc_duration_seconds`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("metrics missing %q", want)

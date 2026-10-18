@@ -10,8 +10,8 @@ import (
 
 	"connectrpc.com/connect"
 
-	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
-	"github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1/nodev1connect"
+	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1"
+	"github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1/nodev1connect"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/node"

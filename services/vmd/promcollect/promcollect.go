@@ -3,7 +3,7 @@
 // sampler that caches the last good sample per VM (so a scrape never calls a node), and reconciler
 // activity is counted through the hooks returned by Hooks.
 //
-// Every metric name starts with homecloud_. Label values are limited to identifiers the control plane
+// Every metric name starts with attic_. Label values are limited to identifiers the control plane
 // already knows (node, VM ID, project, VM name, disk ID, device and mount point); free-form text such as
 // command lines is never exported.
 package promcollect
@@ -16,7 +16,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/domain"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/scheduler"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/service"
@@ -120,39 +120,39 @@ func New(st store.Store, nodes service.Nodes, sched scheduler.Config, opts Optio
 		log:   opts.Log.With("component", "promcollect"),
 		cache: make(map[string]*cachedSample),
 		scrapeErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "homecloud_vmd_scrape_errors_total",
+			Name: "attic_vmd_scrape_errors_total",
 			Help: "Scrapes that could not read a source, by source.",
 		}, []string{"source"}),
 		sampleErrors: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "homecloud_vm_sample_errors_total",
+			Name: "attic_vm_sample_errors_total",
 			Help: "Samples of running VMs that failed.",
 		}),
 		sampleDuration: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "homecloud_vm_samples_last_duration_seconds",
+			Name: "attic_vm_samples_last_duration_seconds",
 			Help: "How long the last sampling pass took.",
 		}),
 		sampleTimestamp: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "homecloud_vm_samples_last_timestamp_seconds",
+			Name: "attic_vm_samples_last_timestamp_seconds",
 			Help: "Unix time at which the last sampling pass finished.",
 		}),
 		reconcileVM: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "homecloud_reconcile_vm_total",
+			Name: "attic_reconcile_vm_total",
 			Help: "VMs reconciled, by outcome.",
 		}, []string{"outcome"}),
 		reconcileVMDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name: "homecloud_reconcile_vm_duration_seconds",
+			Name: "attic_reconcile_vm_duration_seconds",
 			Help: "Time spent reconciling one VM.",
 		}),
 		ticks: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "homecloud_reconcile_ticks_total",
+			Name: "attic_reconcile_ticks_total",
 			Help: "Reconciler ticks completed.",
 		}),
 		tickDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name: "homecloud_reconcile_tick_duration_seconds",
+			Name: "attic_reconcile_tick_duration_seconds",
 			Help: "Time spent in one reconciler tick.",
 		}),
 		lastTickClaimed: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "homecloud_reconcile_last_tick_claimed",
+			Name: "attic_reconcile_last_tick_claimed",
 			Help: "VMs claimed by the last reconciler tick.",
 		}),
 	}

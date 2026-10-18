@@ -59,7 +59,7 @@ replace github.com/rlsvarinskis/cloud-at-home/services/agentd => ../services/age
 
 replace github.com/rlsvarinskis/cloud-at-home/services/mcp => ../services/mcp
 
-replace github.com/rlsvarinskis/cloud-at-home/cmd/hcctl => ../cmd/hcctl
+replace github.com/rlsvarinskis/cloud-at-home/cmd/atticctl => ../cmd/atticctl
 
 require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0

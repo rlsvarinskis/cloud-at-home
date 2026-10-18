@@ -8,7 +8,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/libs/common/errs"
 )
 
@@ -55,7 +55,7 @@ func TestVMReasonDistinguishesUnreachableFromFailing(t *testing.T) {
 		t.Fatalf("a network failure: %q", r)
 	}
 
-	e.node.FailNext("GetVMRuntime", errors.New("genisoimage: exit status 1: /var/lib/homecloud/vms/x/seed.iso: No space left on device"))
+	e.node.FailNext("GetVMRuntime", errors.New("genisoimage: exit status 1: /var/lib/attic/vms/x/seed.iso: No space left on device"))
 	e.clk.Advance(120e9)
 	e.tick(1)
 	r := e.getVM(ed, vm.Id).StateReason

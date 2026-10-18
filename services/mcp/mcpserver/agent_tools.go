@@ -8,7 +8,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
+	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/agentd/v1"
 )
 
 const (

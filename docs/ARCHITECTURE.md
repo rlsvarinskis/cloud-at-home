@@ -1,11 +1,11 @@
-# homecloud architecture
+# Attic Cloud architecture
 
-homecloud is a small private cloud: **vmd** manages virtual machines, disks and images on one or more hosts;
+Attic Cloud is a small private cloud: **vmd** manages virtual machines, disks and images on one or more hosts;
 **agentd** runs LLM agents on top of vmd's VMs. Everything is multi-tenant (projects), authenticated, authorized
 per project and stateful in a database, so any number of replicas can serve it.
 
 ```
-                  clients (hcctl, SDKs, Claude, curl)
+                  clients (atticctl, SDKs, Claude, curl)
                         │  gRPC / gRPC-Web / HTTP+JSON  (Connect protocol, same handlers, TLS optional)
           ┌─────────────┴──────────────┐
           ▼                            ▼
@@ -64,13 +64,13 @@ nodes (`--node id=URL`); `--role=node` is the host daemon.
 
 ## Identity and authorization
 * **Authentication**: bearer JWTs signed with Ed25519. Servers hold only *public* keys (`kid → key`), so there is no shared
-  secret and no IAM database. `hcctl token mint` issues user tokens; agentd mints short-lived service tokens with its own
+  secret and no IAM database. `atticctl token mint` issues user tokens; agentd mints short-lived service tokens with its own
   key. Each trusted key can be limited to certain roles (a compromised agentd key cannot mint admin tokens). Tokens have a
   maximum lifetime (`--max-token-ttl`), are decoded strictly (one canonical spelling), and can be revoked by id through
   a file the daemons watch (`--revoked-tokens`).
 * **Planned, not implemented**: a `services/auth` identity service (users with Argon2 password hashes, API keys and
   service accounts, OIDC login for Google and GitHub, an audit log, JWKS publishing, with services verifying its tokens
-  offline). It does not exist yet; today tokens are minted by `hcctl` and by the services themselves, as described above.
+  offline). It does not exist yet; today tokens are minted by `atticctl` and by the services themselves, as described above.
 * **Authorization**: RBAC scoped to **projects**. A token carries bindings `(project, role)`; project `*` means all.
   Roles: `viewer`, `editor`, `admin`, `service` (agentd → vmd), `node` (control plane → node), `operator` (global: capacity
   and drain). Handlers check a named permission against the *resource's* project. A caller with no access to a project gets
@@ -111,14 +111,14 @@ because clients and proxies give up around 60 s.
 The repository is a Go workspace (`go.work`). Each module has its own `go.mod`; modules refer to each other
 through `go.work` and relative `replace` directives. Module paths are `github.com/rlsvarinskis/cloud-at-home/<module dir>`.
 There is no root module, so `go test ./...` must run inside a module. The `make` targets loop over all modules:
-`api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd services/mcp cmd/hcctl e2e`.
+`api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd services/mcp cmd/atticctl e2e`.
 
 ```
 go.work                              the workspace: the nine modules below
 Makefile                             proto, mocks, build, vet, test, cover, tidy, boundaries
 scripts/check-boundaries.sh          fails when a module imports a sibling it may not (rules below)
 api/                                 module: API definitions and generated code
-  proto/homecloud/{vmd,agentd,node}/v1/   .proto files, the source of truth for the wire format
+  proto/attic/{vmd,agentd,node}/v1/   .proto files, the source of truth for the wire format
   gen/                               generated Go code for proto/ (committed; make proto)
 libs/
   common/                            module: shared building blocks
@@ -159,7 +159,7 @@ services/
     mcpserver/                       tool implementations; forwards the caller's token to vmd and agentd
     cmd/mcp/                         the mcp binary
 cmd/
-  hcctl/                             module: admin CLI (keys, tokens, roles)
+  atticctl/                             module: admin CLI (keys, tokens, roles)
 e2e/                                 module: vmd and agentd together in one process, over their HTTP APIs
 deploy/                              Dockerfiles, compose stack, deployment notes (not a module)
 docs/                                this documentation
@@ -182,7 +182,7 @@ row below does not allow. Imports are checked in tests as well as in the code.
 | `services/vmd` | `api`, `libs/common`, `libs/authz`, `libs/qemu`, `libs/server` |
 | `services/agentd` | `api`, `libs/common`, `libs/authz`, `libs/server` |
 | `services/mcp` | `api`, `libs/common`, `libs/authz`, `libs/server` |
-| `cmd/hcctl` | `api`, `libs/common`, `libs/authz` |
+| `cmd/atticctl` | `api`, `libs/common`, `libs/authz` |
 | `e2e` | anything |
 
 No service imports another service. agentd talks to vmd only through the generated gRPC client in `api/gen`
@@ -193,7 +193,7 @@ No service imports another service. agentd talks to vmd only through the generat
 * **Conformance suites** (`storetest`) run against every store: memory, Postgres (a real PostgreSQL started by the tests)
   and the shard router.
 * Service tests run the real handlers over HTTP with the fake node and fake LLM, real tokens and a manual clock; the whole
-  vmd suite can also run on a sharded store (`HOMECLOUD_TEST_SHARDS=3`).
+  vmd suite can also run on a sharded store (`ATTIC_TEST_SHARDS=3`).
 * `e2e/` runs vmd and agentd together through their real APIs, on memory and Postgres.
 * The daemons' real `run` functions are started against real Postgres in the tests of `services/*/cmd/*`.
 * gomock mocks (`make mocks`) script failures the fakes cannot (a broken database, exact call order and arguments).

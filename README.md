@@ -1,13 +1,17 @@
-# homecloud
+# Attic Cloud
 
-homecloud is a small private cloud written in Go. It has two servers:
+> Cloud computing is too expensive, but at least we have mom's attic.
+
+Attic Cloud is a small private cloud written in Go (identifier: `attic`). It runs virtual machines and LLM agents on
+hardware you already own, and exposes them to Claude and other MCP clients. It has these servers:
 
 - **vmd** manages virtual machines, disks, images, in-guest command execution and metrics. It runs as a
   control plane, as a per-host node daemon, or both in one process.
 - **agentd** runs LLM agents on top of vmd's VMs. An agent is always tied to one VM. A task given to an
   agent is executed by a model that drives the VM through a single `bash` tool.
+- **mcp** exposes both to MCP clients such as Claude (see `services/mcp`).
 
-Both servers speak the Connect protocol, which is gRPC, gRPC-Web and plain HTTP+JSON on the same paths.
+All servers speak the Connect protocol, which is gRPC, gRPC-Web and plain HTTP+JSON on the same paths.
 All resources belong to projects. Every call is authenticated with an Ed25519-signed bearer token and
 authorized per project.
 
@@ -20,7 +24,7 @@ QEMU driver and the guest scripts are covered by unit tests with fakes. See
 ## Architecture
 
 ```
-                    clients (hcctl, SDKs, Claude, curl)
+                    clients (atticctl, SDKs, Claude, curl)
                           │  Connect / gRPC / gRPC-Web, JSON over HTTP
             ┌─────────────┴──────────────┐
             ▼                            ▼
@@ -78,18 +82,18 @@ with a `state_reason` of `node unreachable: <node id>` and the VM stays `STOPPED
 1. Build the binaries into `bin/`:
 
    ```
-   mkdir -p bin && go build -o bin/ ./services/vmd/cmd/vmd ./services/agentd/cmd/agentd ./cmd/hcctl
+   mkdir -p bin && go build -o bin/ ./services/vmd/cmd/vmd ./services/agentd/cmd/agentd ./cmd/atticctl
    ```
 
    The repository is a Go workspace (`go.work`) with one module per directory and no root module. `make build`
    compiles every module and writes no binaries.
 
-2. Generate a signing key and mint an admin token. The key pair is written to `dev/keys/`; `hcctl` refuses
+2. Generate a signing key and mint an admin token. The key pair is written to `dev/keys/`; `atticctl` refuses
    to overwrite existing files.
 
    ```
-   ./bin/hcctl key generate -out dev/keys -id admin
-   TOKEN=$(./bin/hcctl token mint -key dev/keys/admin.key -kid admin \
+   ./bin/atticctl key generate -out dev/keys -id admin
+   TOKEN=$(./bin/atticctl token mint -key dev/keys/admin.key -kid admin \
      -sub user:me -type user -bind '*:admin' -ttl 24h)
    ```
 
@@ -116,14 +120,14 @@ with a `state_reason` of `node unreachable: <node id>` and the VM stays `STOPPED
    - `--data-dir` must be an absolute path; vmd refuses a relative one. `$PWD` gives the absolute path used here.
    - `--run-as=` (empty) runs the guests as the current user. The default is the `qemu` user, which must
      exist.
-   - Without `--postgres-dsn` (or `HOMECLOUD_POSTGRES_DSN`) vmd uses the in-memory store and logs a warning.
+   - Without `--postgres-dsn` (or `ATTIC_POSTGRES_DSN`) vmd uses the in-memory store and logs a warning.
      All state is lost on restart.
    - `--revoked-tokens FILE` is optional. If given, the file must exist when vmd starts.
 
 4. Call the API:
 
    ```
-   curl -sS -X POST http://127.0.0.1:8080/homecloud.vmd.v1.VMService/ListVMs \
+   curl -sS -X POST http://127.0.0.1:8080/attic.vmd.v1.VMService/ListVMs \
      -H "Authorization: Bearer $TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"projectId": "proj-a"}'
@@ -145,7 +149,7 @@ libs/server/           module: obs (RPC metrics, /metrics, health checks), daemo
 services/vmd/         module: vmd (domain, store, scheduler, service, promcollect) and cmd/vmd (control plane and node daemon)
 services/agentd/      module: agentd (domain, store, llm, vmclient, runner, service, metrics) and cmd/agentd
 services/mcp/         module: MCP server (tools for Claude and other MCP clients) and cmd/mcp
-cmd/hcctl/             module: admin CLI: keys, tokens, roles
+cmd/atticctl/             module: admin CLI: keys, tokens, roles
 e2e/                   module: end-to-end tests, vmd and agentd in one process, over their HTTP APIs
 deploy/                Dockerfiles, docker-compose development stack, deployment notes
 docs/                  ARCHITECTURE.md, adr/, API.md, AUTH.md, OPERATIONS.md, DEVELOPMENT.md
@@ -172,12 +176,12 @@ Postgres server. Choose one of:
 
 - Default: a real Postgres is started for the test process with `embedded-postgres`. Its binaries are
   downloaded on first use and cached, so the first run needs network access.
-- `HOMECLOUD_TEST_POSTGRES=postgres://admin-dsn...`: use an existing server. Each test gets a fresh
+- `ATTIC_TEST_POSTGRES=postgres://admin-dsn...`: use an existing server. Each test gets a fresh
   database on it.
-- `HOMECLOUD_TEST_POSTGRES=skip`: skip the Postgres tests.
+- `ATTIC_TEST_POSTGRES=skip`: skip the Postgres tests.
 
 Service tests run the real Connect handlers over `httptest` with a fake node driver and a fake LLM, using
-real signed tokens. `cd services/vmd && HOMECLOUD_TEST_SHARDS=3 go test ./service` runs the same suite on a store
+real signed tokens. `cd services/vmd && ATTIC_TEST_SHARDS=3 go test ./service` runs the same suite on a store
 sharded over three databases. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Documentation

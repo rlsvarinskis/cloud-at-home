@@ -12,9 +12,9 @@ import (
 	"connectrpc.com/connect"
 	"github.com/prometheus/client_golang/prometheus"
 
-	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1"
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
-	"github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1/vmdv1connect"
+	nodev1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
+	"github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1/vmdv1connect"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 	"github.com/rlsvarinskis/cloud-at-home/libs/qemu/fake"
 	"github.com/rlsvarinskis/cloud-at-home/services/vmd/service"
@@ -76,8 +76,8 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 		o(&cfg, &fcfg)
 	}
 	e.st = store.NewMemory()
-	if n, _ := strconv.Atoi(os.Getenv("HOMECLOUD_TEST_SHARDS")); n > 1 {
-		// Run the whole suite on a project-sharded store (HOMECLOUD_TEST_SHARDS=3 cd services/vmd && go test ./service).
+	if n, _ := strconv.Atoi(os.Getenv("ATTIC_TEST_SHARDS")); n > 1 {
+		// Run the whole suite on a project-sharded store (ATTIC_TEST_SHARDS=3 cd services/vmd && go test ./service).
 		shards := make([]store.Store, n)
 		for i := range shards {
 			shards[i] = store.NewMemory()

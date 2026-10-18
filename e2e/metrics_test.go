@@ -9,7 +9,7 @@ import (
 
 	"connectrpc.com/connect"
 
-	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/agentd/v1"
+	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/agentd/v1"
 	"github.com/rlsvarinskis/cloud-at-home/services/agentd/llm"
 )
 
@@ -36,11 +36,11 @@ func TestMetrics(t *testing.T) {
 		t.Fatalf("vmd /metrics with operator token: status %d", vmdStatus)
 	}
 	for _, want := range [][]string{
-		{"homecloud_rpc_requests_total{", `server="vmd"`, `method="CreateVM"`},
-		{"homecloud_rpc_requests_total{", `server="vmd"`, `method="StartJob"`},
-		{"homecloud_rpc_duration_seconds_count{", `server="vmd"`, `method="CreateVM"`},
-		{"homecloud_cluster_vms"},
-		{"homecloud_cluster_cpu_threads"},
+		{"attic_rpc_requests_total{", `server="vmd"`, `method="CreateVM"`},
+		{"attic_rpc_requests_total{", `server="vmd"`, `method="StartJob"`},
+		{"attic_rpc_duration_seconds_count{", `server="vmd"`, `method="CreateVM"`},
+		{"attic_cluster_vms"},
+		{"attic_cluster_cpu_threads"},
 	} {
 		if !hasSeries(vmdBody, want...) {
 			t.Errorf("vmd /metrics has no series containing %q", want)
@@ -52,9 +52,9 @@ func TestMetrics(t *testing.T) {
 		t.Fatalf("agentd /metrics with operator token: status %d", agStatus)
 	}
 	for _, want := range [][]string{
-		{"homecloud_rpc_requests_total{", `server="agentd"`, `method="CreateAgent"`},
-		{"homecloud_rpc_requests_total{", `server="agentd"`, `method="CreateTask"`},
-		{"homecloud_rpc_requests_total{", `server="agentd"`, `method="ListSteps"`},
+		{"attic_rpc_requests_total{", `server="agentd"`, `method="CreateAgent"`},
+		{"attic_rpc_requests_total{", `server="agentd"`, `method="CreateTask"`},
+		{"attic_rpc_requests_total{", `server="agentd"`, `method="ListSteps"`},
 	} {
 		if !hasSeries(agBody, want...) {
 			t.Errorf("agentd /metrics has no series containing %q", want)

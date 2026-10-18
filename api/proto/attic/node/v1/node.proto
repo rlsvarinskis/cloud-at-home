@@ -2,9 +2,9 @@ syntax = "proto3";
 
 // node: the per-host hypervisor API. Only the vmd control plane calls it (service credentials);
 // it is the unit of horizontal scaling: one node daemon per physical host.
-package homecloud.node.v1;
+package attic.node.v1;
 
-option go_package = "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/node/v1;nodev1";
+option go_package = "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/node/v1;nodev1";
 
 message Capacity {
   int32 cpus_total = 1;

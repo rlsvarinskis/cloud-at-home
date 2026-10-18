@@ -106,7 +106,7 @@ func TestAgentdWithPostgres(t *testing.T) {
 			t.Fatalf("%s: %v %v", p, res, err)
 		}
 	}
-	list := base + "/homecloud.agentd.v1.AgentService/ListAgents"
+	list := base + "/attic.agentd.v1.AgentService/ListAgents"
 	if code, _ := call(t, list, "", `{"projectId":"p1"}`); code != 401 {
 		t.Errorf("no token: %d, want 401", code)
 	}
@@ -120,11 +120,11 @@ func TestAgentdWithPostgres(t *testing.T) {
 	}
 
 	// Unreachable backends are reported, but their addresses are not.
-	code, body = call(t, base+"/homecloud.agentd.v1.ModelService/ListModels", f.token(t, authz.RoleViewer, "p1"), "{}")
+	code, body = call(t, base+"/attic.agentd.v1.ModelService/ListModels", f.token(t, authz.RoleViewer, "p1"), "{}")
 	if code != 503 {
 		t.Fatalf("models with the LLM down: %d %s", code, body)
 	}
-	code2, body2 := call(t, base+"/homecloud.agentd.v1.AgentService/CreateAgent", f.token(t, authz.RoleEditor, "p1"),
+	code2, body2 := call(t, base+"/attic.agentd.v1.AgentService/CreateAgent", f.token(t, authz.RoleEditor, "p1"),
 		`{"projectId":"p1","name":"a1","vmId":"vm_x","model":"m"}`)
 	if code2 != 503 {
 		t.Fatalf("create agent with vmd down: %d %s", code2, body2)
@@ -140,7 +140,7 @@ func TestAgentdWithPostgres(t *testing.T) {
 	res, err := http.DefaultClient.Do(req)
 	must(t, err)
 	text, _ := io.ReadAll(res.Body)
-	for _, want := range []string{"homecloud_agent_tasks_finished_total", `server="agentd"`} {
+	for _, want := range []string{"attic_agent_tasks_finished_total", `server="agentd"`} {
 		if !strings.Contains(string(text), want) {
 			t.Errorf("/metrics lacks %s", want)
 		}

@@ -32,7 +32,7 @@ Module path: `github.com/rlsvarinskis/cloud-at-home/libs/server`.
 - Depends on `libs/authz` (verifier, issuer, permissions for `/metrics`, revocation file) and `libs/common/errs`.
 - Depends on `api` only in its test file (`obs/obs_test.go`) for the vmd Connect stubs.
 - External: `connectrpc.com/connect`, `prometheus/client_golang`.
-- Must NOT depend on `libs/qemu`, `services/*`, `cmd/hcctl` or `e2e`. The servers depend on this module; it must not
+- Must NOT depend on `libs/qemu`, `services/*`, `cmd/atticctl` or `e2e`. The servers depend on this module; it must not
   know about any particular service.
 
 ## Build and test

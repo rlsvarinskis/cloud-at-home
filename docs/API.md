@@ -1,7 +1,7 @@
 # API reference
 
 This document describes the public APIs of vmd and agentd: what each RPC does, which permission it needs, the errors
-it returns and the limits it enforces. The wire definitions are in [`api/proto/homecloud/`](../api/proto/homecloud/) (the
+it returns and the limits it enforces. The wire definitions are in [`api/proto/attic/`](../api/proto/attic/) (the
 source of truth); the Go types are generated into [`api/gen/`](../api/gen/). Behaviour below was read from the handlers in
 `services/vmd/service` and `services/agentd/service`, and the examples were run against a development vmd.
 
@@ -39,7 +39,7 @@ Server reflection is not enabled. Clients must load the `.proto` files themselve
 
 ### Authentication
 
-Send `Authorization: Bearer <token>` on every call. Tokens are Ed25519-signed JWTs issued by `hcctl`
+Send `Authorization: Bearer <token>` on every call. Tokens are Ed25519-signed JWTs issued by `atticctl`
 (users) or by a service (see [AUTH.md](AUTH.md)). A missing, malformed, expired, revoked or
 untrusted token gets `unauthenticated` with the message `unauthenticated`; the server never says why.
 
@@ -245,7 +245,7 @@ Operator actions on the fleet. The RPC is global: it is not scoped to a project.
 | `SetNodeDraining` | Stop (`draining: true`) or resume (`draining: false`) placing VM starts on a node. Returns the node's `NodeCapacity`. | `node_id`, `draining` | `node.drain` (operator role, global) | An empty `node_id` is `invalid_argument`; an unknown node is `not_found`. The decision is stored apart from node health: it survives an outage and a restart of vmd. Semantics are in [OPERATIONS.md](OPERATIONS.md#draining-a-node). |
 
 ```
-curl -sS -X POST http://127.0.0.1:8080/homecloud.vmd.v1.ClusterService/SetNodeDraining \
+curl -sS -X POST http://127.0.0.1:8080/attic.vmd.v1.ClusterService/SetNodeDraining \
   -H "Authorization: Bearer $OPS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"nodeId":"node-1","draining":true}'
@@ -319,8 +319,8 @@ Replace `img_...` with an image ID from `RegisterImage` or `ListImages`.
 ### curl (Connect JSON)
 
 ```
-export TOKEN=...   # from hcctl token mint
-curl -sS -X POST https://homecloud.example.com/homecloud.vmd.v1.VMService/CreateVM \
+export TOKEN=...   # from atticctl token mint
+curl -sS -X POST https://attic.example.com/attic.vmd.v1.VMService/CreateVM \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"projectId":"proj-a","name":"web-1","cpus":2,"memoryMb":2048,
@@ -336,12 +336,12 @@ Reflection is not enabled, so pass the proto file. Use `-plaintext` for a cleart
 
 ```
 grpcurl -plaintext \
-  -proto api/proto/homecloud/vmd/v1/vmd.proto -import-path api/proto \
+  -proto api/proto/attic/vmd/v1/vmd.proto -import-path api/proto \
   -H "authorization: Bearer $TOKEN" \
   -d '{"projectId":"proj-a","name":"web-1","cpus":2,"memoryMb":2048,
        "imageId":"img_...","diskSizeGb":20,"start":true,
        "labels":{"role":"web"},"idempotencyKey":"web-1-create"}' \
-  localhost:8080 homecloud.vmd.v1.VMService/CreateVM
+  localhost:8080 attic.vmd.v1.VMService/CreateVM
 ```
 
 ### Go client
@@ -362,8 +362,8 @@ import (
 
 	"connectrpc.com/connect"
 
-	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1"
-	"github.com/rlsvarinskis/cloud-at-home/api/gen/homecloud/vmd/v1/vmdv1connect"
+	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
+	"github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1/vmdv1connect"
 	"github.com/rlsvarinskis/cloud-at-home/libs/authz"
 )
 
@@ -391,8 +391,8 @@ func main() {
 
 ## Workflows
 
-The steps below use curl with `$TOKEN` set and `$API=https://homecloud.example.com`. Each `call` is
-`curl -sS -X POST "$API/homecloud.vmd.v1.<Service>/<Method>" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '<json>'`.
+The steps below use curl with `$TOKEN` set and `$API=https://attic.example.com`. Each `call` is
+`curl -sS -X POST "$API/attic.vmd.v1.<Service>/<Method>" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '<json>'`.
 
 ### 1. Register a shared image
 
@@ -400,7 +400,7 @@ Only admins can register images. An empty `projectId` makes the image shared, wh
 
 ```
 call ImageService/RegisterImage '{"projectId":"","name":"debian-12","nodeId":"node-1",
-  "path":"/var/lib/homecloud/base/debian-12.qcow2"}'
+  "path":"/var/lib/attic/base/debian-12.qcow2"}'
 ```
 
 The response is `IMAGE_STATE_CREATING`. Poll until `IMAGE_STATE_READY`:
