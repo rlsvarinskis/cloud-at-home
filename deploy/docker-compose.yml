@@ -113,6 +113,35 @@ services:
     ports:
       - "127.0.0.1:8081:8080"
 
+  mcp:
+    # MCP server for Claude and other MCP clients. Callers send the same bearer tokens vmd and agentd accept; the
+    # server forwards them, so it can do nothing its caller could not. Put TLS in front of it (or pass --tls-cert/--tls-key).
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mcp
+    restart: unless-stopped
+    depends_on:
+      vmd:
+        condition: service_started
+      agentd:
+        condition: service_started
+    command:
+      # --vmd-url / --agentd-url: the Connect APIs this server calls (compose network names).
+      # --default-project:        project used when a tool call names none.
+      # --default-image:          image (name or ID) agent_create boots from when none is given.
+      # --trusted-key:            same public key(s) vmd and agentd trust, to authenticate MCP callers.
+      - --listen=:8082
+      - --trusted-key=admin=/keys/admin.pub
+      - --vmd-url=http://vmd:8080
+      - --agentd-url=http://agentd:8080
+      - --default-project=${HOMECLOUD_DEFAULT_PROJECT:-default}
+      - --default-image=${HOMECLOUD_DEFAULT_IMAGE:-}
+      - --log-level=info
+    volumes:
+      - ./keys:/keys:ro
+    ports:
+      - "127.0.0.1:8082:8082"
+
   ollama:
     # Optional LLM server. Start it with: docker compose --profile llm up -d
     profiles: ["llm"]

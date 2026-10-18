@@ -50,6 +50,8 @@ replace github.com/rlsvarinskis/cloud-at-home/libs/server => ../../libs/server
 
 replace github.com/rlsvarinskis/cloud-at-home/services/agentd => ../agentd
 
+replace github.com/rlsvarinskis/cloud-at-home/services/mcp => ../mcp
+
 replace github.com/rlsvarinskis/cloud-at-home/cmd/hcctl => ../../cmd/hcctl
 
 replace github.com/rlsvarinskis/cloud-at-home/e2e => ../../e2e

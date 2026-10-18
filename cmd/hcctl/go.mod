@@ -28,4 +28,6 @@ replace github.com/rlsvarinskis/cloud-at-home/services/vmd => ../../services/vmd
 
 replace github.com/rlsvarinskis/cloud-at-home/services/agentd => ../../services/agentd
 
+replace github.com/rlsvarinskis/cloud-at-home/services/mcp => ../../services/mcp
+
 replace github.com/rlsvarinskis/cloud-at-home/e2e => ../../e2e

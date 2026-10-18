@@ -144,6 +144,7 @@ libs/qemu/             module: node driver interface (node/), qemudriver, qemu, 
 libs/server/           module: obs (RPC metrics, /metrics, health checks), daemon (flags, logging, HTTP server)
 services/vmd/         module: vmd (domain, store, scheduler, service, promcollect) and cmd/vmd (control plane and node daemon)
 services/agentd/      module: agentd (domain, store, llm, vmclient, runner, service, metrics) and cmd/agentd
+services/mcp/         module: MCP server (tools for Claude and other MCP clients) and cmd/mcp
 cmd/hcctl/             module: admin CLI: keys, tokens, roles
 e2e/                   module: end-to-end tests, vmd and agentd in one process, over their HTTP APIs
 deploy/                Dockerfiles, docker-compose development stack, deployment notes

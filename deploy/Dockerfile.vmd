@@ -20,6 +20,7 @@ COPY libs/qemu/go.mod libs/qemu/go.sum libs/qemu/
 COPY libs/server/go.mod libs/server/go.sum libs/server/
 COPY services/vmd/go.mod services/vmd/go.sum services/vmd/
 COPY services/agentd/go.mod services/agentd/go.sum services/agentd/
+COPY services/mcp/go.mod services/mcp/go.sum services/mcp/
 COPY cmd/hcctl/go.mod cmd/hcctl/go.sum cmd/hcctl/
 COPY e2e/go.mod e2e/go.sum e2e/
 RUN --mount=type=cache,target=/go/pkg/mod cd services/vmd && go mod download

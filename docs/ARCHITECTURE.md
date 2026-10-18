@@ -111,7 +111,7 @@ because clients and proxies give up around 60 s.
 The repository is a Go workspace (`go.work`). Each module has its own `go.mod`; modules refer to each other
 through `go.work` and relative `replace` directives. Module paths are `github.com/rlsvarinskis/cloud-at-home/<module dir>`.
 There is no root module, so `go test ./...` must run inside a module. The `make` targets loop over all modules:
-`api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd cmd/hcctl e2e`.
+`api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd services/mcp cmd/hcctl e2e`.
 
 ```
 go.work                              the workspace: the nine modules below
@@ -155,6 +155,9 @@ services/
     service/                         agentd's Connect handlers
     metrics/                         task and step counters, task duration histogram
     cmd/agentd/                      the agentd binary
+  mcp/                               module: MCP server for Claude and other MCP clients (see its README)
+    mcpserver/                       tool implementations; forwards the caller's token to vmd and agentd
+    cmd/mcp/                         the mcp binary
 cmd/
   hcctl/                             module: admin CLI (keys, tokens, roles)
 e2e/                                 module: vmd and agentd together in one process, over their HTTP APIs
@@ -178,6 +181,7 @@ row below does not allow. Imports are checked in tests as well as in the code.
 | `libs/server` | `api`, `libs/common`, `libs/authz` |
 | `services/vmd` | `api`, `libs/common`, `libs/authz`, `libs/qemu`, `libs/server` |
 | `services/agentd` | `api`, `libs/common`, `libs/authz`, `libs/server` |
+| `services/mcp` | `api`, `libs/common`, `libs/authz`, `libs/server` |
 | `cmd/hcctl` | `api`, `libs/common`, `libs/authz` |
 | `e2e` | anything |
 

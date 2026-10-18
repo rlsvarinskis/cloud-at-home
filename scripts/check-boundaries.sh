@@ -11,9 +11,10 @@ declare -A ALLOWED=(
   [libs/server]="api libs/common libs/authz"
   [services/vmd]="api libs/common libs/authz libs/qemu libs/server"
   [services/agentd]="api libs/common libs/authz libs/server"
+  [services/mcp]="api libs/common libs/authz libs/server"
   [services/auth]="api libs/common libs/authz libs/server"
   [cmd/hcctl]="api libs/common libs/authz"
-  [e2e]="api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd"
+  [e2e]="api libs/common libs/authz libs/qemu libs/server services/vmd services/agentd services/mcp"
 )
 bad=0
 for mod in "${!ALLOWED[@]}"; do

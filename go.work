@@ -8,6 +8,7 @@ use (
 	./libs/server
 	./services/vmd
 	./services/agentd
+	./services/mcp
 	./cmd/hcctl
 	./e2e
 )
