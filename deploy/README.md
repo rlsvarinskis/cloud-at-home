@@ -15,6 +15,7 @@ with an optional CPU Ollama. For what each service does, see the [root README](.
 | File | Purpose |
 | --- | --- |
 | `docker-compose.yml` | The stack: `postgres`, `vmd` (control plane), `node` (QEMU/KVM), `agentd`, `mcp`, optional `ollama`. |
+| `docker-compose.gpu.yml` | Override: Ollama on the GPU with the host's existing models, read-only. |
 | `Dockerfile.vmd` | Control plane on distroless (nonroot). No QEMU. |
 | `Dockerfile.node` | The same `vmd` binary with `--role=node`, on Debian stable slim with `qemu-system-x86`, `qemu-utils`, `genisoimage`, `openssh-client`, `iptables` and a `qemu` user. |
 | `Dockerfile.agentd`, `Dockerfile.mcp` | Those services on distroless (nonroot). |
@@ -55,6 +56,9 @@ Set these in `deploy/.env` or the environment. Only the first is required.
 | `ATTIC_SUBNET` | `172.30.77.0/24` | Subnet of the stack's private network. |
 | `ATTIC_NODE_CPUS`, `ATTIC_NODE_MEM` | 4, `6g` | Hard caps (`cpus`, `mem_limit`) of the node container, which hosts the guests. |
 | `ATTIC_NODE_RESERVE_MB` | 1024 | RAM the node keeps back for itself (`--reserve-memory-mb`). |
+| `ATTIC_MCP_BIND` | `ATTIC_BIND` | Host address of the MCP port only (for example `0.0.0.0` to serve other machines while the other ports stay on loopback). |
+| `ATTIC_MCP_TLS_DIR`, `ATTIC_MCP_TLS_CERT`, `ATTIC_MCP_TLS_KEY` | `./keys`, empty, empty | Serve MCP over HTTPS: the host folder holding the files, and their paths under `/tls` (for example `/tls/cert.pem`, `/tls/key.pem`). The files must be readable by `ATTIC_UID`. |
+| `OLLAMA_MODELS_DIR` | `~/.ollama/models` | Host folder of Ollama models, used by `docker-compose.gpu.yml`. |
 | `ATTIC_IMAGES_DIR` | `./images` | Host folder of guest images, mounted read-only at `/images` in the node. |
 | `ATTIC_DEFAULT_PROJECT`, `ATTIC_DEFAULT_IMAGE` | `default`, empty | Defaults of the MCP server's tools. |
 | `ATTIC_OLLAMA_URL` | `http://ollama:11434` | Where agentd finds Ollama (set it to use an existing server). |
@@ -80,6 +84,24 @@ Use the same variables for every compose command of that project.
 
 For a GPU, add a `deploy.resources.reservations.devices` entry to the `ollama` service in a compose override file, or
 point `ATTIC_OLLAMA_URL` at an Ollama you already run.
+
+### GPU and the host's models
+
+`docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile llm up -d` runs Ollama on the GPU and reads the
+models already on the host (`OLLAMA_MODELS_DIR`) through a read-only mount, so nothing is downloaded or copied and the
+container cannot pull or delete models. It needs the NVIDIA container runtime. Pass the same `-f` flags to every compose
+command of the project.
+
+### MCP on a public port with TLS
+
+To serve MCP to other machines over HTTPS, publish the MCP port on all interfaces and give it a certificate:
+
+```bash
+ATTIC_MCP_BIND=0.0.0.0 ATTIC_MCP_PORT=8808 ATTIC_MCP_TLS_DIR=/path/to/tls ATTIC_MCP_TLS_CERT=/tls/cert.pem ATTIC_MCP_TLS_KEY=/tls/key.pem docker compose up -d
+```
+
+Clients must send a signed token (`atticctl token mint`, up to `ATTIC_MAX_TOKEN_TTL`); a static shared secret is not
+accepted. vmd and agentd stay on loopback.
 
 ## Security notes
 

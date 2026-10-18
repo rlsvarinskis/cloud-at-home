@@ -13,6 +13,11 @@
 #   ATTIC_VMD_PORT / ATTIC_AGENTD_PORT / ATTIC_MCP_PORT / ATTIC_OLLAMA_PORT   host ports (8080 / 8081 / 8082 / 11434)
 #   ATTIC_UID / ATTIC_GID  user the vmd and agentd containers run as; it must be able to read keys/*.key, which
 #                          atticctl writes with mode 0600 (default 65532, the image's nonroot user)
+#   ATTIC_MCP_BIND         host address of the MCP port only (default: ATTIC_BIND); 0.0.0.0 to serve other machines
+#   ATTIC_MCP_TLS_DIR / ATTIC_MCP_TLS_CERT / ATTIC_MCP_TLS_KEY   serve MCP over HTTPS: host folder with the files,
+#                          and their paths under /tls (for example /tls/cert.pem and /tls/key.pem); the files must be
+#                          readable by ATTIC_UID
+#   OLLAMA_MODELS_DIR      host folder of Ollama models for docker-compose.gpu.yml (default ~/.ollama/models)
 #   ATTIC_MAX_TOKEN_TTL    longest token lifetime vmd, agentd and mcp accept (default 720h); keep it equal on all three
 #   ATTIC_SUBNET           subnet of the private network (default 172.30.77.0/24)
 #   ATTIC_NODE_CPUS / ATTIC_NODE_MEM   hard caps for the node container, which hosts the guests (default 4 / 6g)
@@ -141,6 +146,7 @@ services:
   # server forwards them, so it can do nothing its caller could not. Put TLS in front of it for anything but loopback.
   mcp:
     <<: *restart
+    user: "${ATTIC_UID:-65532}:${ATTIC_GID:-65532}"
     build:
       context: ..
       dockerfile: deploy/Dockerfile.mcp
@@ -157,15 +163,18 @@ services:
       - --default-project=${ATTIC_DEFAULT_PROJECT:-default}
       - --default-image=${ATTIC_DEFAULT_IMAGE:-}
       - --max-token-ttl=${ATTIC_MAX_TOKEN_TTL:-720h}
+      - --tls-cert=${ATTIC_MCP_TLS_CERT:-}   # empty = plain HTTP; set both TLS variables to serve HTTPS
+      - --tls-key=${ATTIC_MCP_TLS_KEY:-}
       - --log-level=info
     volumes:
       - ./keys/admin.pub:/keys/admin.pub:ro
+      - ${ATTIC_MCP_TLS_DIR:-./keys}:/tls:ro  # holds the certificate and key named by the two variables above
     networks: [attic]
     ports:
-      - "${ATTIC_BIND:-127.0.0.1}:${ATTIC_MCP_PORT:-8082}:8082"
+      - "${ATTIC_MCP_BIND:-${ATTIC_BIND:-127.0.0.1}}:${ATTIC_MCP_PORT:-8082}:8082"
 
   # Optional LLM server on the CPU (no GPU reservation). Start it with: docker compose --profile llm up -d
-  # For a GPU, add a deploy.resources.reservations.devices entry in a compose override file.
+  # For the GPU and the host's existing models use the override: -f docker-compose.yml -f docker-compose.gpu.yml.
   ollama:
     profiles: ["llm"]
     <<: *restart

@@ -1,0 +1,26 @@
+# Override: run the stack's Ollama on the GPU with the host's existing models, read-only.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile llm up -d
+#
+# Needs the NVIDIA container runtime on the host. Models are not copied: Ollama reads OLLAMA_MODELS_DIR
+# (default ~/.ollama/models) through a read-only mount, so it cannot pull or delete models. Pull or remove them
+# with an Ollama you run on the host, then they appear here. Use the same -f flags for every compose command
+# of this project, or compose will recreate the service without them.
+
+services:
+  ollama:
+    restart: unless-stopped
+    volumes:
+      - ${OLLAMA_MODELS_DIR:-${HOME}/.ollama/models}:/models:ro
+    environment:
+      OLLAMA_MODELS: /models
+      OLLAMA_FLASH_ATTENTION: "1"
+      OLLAMA_KV_CACHE_TYPE: q8_0    # halves the KV cache memory
+      OLLAMA_KEEP_ALIVE: 30m
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
