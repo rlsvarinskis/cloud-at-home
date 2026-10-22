@@ -5,9 +5,10 @@ conventions, the test strategy and CI. Each component's README covers its own de
 one component, start with its README:
 
 - Contract and libraries: [api](api/README.md), [libs/common](libs/common/README.md), [libs/authz](libs/authz/README.md),
-  [libs/qemu](libs/qemu/README.md), [libs/server](libs/server/README.md)
+  [libs/qemu](libs/qemu/README.md), [libs/server](libs/server/README.md), [libs/cli](libs/cli/README.md)
 - Services: [services/vmd](services/vmd/README.md), [services/agentd](services/agentd/README.md),
   [services/mcp](services/mcp/README.md)
+- Command-line tools: [cmd/attic](cmd/attic/README.md) with its groups, such as [services/vmd/cli](services/vmd/cli/README.md)
 - Tools and tests: [cmd/atticctl](cmd/atticctl/README.md), [e2e](e2e/README.md), [deploy](deploy/README.md)
 
 Architecture decisions are in [docs/adr](docs/adr/). Design proposals are in [docs/design](docs/design/).
@@ -62,10 +63,13 @@ module, so `go test ./...` at the root does not work. Run commands inside a modu
 | `libs/authz/` | Tokens, roles, principals, Connect interceptors |
 | `libs/qemu/` | The node driver interface, the QEMU driver, the fake driver and the node API |
 | `libs/server/` | HTTP server, daemon flags, RPC metrics, health endpoints |
+| `libs/cli/` | Command-line toolkit: groups, dispatcher and help, global settings, bearer token |
 | `services/vmd/` | VM service: control plane and node roles |
 | `services/agentd/` | Agent service: tasks, model client, runner |
 | `services/mcp/` | MCP server that exposes tools over vmd and agentd |
+| `services/vmd/cli/` | The `vm` command group of `attic` (its own module, next to vmd) |
 | `cmd/atticctl/` | Admin CLI: keys, tokens, roles |
+| `cmd/attic/` | Command-line hub: global flags and the command groups |
 | `e2e/` | End-to-end tests across the services |
 | `deploy/` | Dockerfiles and the compose stack |
 | `docs/` | `adr/` (decisions), `design/` (proposals), `assets/` |
@@ -85,16 +89,25 @@ imports of each module, tests included. CI runs the script. Third-party and stan
 | `libs/authz` | `api`, `libs/common` |
 | `libs/qemu` | `api`, `libs/common`, `libs/authz` |
 | `libs/server` | `api`, `libs/common`, `libs/authz` |
+| `libs/cli` | `api`, `libs/common` |
 | `services/vmd` | `api`, `libs/common`, `libs/authz`, `libs/qemu`, `libs/server` |
+| `services/vmd/cli` | `api`, `libs/common`, `libs/cli` (must not import `services/vmd`) |
 | `services/agentd` | `api`, `libs/common`, `libs/authz`, `libs/server` |
 | `services/mcp` | `api`, `libs/common`, `libs/authz`, `libs/server` |
 | `services/auth` | `api`, `libs/common`, `libs/authz`, `libs/server` (reserved) |
 | `cmd/atticctl` | `api`, `libs/common`, `libs/authz` |
+| `cmd/attic` | `libs/cli`, and any `services/*/cli` module |
 | `e2e` | `api`, `libs/common`, `libs/authz`, `libs/qemu`, `libs/server`, `services/vmd`, `services/agentd`, `services/mcp` |
 
 `services/auth` is reserved for the planned identity service (see [docs/design/auth-graph.md](docs/design/auth-graph.md)).
 It has no module yet, so the script skips it. Its row is kept so that the rule is already written when the module
-appears. Do not add a sibling import that this table does not list. Change the table in the script and in this section
+appears. A module may sit inside another one: `services/vmd/cli` is a nested module of `services/vmd` and has its own row.
+Each file and each import belongs to the module with the longest matching directory, so the nested module's code is
+checked against its own row, not against its parent's. A row may use a shell glob: `cmd/attic` may import any
+`services/*/cli` module without the table naming each one. Every module on disk must have a row. The script fails on
+a `go.mod` it does not know, so a new module cannot slip past the rules.
+
+Do not add a sibling import that this table does not list. Change the table in the script and in this section
 together, with review.
 
 ## Make targets
@@ -113,7 +126,7 @@ The module list is `MODULES` in the Makefile. Add a new module there.
 | `make boundaries` | Runs `scripts/check-boundaries.sh` |
 
 `build`, `vet`, `test` and `tidy` stop at the first failing module. To build the binaries, run from the repository root:
-`go build -o bin/ ./services/vmd/cmd/vmd ./services/agentd/cmd/agentd ./services/mcp/cmd/mcp ./cmd/atticctl`. `bin/` is
+`go build -o bin/ ./services/vmd/cmd/vmd ./services/agentd/cmd/agentd ./services/mcp/cmd/mcp ./cmd/atticctl ./cmd/attic`. `bin/` is
 gitignored.
 
 ## Coding conventions
@@ -237,5 +250,5 @@ Permissions and roles are defined in `libs/authz/rbac.go`.
 - When a `.proto` file changes, regenerate and commit `api/gen` in the same commit.
 - Make one logical change per commit, and say why in the message.
 - Never rewrite a migration that has shipped.
-- `.gitignore` covers `bin/`, `*.test`, `.env`, `*.pem` (except under `testdata/`), the binaries of `cmd/atticctl`,
+- `.gitignore` covers `bin/`, `*.test`, `.env`, `*.pem` (except under `testdata/`), the binaries of `cmd/atticctl` and `cmd/attic`,
   `services/*/cmd/*` and `HANDOFF*.md`. Do not add exceptions to it for convenience.

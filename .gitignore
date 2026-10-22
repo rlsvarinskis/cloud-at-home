@@ -8,6 +8,7 @@ cover.out
 
 # Binaries built by `go build` inside a module directory
 /cmd/*/atticctl
+/cmd/attic/attic
 /services/*/cmd/*/vmd
 /services/*/cmd/*/agentd
 /services/*/cmd/*/mcp

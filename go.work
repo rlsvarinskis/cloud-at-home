@@ -6,9 +6,12 @@ use (
 	./libs/authz
 	./libs/qemu
 	./libs/server
+	./libs/cli
 	./services/vmd
+	./services/vmd/cli
 	./services/agentd
 	./services/mcp
 	./cmd/atticctl
+	./cmd/attic
 	./e2e
 )

@@ -41,6 +41,9 @@ its API contract; this page is the map.
 | libs/common, libs/server | Error vocabulary, ids, Postgres and migrations; HTTP daemon, logging, metrics. | [common](libs/common/README.md), [server](libs/server/README.md) |
 | api | The `.proto` files (source of truth) and the generated Go code. | [api](api/README.md) |
 | cmd/atticctl | Admin CLI: keys, tokens, roles. | [cmd/atticctl](cmd/atticctl/README.md) |
+| cmd/attic | User and admin CLI hub: global flags, then command groups such as `attic vm list` and `attic vm cp`. | [cmd/attic](cmd/attic/README.md) |
+| services/vmd/cli | The `vm` command group of `attic`, next to the vmd it talks to. | [services/vmd/cli](services/vmd/cli/README.md) |
+| libs/cli | Shared CLI toolkit: command groups, dispatcher and help, global settings, bearer token. | [libs/cli](libs/cli/README.md) |
 | e2e | End-to-end tests over the real HTTP handlers. | [e2e](e2e/README.md) |
 | deploy | Dockerfiles, the compose stack, production-style deployment notes. | [deploy](deploy/README.md) |
 
@@ -143,11 +146,13 @@ is enforced by `make boundaries`; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```
 api/            proto sources and generated code        services/vmd/     VM service and node daemon
-libs/common/    errors, ids, Postgres                   services/agentd/  agent service
-libs/authz/     tokens, roles, interceptors             services/mcp/     MCP server
-libs/qemu/      node driver and guest scripts           cmd/atticctl/     admin CLI
-libs/server/    HTTP daemon, logging, metrics           e2e/              end-to-end tests
-deploy/         Dockerfiles and compose stack           docs/             ADRs and design proposals
+libs/common/    errors, ids, Postgres                   services/vmd/cli/ attic's vm group (nested module)
+libs/authz/     tokens, roles, interceptors             services/agentd/  agent service
+libs/qemu/      node driver and guest scripts           services/mcp/     MCP server
+libs/server/    HTTP daemon, logging, metrics           cmd/atticctl/     admin CLI
+libs/cli/       command-line toolkit                    cmd/attic/        attic hub (global flags, groups)
+e2e/            end-to-end tests across the services    deploy/           Dockerfiles and the compose stack
+docs/           ADRs and design proposals               scripts/          check-boundaries.sh
 ```
 
 ## Roadmap
