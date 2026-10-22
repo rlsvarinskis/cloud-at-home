@@ -3,10 +3,33 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// TestInitializeCarriesServerInstructions checks that MCP clients get the instructions on initialize, with the
+// numbers taken from the server configuration.
+func TestInitializeCarriesServerInstructions(t *testing.T) {
+	cs := newTestSession(t, Clients{}, func(c *Config) {
+		c.DefaultProject = "proj-x"
+		c.MaxWait = 40 * time.Second
+	})
+	ins := cs.InitializeResult().Instructions
+	for _, want := range []string{
+		"Attic Cloud", `"proj-x"`, "agent_exec_poll", "agent_task", "agent_status", "since_step", "wait_seconds 0",
+		"agent_cancel", "check_command", "done_unverified", "not_found:", "40s",
+	} {
+		if !strings.Contains(ins, want) {
+			t.Errorf("instructions lack %q:\n%s", want, ins)
+		}
+	}
+	if n := strings.Count(ins, "\n") + 1; n < 12 || n > 30 {
+		t.Errorf("instructions have %d lines, want about 15 to 25", n)
+	}
+}
 
 func TestAllToolsRegistered(t *testing.T) {
 	cs := newTestSession(t, Clients{})

@@ -101,15 +101,16 @@ is not an error: the tool returns the state it has, and the text says what to do
 
 ### Machine tools
 
-A machine is a vmd VM. `name` must be 1 to 31 characters of lowercase letters, digits and hyphens, and vmd also
-requires it to start with a letter (the MCP check accepts a leading digit; vmd then refuses it).
+A machine is a vmd VM. `name` must match vmd's rule `^[a-z]([a-z0-9-]{0,29}[a-z0-9])?$` (1 to 31 characters, lowercase letters, digits and
+hyphens, starting with a letter, not ending in a hyphen). The schema enforces it, as it does the other bounds shown
+below: a call that breaks one fails with a validation error that names the property.
 
 | Tool | Arguments | Result | Notes |
 | --- | --- | --- | --- |
 | `agent_create` | `name` (required); `cpus` (1-32, default 1); `memory_gb` (1-56, default 2); `disk_gb` (at least 1, default 40); `image` (name or ID, default `-default-image`); `project` | Text: `machine 'x' is running (1 CPU, 2 GiB)`, or `is booting (agent_list shows when it is ready)`. | Creates the VM and starts it, or starts a stopped VM with that name (its sizes and image are then not changed). Refused if the VM is already running or starting. An image name that matches two images is refused (give the ID). |
-| `agent_list` | `project` | One line per machine: `name: state, N CPUs / X GiB[, reason: ...], task: <label>`. `(no machines)` when empty. | State: pending, stopped, starting, running, stopping, error, deleting. `task` is the newest agentd task of the machine's agents: `queued`, `running`, `done`, `failed`, `gave_up`, `cancelled`, `error`, `none` (no agent or no task), or `unknown` (agentd unreachable, or a `succeeded_unverified` task, see [Known limits](#known-limits)). |
+| `agent_list` | `project` | One line per machine: `name: state, N CPU(s) / X GiB[, reason: ...], task: <label>`. `(no machines)` when empty. | State: pending, stopped, starting, running, stopping, error, deleting. `task` is the newest agentd task of the machine's agents: `queued`, `running`, `done`, `failed`, `gave_up`, `cancelled`, `error`, `none` (no agent or no task), or `unknown` (agentd unreachable), `done_unverified` (the model claimed success but `check_command` did not confirm). |
 | `agent_stop` | `name`, `project` | `machine 'x' is stopped` or `is stopping`. | Graceful stop of the guest. Disk and data are kept. Does not wait. |
-| `agent_destroy` | `name`, `project`, `force` (default false) | `machine 'x' destroyed`. | PERMANENT. Deletes the agentd agents on the VM first (one by one; a failure stops the call before the VM is deleted), then deletes the VM with its boot disk. `force` is passed to vmd, which then deletes a VM other services hold. Returns once deletion is requested. |
+| `agent_destroy` | `name`, `project`, `force` (default false) | `machine 'x' deletion requested; it is being deleted (agent_list shows deleting until it is gone)`. | PERMANENT. Deletes the agentd agents on the VM first (one by one; a failure stops the call before the VM is deleted), then deletes the VM with its boot disk. `force` is passed to vmd, which then deletes a VM other services hold. Returns once deletion is requested. |
 | `agent_resize` | `name`, `project`, `cpus` (0 or omitted keeps it; 1-32), `memory_gb` (0 or omitted keeps it; 1-56), `force` (default false) | `machine 'x' resized from A to B; running again`, `; booting again (...)`, or `; applied; machine is stopped (agent_create starts it)`. | Needs at least one of `cpus` and `memory_gb`. A running machine is refused while it runs jobs, unless `force`. Otherwise it is stopped gracefully, resized and started, waiting within the budget. With `force` the job check is skipped; the running jobs end when the VM stops (vmd marks them lost). |
 
 ### Exec tools
@@ -123,7 +124,7 @@ across MCP server restarts.
 | `agent_exec` | `name`, `command` (required, not blank); `timeout` (1-604800 s, default 3600, total run time); `wait_seconds` (default 45); `max_output` (1-65536 bytes per stream, default 8192); `workdir` (default: the guest user's home, created if missing); `project` | JSON object (below). | Starts the job and waits for it within the budget. If `done` is false, poll with `agent_exec_poll`. |
 | `agent_exec_poll` | `name`, `job_id` (required); `wait_seconds` (default 45); `stdout_offset`, `stderr_offset` (default 0); `max_output`; `tail` (bool); `project` | JSON object. | `tail` defaults to true when both offsets are 0, else false. With `tail`, the newest `max_output` bytes of each stream are returned. Otherwise the output after the offsets is returned (up to `max_output` per stream in total across the polls of the call), and the returned offsets are the ones to pass next. `more` true means more output is waiting. A job of another machine is refused. |
 | `agent_exec_cancel` | `name`, `job_id` (required); `project` | JSON object (state `cancelled` if it was running). | Checks that the job belongs to the machine (reads all of the machine's job pages), then cancels. Cancelling a finished job returns its final state. |
-| `agent_exec_list` | `name`; `project` | One line per job: `job_id state exit=<code or -> <seconds>s <command>`, command clipped to 80 characters. `(no jobs)` when none. | Reads one page of up to 50 jobs. See [Known limits](#known-limits) for which 50. |
+| `agent_exec_list` | `name`; `project` | One line per job: `job_id state exit=<code or -> <seconds>s <command>`, command clipped to 80 characters. `(no jobs)` when none. | Lists the newest 50 jobs, newest first (reads up to 10 pages of 200 from vmd; a marker line says when the machine has more than 2000 jobs). |
 
 The JSON object of the exec tools always has these keys: `job_id`, `done` (false while running), `state`
 (`running`, `succeeded`, `failed`, `cancelled`, `timed_out` or `lost`), `exit_code` (null until it exits), `seconds`,
@@ -152,7 +153,7 @@ Agent system prompt and working directory are the agentd defaults. Behaviour of 
 | `agent_models` | none | JSON array: `name`, `size_gib` (one decimal), `params`, `quant`, `fits_vram`, `context` (null when unknown). | `fits_vram` is agentd's check against its `-vram-gib` budget (default 16 GiB less 0.5 GiB). The tool text says 16 GiB; that is only the default. |
 | `agent_task` | `name` (required); `task` (required, not blank); `model` (required, an installed model; there is no default); `check_command` (run in the machine; exit 0 means success); `max_steps` (default 40; agentd caps at 200; negative refused); `max_minutes` (0 or omitted: no limit; negative refused); `max_call_tokens` (default 32768, 0 = no cap, negative refused); `check_each_step` (default true); `project` | `task <id> started with model <m>`, or `task <id> queued with model <m> behind N unfinished task(s) ...`, plus `warning: model ... exceeds the VRAM budget ...` when `fits_vram` is false. | Returns at once; follow with `agent_status`. `N` counts the agent's queued and running tasks (best effort: at most 50 of each state). An unknown model is refused and lists the installed ones. Nothing is changed when validation fails. |
 | `agent_status` | `name`; `wait_seconds` (default 30, capped); `since_step` (last step number seen); `max_commands` (default 10, 0 lists none); `brief` (bool); `project` | Text, described below. | While the latest task is queued or running the call waits (long poll on agentd). Fails with `no agent/task yet on machine 'x' (use agent_task)`. |
-| `agent_cancel` | `name`; `project` | `cancel requested for task <id>`, or `no running task`. | Stops a queued or running task. A running task stops within about 1 s. |
+| `agent_cancel` | `name`; `project` | `cancel requested for N task(s): id, id`, or `no running task`. | Stops every queued or running task of every agent on the machine's VM, oldest first. A running task stops within about 1 s. |
 
 `agent_status` output, in order:
 
@@ -285,19 +286,12 @@ The response carries `Mcp-Session-Id`. Send it on later requests.
 
 ## Known limits
 
-- `agent_list` shows `unknown` for an agentd task in state `succeeded_unverified` (the label mapping does not include
-  it). `agent_status` shows it as `done_unverified`.
-- `agent_exec_list` reads one page of jobs in vmd's order, which is oldest first by ID. On a machine with more than 50
-  jobs it lists the oldest 50 (newest first among them), not the newest, and says so at the end. The tool text says
-  "most recent": that is wrong for such machines.
-- The waits text of `agent_create` and `agent_resize` says "about 25 s". The code waits `max-wait` minus 5 s (35 s at
-  the default).
 - `agent_download` reports `size` as the bytes returned. vmd does not report the size of a larger file, so a
   truncated read shows `truncated: true` with the size read.
 - `agent_destroy` deletes agents one by one; if one fails the VM is not deleted and the call reports the error.
-- The MCP name check accepts a leading digit; vmd does not. Such a name fails at `agent_create` with vmd's error.
-- `agent_task`'s queue count is best effort (first page of 50 per state; errors count as 0).
-- The VRAM figure in the `agent_models` text is fixed at 16 GiB; the real budget is agentd's `-vram-gib`.
+- `agent_task` replies "queued" (not "started"): agentd's runner may run two tasks of one agent at the same time; the reply counts the agent's other unfinished tasks. The count is best effort (first page of 50 per state; errors count as 0).
+- Guest-side failures (permission denied, a bad workdir) reach callers as `unavailable: node ... is unavailable`, and an upload to a directory path writes a hidden temp file; these come from libs/qemu and are listed in the root TODO.
+- The server sends usage instructions on `initialize` (project, waits, polling rules, task states).
 - `agent_status` looks up the latest task by reading every task page of the agent, because agentd lists oldest first.
   A newest-first option in agentd would remove that cost.
 

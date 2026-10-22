@@ -229,8 +229,8 @@ func TestOpsAgentMetricsValidationAndErrors(t *testing.T) {
 	t.Run("missing name", func(t *testing.T) {
 		cs := newTestSession(t, Clients{VMs: &opsFakeVMs{}, Metrics: &opsFakeMetrics{}})
 		out, isErr := callTool(t, cs, "agent_metrics", map[string]any{"name": ""})
-		if !isErr || !strings.Contains(out, "name is required") {
-			t.Errorf("got (%q, %v), want a name-is-required tool error", out, isErr)
+		if !isErr || !strings.Contains(out, "validating") || !strings.Contains(out, "name") {
+			t.Errorf("got (%q, %v), want a schema tool error naming name", out, isErr)
 		}
 	})
 	t.Run("machine not found", func(t *testing.T) {
@@ -365,8 +365,8 @@ func TestOpsNodeDrainValidationAndErrors(t *testing.T) {
 	t.Run("missing node_id", func(t *testing.T) {
 		cs := newTestSession(t, Clients{Cluster: &opsFakeCluster{}})
 		out, isErr := callTool(t, cs, "node_drain", map[string]any{"node_id": "", "draining": true})
-		if !isErr || !strings.Contains(out, "node_id is required") {
-			t.Errorf("got (%q, %v), want a node_id-is-required tool error", out, isErr)
+		if !isErr || !strings.Contains(out, "validating") || !strings.Contains(out, "node_id") {
+			t.Errorf("got (%q, %v), want a schema tool error naming node_id", out, isErr)
 		}
 	})
 	t.Run("unknown node", func(t *testing.T) {

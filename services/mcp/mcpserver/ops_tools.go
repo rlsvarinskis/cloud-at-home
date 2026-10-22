@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/google/jsonschema-go/jsonschema"
 
 	vmdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/vmd/v1"
 )
@@ -14,40 +15,57 @@ import (
 // registerOpsTools registers the usage and fleet tools: agent_metrics (one machine), cluster_capacity (operators)
 // and node_drain (operators). None of them waits on the VM, so each call is a single downstream request.
 func (s *Server) registerOpsTools() {
-	addTool(s, "agent_metrics",
-		"Current usage of one machine, as plain text: cpu (top-style: 100% per busy vCPU, so the maximum is 100% per vCPU), "+
-			"load averages, memory and swap, uptime, one line per guest filesystem (disk <disk_id or ?> <mount> <device>) and "+
-			"one line per host-side disk allocation (the space its image really occupies vs. its virtual size). "+
-			"The machine must be running; otherwise the error says so. Needs vm.metrics on the project. "+
-			"Args: name (required, the machine's name), project (optional, defaults to the configured project).",
-		s.opsAgentMetrics)
+	addToolSchema(s, "agent_metrics",
+		"Current usage of one running machine: one sample taken at call time, as plain text, one line each. "+
+			"`cpu: 312% of 800% (8 vCPUs, top-style: 100 per busy vCPU)` (the maximum is 100 per vCPU); `load: 3.1 2.8 2.0` "+
+			"(1, 5 and 15 minutes); `memory: 4.2 GiB used / 16.0 GiB (11.8 GiB available); swap 0 B / 0 B`; `uptime: 1h 12m`; "+
+			"`disk <disk_id or ?> <mount> <device>: 12.3 GiB used / 40.0 GiB (31%)`, one per guest filesystem; "+
+			"`host disk <disk_id>: allocated 3.2 GiB of 40.0 GiB virtual`, one per host-side disk (the space the image occupies "+
+			"on the host vs. its virtual size). Sizes are B, KiB, MiB, GiB or TiB with one decimal; plain bytes have none. "+
+			"The machine must be running; otherwise the error is `failed_precondition: vm <id> is <state>, not running`, which "+
+			"names the VM ID, not the machine name. Needs vm.metrics on the project. Errors: not_found when no machine has "+
+			"the name; unavailable when its node is not registered.",
+		func(root *jsonschema.Schema) { machMachineName(prop(root, "name")) }, s.opsAgentMetrics)
 	addTool(s, "cluster_capacity",
-		"Cluster capacity for operators, one line per node: state (ready, draining or down), CPUs and memory allocated to VMs "+
-			"that should run, what the scheduler would still hand out, free disk, and running VMs. The final 'total:' line sums "+
-			"ready nodes only. Operators only (needs capacity.get); no arguments.",
+		"Cluster capacity for operators (needs capacity.get); no arguments. One line per node, e.g. `node n1 [ready]: cpus "+
+			"6/16 allocated (12 available), memory 8192/32768 MiB (24576 available), disk 120.0 GiB free of 500.0 GiB, vms 2/3 "+
+			"running`. The state is ready, draining or down; down takes priority over draining. Allocated figures cover VMs that "+
+			"should run. Available is what the scheduler would still hand out, and it is 0 for a draining or down node. Memory is "+
+			"in MiB; disk is in GiB or TiB. vms R/T means R running of T VMs on the node in any state. The final `total:` line "+
+			"has the same figures and sums ready nodes only.",
 		s.opsClusterCapacity)
-	addTool(s, "node_drain",
-		"Operators only (needs node.drain). Stop (draining=true) or resume (draining=false) placing new VM starts on a node. "+
-			"Running VMs on the node keep running; stopped VMs on it wait until the node is resumed. The decision persists across "+
-			"outages and restarts. Returns the node's resulting state line. Args: node_id (required), draining (required, boolean).",
-		s.opsNodeDrain)
+	addToolSchema(s, "node_drain",
+		"Operators only (needs node.drain). Sets draining on a node: draining=true stops placing new VM starts on it, "+
+			"draining=false resumes it. Both arguments are required; send draining explicitly. Running VMs on the node keep "+
+			"running. A VM that should run but cannot start there stays `pending` with reason `waiting for capacity: node is "+
+			"draining` (agent_list shows it), including a VM that crashed and is being restarted; it starts after the node is "+
+			"resumed. The setting persists across outages and restarts. Result: the node's state line in the cluster_capacity "+
+			"format, e.g. `node n1 [draining]: cpus 0/16 allocated (0 available), ...`; a down node prints [down] even when "+
+			"draining is true. Errors: `not_found: node X not found` for an unknown node_id.",
+		func(root *jsonschema.Schema) {
+			minLen := 1
+			prop(root, "node_id").MinLength = &minLen
+		}, s.opsNodeDrain)
 }
 
 type opsMetricsArgs struct {
-	Name    string `json:"name" jsonschema:"the machine (VM) name to inspect"`
+	Name    string `json:"name" jsonschema:"the machine (VM) name to inspect (see agent_list)"`
 	Project string `json:"project,omitempty" jsonschema:"project of the machine; defaults to the configured project"`
 }
 
 type opsNoArgs struct{}
 
 type opsDrainArgs struct {
-	NodeID   string `json:"node_id" jsonschema:"ID of the node to drain or resume"`
-	Draining bool   `json:"draining" jsonschema:"true stops placing new VM starts on the node; false resumes it"`
+	NodeID   string `json:"node_id" jsonschema:"ID of the node to drain or resume (see cluster_capacity)"`
+	Draining bool   `json:"draining" jsonschema:"true stops placing new VM starts on the node; false resumes it (required: send it explicitly)"`
 }
 
 func (s *Server) opsAgentMetrics(ctx context.Context, in opsMetricsArgs) (string, error) {
 	if in.Name == "" {
 		return "", fmt.Errorf("name is required: give the machine's name (see agent_list)")
+	}
+	if err := checkMachineName(in.Name); err != nil {
+		return "", err
 	}
 	vm, err := s.vmByName(ctx, in.Project, in.Name)
 	if err != nil {

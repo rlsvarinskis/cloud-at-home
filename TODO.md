@@ -44,10 +44,15 @@ Priorities: **P1** soon, **P2** next, **P3** someday.
 - **P1: two vmd replicas can overcommit a node** (the placement lock is per process). Needs a reservation in the store.
 - **P1: stuck tasks.** A task with a cancel request whose worker died stays `RUNNING` forever: nothing reaps it.
 - **P2: agentd states.** `DELETING` is never set, and `ORPHANED` has no recovery path other than deleting the agent.
-- **P2: MCP details found by reading the code:** `agent_list` shows `succeeded_unverified` tasks as unknown;
-  `agent_exec_list` says "most recent" but vmd lists oldest first, so with many jobs it shows the oldest; the name check
-  accepts a leading digit that vmd refuses; `agent_upload`/`agent_download` require absolute paths while the old
-  gateway accepted relative ones; transport errors in tool results may include a downstream address.
+- **P2: agentd runs two tasks of one agent at once.** Each worker claims one task without excluding a second task of the
+  same agent, so they share one VM and workdir. Serialise per agent in the claim query.
+- **P2: guest-side failures are masked.** Any failure from a guest command (permission denied, bad workdir) reaches the
+  caller as "node is unavailable" because of error sanitising in the node service. Pass a safe message through.
+- **P2: upload to a directory path** writes a hidden temp file (`mv -f` into the directory; should be `mv -fT`) in the
+  guest exec scripts (libs/qemu). The guest also prunes job directories after the newest 50, so older output is lost.
+- **P3: vmd exec details.** A command exiting 124 is reported as timed out; ListJobs has no newest-first order (the MCP
+  pages through up to 2000 jobs); StartJob's idempotency key is not sent by the MCP; stored job state is not reconciled
+  for jobs nobody polls.
 - **P2: missing test** for the "model not installed" check in agentd.
 - **P3: deleting an image can race with a concurrent disk creation from it** in a narrow window.
 

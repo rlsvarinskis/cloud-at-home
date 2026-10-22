@@ -289,7 +289,7 @@ func TestTskAgentTaskCreatesAgentAndQueuesTask(t *testing.T) {
 	if isErr {
 		t.Fatalf("unexpected error: %s", out)
 	}
-	if out != "task task_new started with model qwen" {
+	if out != "task task_new queued with model qwen" {
 		t.Fatalf("got %q", out)
 	}
 	if len(env.agents.created) != 1 {
@@ -378,14 +378,19 @@ func TestTskAgentTaskValidationCreatesNothing(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"model missing", map[string]any{"name": "box", "task": "go"},
-			"model is required: there is no default, pick one of the installed models. Installed: llama, qwen"},
+		{"model missing", map[string]any{"name": "box", "task": "go"}, `missing properties: ["model"]`},
+		{"empty model", map[string]any{"name": "box", "task": "go", "model": ""}, "/properties/model"},
 		{"model not installed", map[string]any{"name": "box", "task": "go", "model": "gpt"},
 			"model 'gpt' is not installed. Installed: llama, qwen"},
 		{"negative max_steps", map[string]any{"name": "box", "task": "go", "model": "qwen", "max_steps": -1},
-			"max_steps must not be negative"},
+			"/properties/max_steps"},
+		{"max_steps above int32", map[string]any{"name": "box", "task": "go", "model": "qwen", "max_steps": 1 << 40},
+			"/properties/max_steps"},
+		{"negative max_call_tokens", map[string]any{"name": "box", "task": "go", "model": "qwen", "max_call_tokens": -5},
+			"/properties/max_call_tokens"},
+		{"bad machine name", map[string]any{"name": "Box_1", "task": "go", "model": "qwen"}, "/properties/name"},
+		{"empty name", map[string]any{"name": "", "task": "go", "model": "qwen"}, "/properties/name"},
 		{"empty task", map[string]any{"name": "box", "task": "  ", "model": "qwen"}, "task is required"},
-		{"empty name", map[string]any{"name": "", "task": "go", "model": "qwen"}, "name is required"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -659,14 +664,15 @@ func TestTskAgentStatusUsesNewestTaskAcrossPages(t *testing.T) {
 
 func TestTskAgentStatusStateLabels(t *testing.T) {
 	cases := map[agentdv1.TaskState]string{
-		agentdv1.TaskState_TASK_STATE_QUEUED:      "running",
-		agentdv1.TaskState_TASK_STATE_RUNNING:     "running",
-		agentdv1.TaskState_TASK_STATE_SUCCEEDED:   "done",
-		agentdv1.TaskState_TASK_STATE_FAILED:      "failed",
-		agentdv1.TaskState_TASK_STATE_GAVE_UP:     "gave_up",
-		agentdv1.TaskState_TASK_STATE_CANCELLED:   "cancelled",
-		agentdv1.TaskState_TASK_STATE_ERROR:       "error",
-		agentdv1.TaskState_TASK_STATE_UNSPECIFIED: "unknown",
+		agentdv1.TaskState_TASK_STATE_QUEUED:               "running",
+		agentdv1.TaskState_TASK_STATE_RUNNING:              "running",
+		agentdv1.TaskState_TASK_STATE_SUCCEEDED:            "done",
+		agentdv1.TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED: "done_unverified",
+		agentdv1.TaskState_TASK_STATE_FAILED:               "failed",
+		agentdv1.TaskState_TASK_STATE_GAVE_UP:              "gave_up",
+		agentdv1.TaskState_TASK_STATE_CANCELLED:            "cancelled",
+		agentdv1.TaskState_TASK_STATE_ERROR:                "error",
+		agentdv1.TaskState_TASK_STATE_UNSPECIFIED:          "unknown",
 	}
 	for state, label := range cases {
 		task := tskTask("task_1", state)
@@ -782,7 +788,7 @@ func TestTskAgentCancelRunningTask(t *testing.T) {
 	env := tskStatusEnv(tskTask("task_1", agentdv1.TaskState_TASK_STATE_RUNNING))
 	cs := newTestSession(t, env.clients())
 	out, isErr := callTool(t, cs, "agent_cancel", map[string]any{"name": "box"})
-	if isErr || out != "cancel requested for task task_1" {
+	if isErr || out != "cancel requested for 1 task(s): task_1" {
 		t.Fatalf("got %q (error %v)", out, isErr)
 	}
 	if len(env.tasks.cancelled) != 1 || env.tasks.cancelled[0] != "task_1" {
@@ -794,7 +800,7 @@ func TestTskAgentCancelQueuedTask(t *testing.T) {
 	env := tskStatusEnv(tskTask("task_1", agentdv1.TaskState_TASK_STATE_QUEUED))
 	cs := newTestSession(t, env.clients())
 	out, isErr := callTool(t, cs, "agent_cancel", map[string]any{"name": "box"})
-	if isErr || out != "cancel requested for task task_1" || len(env.tasks.cancelled) != 1 {
+	if isErr || out != "cancel requested for 1 task(s): task_1" || len(env.tasks.cancelled) != 1 {
 		t.Fatalf("got %q (error %v), cancelled %v", out, isErr, env.tasks.cancelled)
 	}
 }
@@ -871,8 +877,8 @@ func TestTskAgentTaskReportsQueuedBehindRunning(t *testing.T) {
 	}
 	cs := newTestSession(t, env.clients())
 	out, isErr := callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "go", "model": "qwen"})
-	if isErr || !strings.Contains(out, "queued") || !strings.Contains(out, "behind 2 unfinished") || strings.Contains(out, "started") {
-		t.Fatalf("a task created while others are unfinished must be reported as queued behind 2; got err=%v %q", isErr, out)
+	if isErr || out != "task task_new queued with model qwen; 2 unfinished task(s) of this agent existed at creation" {
+		t.Fatalf("a task created while two others are unfinished must say so; got err=%v %q", isErr, out)
 	}
 }
 
@@ -882,8 +888,8 @@ func TestTskAgentTaskIdleAgentStartsImmediately(t *testing.T) {
 	env.tasks.tasks = []*agentdv1.Task{tskTask("t0", agentdv1.TaskState_TASK_STATE_SUCCEEDED)}
 	cs := newTestSession(t, env.clients())
 	out, isErr := callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "go", "model": "qwen"})
-	if isErr || !strings.Contains(out, "started") || strings.Contains(out, "queued") {
-		t.Fatalf("an idle agent must report started; got err=%v %q", isErr, out)
+	if isErr || out != "task task_new queued with model qwen" {
+		t.Fatalf("an idle agent must not report unfinished tasks; got err=%v %q", isErr, out)
 	}
 }
 
@@ -978,6 +984,14 @@ func TestTskAgentStatusPollingIsShortAndListsOnlyNewCommands(t *testing.T) {
 	if !strings.Contains(out, "[30] $ cmd 30") || strings.Contains(out, "[29]") || strings.Contains(out, "cmd 28") {
 		t.Fatalf("since 28, max 1: %q", out)
 	}
+	if !strings.Contains(out, "(1 earlier steps after since_step not shown; raise max_commands)\n") {
+		t.Fatalf("step 29 was dropped without the notice: %q", out)
+	}
+	// When every newer step fits in max_commands there is no notice.
+	out, _ = callTool(t, cs, "agent_status", map[string]any{"name": "box", "wait_seconds": 0, "since_step": 27})
+	if strings.Contains(out, "not shown") || !strings.Contains(out, "[28] $ cmd 28\n") || !strings.Contains(out, "[30] $ cmd 30") {
+		t.Fatalf("since 27 with the default max_commands: %q", out)
+	}
 	if strings.Contains(out, "=== RESULT") {
 		t.Fatalf("a running task shows no result: %q", out)
 	}
@@ -997,16 +1011,15 @@ func TestTskAgentStatusMaxCommandsDefaultsToTen(t *testing.T) {
 	}
 }
 
-func TestTskAgentStatusFinishedUnverifiedAndReason(t *testing.T) {
+func TestTskAgentStatusFinishedUnverified(t *testing.T) {
 	task := tskTask("task_1", agentdv1.TaskState_TASK_STATE_SUCCEEDED_UNVERIFIED)
 	task.Verdict = "SUCCESS"
 	task.VerdictSource = "model"
-	task.Reason = "repetition"
 	task.Result = "done"
 	env := tskStatusEnv(task)
 	cs := newTestSession(t, env.clients())
 	out, _ := callTool(t, cs, "agent_status", map[string]any{"name": "box", "wait_seconds": 0})
-	if !strings.HasPrefix(out, "status: done_unverified  (0 commands run, model qwen, verdict: SUCCESS, verdict_source: model, reason: repetition)") {
+	if !strings.HasPrefix(out, "status: done_unverified  (0 commands run, model qwen, verdict: SUCCESS, verdict_source: model)\n") {
 		t.Fatalf("status line: %q", out)
 	}
 }
@@ -1031,6 +1044,66 @@ func TestTskAgentTaskPassesTheGuardOptions(t *testing.T) {
 	}
 	if out, isErr := callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "x", "model": "qwen", "max_minutes": -1}); !isErr {
 		t.Fatalf("negative max_minutes accepted: %s", out)
+	}
+}
+
+// An older task still running while a newer one is queued: agent_cancel must stop both, not only the newest.
+func TestTskAgentCancelStopsEveryUnfinishedTask(t *testing.T) {
+	env := tskStatusEnv(
+		tskTask("task_1", agentdv1.TaskState_TASK_STATE_RUNNING),
+		tskTask("task_2", agentdv1.TaskState_TASK_STATE_QUEUED),
+		tskTask("task_3", agentdv1.TaskState_TASK_STATE_QUEUED),
+		tskTask("task_4", agentdv1.TaskState_TASK_STATE_QUEUED),
+		tskTask("task_5", agentdv1.TaskState_TASK_STATE_SUCCEEDED),
+	)
+	cs := newTestSession(t, env.clients())
+	out, isErr := callTool(t, cs, "agent_cancel", map[string]any{"name": "box"})
+	want := "cancel requested for 4 task(s): task_1, task_2, task_3, task_4"
+	if isErr || out != want {
+		t.Fatalf("got %q (error %v), want %q", out, isErr, want)
+	}
+	if got := strings.Join(env.tasks.cancelled, ","); got != "task_1,task_2,task_3,task_4" {
+		t.Fatalf("cancelled %s", got)
+	}
+}
+
+// The newest task has finished but an older one still runs: the older one is cancelled.
+func TestTskAgentCancelFindsOlderRunningTask(t *testing.T) {
+	env := tskStatusEnv(
+		tskTask("task_1", agentdv1.TaskState_TASK_STATE_RUNNING),
+		tskTask("task_2", agentdv1.TaskState_TASK_STATE_SUCCEEDED),
+	)
+	cs := newTestSession(t, env.clients())
+	out, isErr := callTool(t, cs, "agent_cancel", map[string]any{"name": "box"})
+	if isErr || out != "cancel requested for 1 task(s): task_1" {
+		t.Fatalf("got %q (error %v)", out, isErr)
+	}
+}
+
+// Every agent of the machine is covered, not only the one named after it.
+func TestTskAgentCancelCoversEveryAgentOfTheMachine(t *testing.T) {
+	env := tskStatusEnv(tskTask("task_1", agentdv1.TaskState_TASK_STATE_RUNNING))
+	env.agents.agents = append(env.agents.agents, &agentdv1.Agent{Id: "agent_2", Name: "side", VmId: "vm_1", Model: "qwen"})
+	side := tskTask("task_9", agentdv1.TaskState_TASK_STATE_QUEUED)
+	side.AgentId = "agent_2"
+	env.tasks.tasks = append(env.tasks.tasks, side)
+	cs := newTestSession(t, env.clients())
+	out, isErr := callTool(t, cs, "agent_cancel", map[string]any{"name": "box"})
+	if isErr || out != "cancel requested for 2 task(s): task_1, task_9" {
+		t.Fatalf("got %q (error %v)", out, isErr)
+	}
+}
+
+// agent_task reports the unfinished tasks that existed when it created a task.
+func TestTskAgentTaskCountsOnlyUnfinishedTasks(t *testing.T) {
+	env := tskStatusEnv(
+		tskTask("t0", agentdv1.TaskState_TASK_STATE_SUCCEEDED),
+		tskTask("t1", agentdv1.TaskState_TASK_STATE_RUNNING),
+	)
+	cs := newTestSession(t, env.clients())
+	out, isErr := callTool(t, cs, "agent_task", map[string]any{"name": "box", "task": "go", "model": "qwen"})
+	if isErr || out != "task task_new queued with model qwen; 1 unfinished task(s) of this agent existed at creation" {
+		t.Fatalf("got %q (error %v)", out, isErr)
 	}
 }
 

@@ -100,7 +100,7 @@ func (f *filExec) PollJob(_ context.Context, req *connect.Request[vmdv1.PollJobR
 
 func filJobOut(st vmdv1.JobState, exit *int32, stdout, stderr string) *vmdv1.JobOutput {
 	return &vmdv1.JobOutput{
-		Job:    &vmdv1.Job{Id: "job-1", VmId: "vm-1", State: st, ExitCode: exit},
+		Job:    &vmdv1.Job{Id: "job_00000000000000000000000001", VmId: "vm-1", State: st, ExitCode: exit},
 		Stdout: []byte(stdout),
 		Stderr: []byte(stderr),
 	}
@@ -245,8 +245,8 @@ func TestFilFetchPollsUntilDone(t *testing.T) {
 	if len(e.polls) != 2 {
 		t.Fatalf("polls = %d, want 2", len(e.polls))
 	}
-	if e.polls[0].JobId != "job-1" || !e.polls[0].Tail {
-		t.Errorf("poll request %+v: want job-1 in tail mode", e.polls[0])
+	if e.polls[0].JobId != "job_00000000000000000000000001" || !e.polls[0].Tail {
+		t.Errorf("poll request %+v: want job_00000000000000000000000001 in tail mode", e.polls[0])
 	}
 }
 
@@ -259,7 +259,7 @@ func TestFilFetchStillRunning(t *testing.T) {
 	if isErr {
 		t.Fatalf("still running is not an error: %s", text)
 	}
-	if want := "download still running as job job-1: poll it with agent_exec_poll"; text != want {
+	if want := "download still running as job job_00000000000000000000000001: poll it with agent_exec_poll"; text != want {
 		t.Fatalf("text = %q, want %q", text, want)
 	}
 	if elapsed > 2*time.Second {
@@ -302,7 +302,7 @@ func TestFilFetchWaitZeroReturnsAtOnce(t *testing.T) {
 	v := filDefaultVMs()
 	e := &filExec{}
 	text, isErr := filCall(t, v, e, "agent_fetch", map[string]any{"name": "box", "url": "https://e.test/x", "path": "/p", "wait_seconds": 0}, filFast)
-	if isErr || !strings.HasPrefix(text, "download still running as job job-1") {
+	if isErr || !strings.HasPrefix(text, "download still running as job job_00000000000000000000000001") {
 		t.Fatalf("text=%q isErr=%v", text, isErr)
 	}
 	if len(e.polls) != 0 {
@@ -328,7 +328,7 @@ func TestFilFetchEndedWithoutExitCode(t *testing.T) {
 	out.Job.KilledReason = "vm stopped"
 	e := &filExec{startOut: out}
 	text, isErr := filCall(t, v, e, "agent_fetch", map[string]any{"name": "box", "url": "https://e.test/x", "path": "/p"}, filFast)
-	filWantErr(t, text, isErr, "download failed: job job-1 ended as lost (vm stopped)")
+	filWantErr(t, text, isErr, "download failed: job job_00000000000000000000000001 ended as lost (vm stopped)")
 }
 
 func TestFilFetchPollError(t *testing.T) {
@@ -358,11 +358,11 @@ func TestFilFetchValidation(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"no name", map[string]any{"name": "", "url": "https://e.test/x", "path": "/p"}, "name is required"},
-		{"ftp scheme", map[string]any{"name": "box", "url": "ftp://e.test/x", "path": "/p"}, "http:// or https://"},
-		{"no scheme", map[string]any{"name": "box", "url": "e.test/x", "path": "/p"}, "http:// or https://"},
+		{"no name", map[string]any{"name": "", "url": "https://e.test/x", "path": "/p"}, "/properties/name"},
+		{"ftp scheme", map[string]any{"name": "box", "url": "ftp://e.test/x", "path": "/p"}, "/properties/url"},
+		{"no scheme", map[string]any{"name": "box", "url": "e.test/x", "path": "/p"}, "/properties/url"},
 		{"no host", map[string]any{"name": "box", "url": "https:///x", "path": "/p"}, "http:// or https://"},
-		{"empty path", map[string]any{"name": "box", "url": "https://e.test/x", "path": ""}, "path is required"},
+		{"empty path", map[string]any{"name": "box", "url": "https://e.test/x", "path": ""}, "/properties/path"},
 		{"NUL in path", map[string]any{"name": "box", "url": "https://e.test/x", "path": "/a\x00b"}, "NUL"},
 	}
 	for _, tc := range cases {
@@ -429,7 +429,7 @@ func TestFilSSHPubkeyStillRunning(t *testing.T) {
 	v := filDefaultVMs()
 	e := &filExec{}
 	text, isErr := filCall(t, v, e, "agent_ssh_pubkey", map[string]any{"name": "box"}, filFast)
-	if isErr || !strings.HasPrefix(text, "ssh key setup still running as job job-1: poll it with agent_exec_poll") {
+	if isErr || !strings.HasPrefix(text, "ssh key setup still running as job job_00000000000000000000000001: poll it with agent_exec_poll") {
 		t.Fatalf("text=%q isErr=%v", text, isErr)
 	}
 }
@@ -437,7 +437,7 @@ func TestFilSSHPubkeyStillRunning(t *testing.T) {
 func TestFilSSHPubkeyNoName(t *testing.T) {
 	v, e := filDefaultVMs(), &filExec{}
 	text, isErr := filCall(t, v, e, "agent_ssh_pubkey", map[string]any{"name": ""}, filFast)
-	filWantErr(t, text, isErr, "name is required")
+	filWantErr(t, text, isErr, "/properties/name")
 	if n := filCalls(v, e); n != 0 {
 		t.Errorf("made %d downstream calls", n)
 	}
@@ -478,12 +478,12 @@ func TestFilUploadValidation(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"relative path", map[string]any{"name": "box", "path": "a.txt", "content": "x"}, "absolute path"},
-		{"no name", map[string]any{"name": "", "path": "/a", "content": "x"}, "name is required"},
+		{"relative path", map[string]any{"name": "box", "path": "a.txt", "content": "x"}, "/properties/path"},
+		{"no name", map[string]any{"name": "", "path": "/a", "content": "x"}, "/properties/name"},
 		{"NUL in path", map[string]any{"name": "box", "path": "/a\x00b", "content": "x"}, "NUL"},
 		{"bad base64", map[string]any{"name": "box", "path": "/a", "content": "@@@", "base64": true}, "not valid base64"},
-		{"mode not octal", map[string]any{"name": "box", "path": "/a", "content": "x", "mode": "rwx"}, "not an octal permission"},
-		{"mode above 7777", map[string]any{"name": "box", "path": "/a", "content": "x", "mode": "10000"}, "not an octal permission"},
+		{"mode not octal", map[string]any{"name": "box", "path": "/a", "content": "x", "mode": "rwx"}, "/properties/mode"},
+		{"mode above 7777", map[string]any{"name": "box", "path": "/a", "content": "x", "mode": "10000"}, "/properties/mode"},
 		{"mode 0000", map[string]any{"name": "box", "path": "/a", "content": "x", "mode": "0000"}, "mode 0000 is not allowed"},
 		{"text over 8 MiB", map[string]any{"name": "box", "path": "/a", "content": big}, "limited to"},
 		{"base64 over 8 MiB", map[string]any{"name": "box", "path": "/a", "base64": true,
@@ -587,7 +587,7 @@ func TestFilDownloadExplicitEncodings(t *testing.T) {
 	// An unknown encoding is refused before any downstream call.
 	n := filCalls(v, e)
 	text, isErr := filCall(t, v, e, "agent_download", map[string]any{"name": "box", "path": "/a", "encoding": "latin1"})
-	filWantErr(t, text, isErr, "encoding must be auto, utf-8 or base64")
+	filWantErr(t, text, isErr, "/properties/encoding")
 	if filCalls(v, e) != n {
 		t.Error("an invalid encoding made a downstream call")
 	}
@@ -669,11 +669,11 @@ func TestFilDownloadValidation(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"no name", map[string]any{"name": "", "path": "/a"}, "name is required"},
-		{"no path", map[string]any{"name": "box", "path": ""}, "path is required"},
+		{"no name", map[string]any{"name": "", "path": "/a"}, "/properties/name"},
+		{"no path", map[string]any{"name": "box", "path": ""}, "/properties/path"},
 		{"NUL in path", map[string]any{"name": "box", "path": "/a\x00"}, "NUL"},
-		{"zero max", map[string]any{"name": "box", "path": "/a", "max_bytes": 0}, "max_bytes must be between 1"},
-		{"base64 above 8 MiB", map[string]any{"name": "box", "path": "/a", "encoding": "base64", "max_bytes": 9 << 20}, "max_bytes must be between 1 and 8388608"},
+		{"zero max", map[string]any{"name": "box", "path": "/a", "max_bytes": 0}, "/properties/max_bytes"},
+		{"base64 above 8 MiB", map[string]any{"name": "box", "path": "/a", "encoding": "base64", "max_bytes": 9 << 20}, "/properties/max_bytes"},
 		{"utf-8 above 1 MiB", map[string]any{"name": "box", "path": "/a", "encoding": "utf-8", "max_bytes": 2 << 20}, "max_bytes must be between 1 and 1048576"},
 	}
 	for _, tc := range cases {
@@ -774,16 +774,15 @@ func TestFilSSHPubkeyEndedWithoutExitCode(t *testing.T) {
 	v := filDefaultVMs()
 	e := &filExec{startOut: filJobOut(vmdv1.JobState_JOB_STATE_TIMED_OUT, nil, "", "")}
 	text, isErr := filCall(t, v, e, "agent_ssh_pubkey", map[string]any{"name": "box"}, filFast)
-	filWantErr(t, text, isErr, "ssh key setup failed: job job-1 ended as timed_out (no exit code)")
+	filWantErr(t, text, isErr, "ssh key setup failed: job job_00000000000000000000000001 ended as timed_out (no exit code)")
 }
 
-func TestFilFetchNegativeWaitIsZero(t *testing.T) {
+// A negative wait_seconds used to be accepted and treated as 0. The schema now refuses it before any call is made.
+func TestFilFetchNegativeWaitRefused(t *testing.T) {
 	v, e := filDefaultVMs(), &filExec{}
 	text, isErr := filCall(t, v, e, "agent_fetch", map[string]any{"name": "box", "url": "https://e.test/x", "path": "/p", "wait_seconds": -5}, filFast)
-	if isErr || !strings.HasPrefix(text, "download still running") {
-		t.Fatalf("text=%q isErr=%v", text, isErr)
-	}
-	if e.starts[0].WaitSeconds != 0 || len(e.polls) != 0 {
-		t.Errorf("negative wait: StartJob WaitSeconds=%d polls=%d, want 0 and 0", e.starts[0].WaitSeconds, len(e.polls))
+	filWantErr(t, text, isErr, "/properties/wait_seconds")
+	if n := filCalls(v, e); n != 0 {
+		t.Errorf("refused call made %d downstream calls", n)
 	}
 }

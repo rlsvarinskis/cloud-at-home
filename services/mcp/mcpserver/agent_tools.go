@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"connectrpc.com/connect"
+	"github.com/google/jsonschema-go/jsonschema"
 	"google.golang.org/protobuf/proto"
 
 	agentdv1 "github.com/rlsvarinskis/cloud-at-home/api/gen/attic/agentd/v1"
@@ -42,63 +44,156 @@ type agentModelInfo struct {
 	Context  *int64  `json:"context"` // null when the backend does not report it
 }
 
+// machineNamePattern is the rule for a machine name, which is also the name of its agent.
+const machineNamePattern = `^[a-z]([a-z0-9-]{0,29}[a-z0-9])?$`
+
+// int32Max is the largest value agentd's int32 fields can carry.
+const int32Max = math.MaxInt32
+
 type agentTaskArgs struct {
-	Name          string `json:"name" jsonschema:"name of the machine (VM) the agent works on; the agent is created with this name"`
-	Task          string `json:"task" jsonschema:"what the agent must do, in plain language; required"`
-	Model         string `json:"model,omitempty" jsonschema:"REQUIRED: the model to run, one of the names from agent_models. There is no default; pick one that fits in GPU memory"`
-	CheckCommand  string `json:"check_command,omitempty" jsonschema:"shell command run in the machine after the agent finishes; exit status 0 means the goal was met"`
-	MaxSteps      int    `json:"max_steps,omitempty" jsonschema:"maximum number of commands the agent may run (default 40; agentd caps it at 200)"`
-	MaxMinutes    int    `json:"max_minutes,omitempty" jsonschema:"stop the task after this many minutes, cancelling a running command (default 0: no time limit)"`
-	MaxCallTokens *int   `json:"max_call_tokens,omitempty" jsonschema:"token cap for one model reply (default 32768; 0 = no cap). A reply that reaches it is discarded and the model is asked to wrap up"`
-	CheckEachStep *bool  `json:"check_each_step,omitempty" jsonschema:"run check_command after every batch of commands and end the task as soon as it passes (default true)"`
-	Project       string `json:"project,omitempty" jsonschema:"project of the machine (default: the server's default project)"`
+	Name          string `json:"name" jsonschema:"name of the machine (VM) the agent works on: 1 to 31 characters, lowercase letters, digits and hyphens, starting with a letter and not ending in a hyphen. The agent is created with this name"`
+	Task          string `json:"task" jsonschema:"what the agent must do, in plain language; required and not blank"`
+	Model         string `json:"model" jsonschema:"required: the model to run, one of the names from agent_models. There is no default. Pick one with fits_vram true, or it runs partly on the CPU"`
+	CheckCommand  string `json:"check_command,omitempty" jsonschema:"shell command run in the machine, in the agent's working directory, after each batch of commands (unless check_each_step is false) and at the end. Exit status 0 means the goal was met and a pass ends the task at once. Killed after 5 minutes. Omit it for no check"`
+	MaxSteps      int    `json:"max_steps,omitempty" jsonschema:"maximum number of commands the agent may run; each apply_patch counts as one. Default 40; 0 also means 40; values above 200 are cut to 200"`
+	MaxMinutes    int    `json:"max_minutes,omitempty" jsonschema:"stop the task after this many minutes, counted from when it starts running. A running command is stopped and the task ends cancelled with reason timeout. Default 0: no time limit"`
+	MaxCallTokens *int   `json:"max_call_tokens,omitempty" jsonschema:"token cap for one model reply. Default 32768; 0 = no cap. A reply that reaches the cap, or repeats itself, is discarded and the model is asked to wrap up"`
+	CheckEachStep *bool  `json:"check_each_step,omitempty" jsonschema:"run check_command after every batch of commands and end the task as soon as it passes. Default true; false runs the check only at the end"`
+	Project       string `json:"project,omitempty" jsonschema:"project of the machine. Default: the server's default project"`
 }
 
 type agentStatusArgs struct {
-	Name        string `json:"name" jsonschema:"name of the machine whose agent to check"`
-	WaitSeconds *int   `json:"wait_seconds,omitempty" jsonschema:"seconds to wait while the latest task is queued or running (default 30, capped by the server's limit of about 40 s); 0 returns at once"`
-	SinceStep   *int   `json:"since_step,omitempty" jsonschema:"to poll cheaply: the last step number you have seen. Only newer commands are listed and the live model text is left out"`
-	MaxCommands *int   `json:"max_commands,omitempty" jsonschema:"how many of the latest commands to list (default 10; 0 lists none)"`
-	Brief       bool   `json:"brief,omitempty" jsonschema:"true returns only the progress header, plus the final report once the task has ended"`
-	Project     string `json:"project,omitempty" jsonschema:"project of the machine (default: the server's default project)"`
+	Name        string `json:"name" jsonschema:"name of the machine whose agent to check: 1 to 31 characters, lowercase letters, digits and hyphens, starting with a letter and not ending in a hyphen"`
+	WaitSeconds *int   `json:"wait_seconds,omitempty" jsonschema:"seconds to wait while the newest task is queued or running; the call returns early when its state changes. Default 30; 0 returns at once; capped at the server's max wait (40 s by default)"`
+	SinceStep   *int   `json:"since_step,omitempty" jsonschema:"poll cursor: the header step value of the previous reply (0 for the first poll). Only steps after it are listed, as [N] $ command lines, with no timing line and no live text. Omit it for the latest commands"`
+	MaxCommands *int   `json:"max_commands,omitempty" jsonschema:"how many commands to list: the newest ones. Default 10; 0 lists none. In since_step mode a line says how many older new steps were not shown"`
+	Brief       bool   `json:"brief,omitempty" jsonschema:"true: only the progress header while the task runs; the header plus the RESULT section once it has ended"`
+	Project     string `json:"project,omitempty" jsonschema:"project of the machine. Default: the server's default project"`
 }
 
 type agentCancelArgs struct {
-	Name    string `json:"name" jsonschema:"name of the machine whose running task to cancel"`
-	Project string `json:"project,omitempty" jsonschema:"project of the machine (default: the server's default project)"`
+	Name    string `json:"name" jsonschema:"name of the machine whose unfinished agent tasks to cancel: 1 to 31 characters, lowercase letters, digits and hyphens, starting with a letter and not ending in a hyphen"`
+	Project string `json:"project,omitempty" jsonschema:"project of the machine. Default: the server's default project"`
 }
 
 func (s *Server) registerAgentTools() {
 	addTool(s, "agent_models",
-		"List the LLM models installed on the agent backend. The reply is a JSON list of objects with name, size_gib, "+
-			"params (parameter count), quant (quantisation), fits_vram (whether the weights fit the GPU memory budget of "+
-			"16 GiB less 0.5 GiB headroom; a rough check that ignores the KV cache) and context (context length, or null). "+
-			"There is no default model: the caller must pick one for agent_task. A model with fits_vram=false probably "+
-			"runs partly on the CPU and is much slower.",
+		"List the LLM models installed on the agent backend. Takes no arguments. The reply is a JSON array, [] when no model "+
+			"is installed, of objects with: name (pass it as agent_task model); size_gib (weights size in GiB, rounded to one "+
+			"decimal); params (parameter count as the backend reports it, may be empty); quant (quantisation, may be empty); "+
+			"fits_vram (true when size_gib is at most the agent backend's GPU memory budget less 0.5 GiB; the budget is 16 GiB "+
+			"by default; a rough check that ignores the KV cache and runtime memory); context (context length in tokens, or "+
+			"null when the backend does not report it). There is no default model. A model with fits_vram false probably runs "+
+			"partly on the CPU and is much slower. A backend that cannot be reached fails the call with a tool error such as "+
+			"'unavailable: ...'.",
 		s.agentModels)
-	addTool(s, "agent_task",
-		"Give the LLM agent on a machine a task. The agent is created on first use, named after the machine, or its "+
-			"model is switched to the one given. The task is queued (agentd does not refuse a task while another one "+
-			"runs) and this call returns at once with the task id; follow it with agent_status. "+
-			"model is REQUIRED: take one from agent_models. check_command, if set, runs in the machine; exit status 0 "+
-			"means success. With check_command the check decides the result (after each batch of commands unless "+
-			"check_each_step is false, and at the end). Without it a claimed success is reported as done_unverified. "+
-			"max_steps caps the commands the agent runs (default 40). max_minutes (default none) stops the task, and "+
-			"max_call_tokens (default 32768, 0 = no cap) caps one model reply; replies that repeat themselves or hit the "+
-			"cap are discarded and the model is asked to wrap up.",
-		s.agentTask)
-	addTool(s, "agent_status",
-		"Show the latest task of the agent on a machine: a progress header (status, step, max_steps, elapsed_s, token "+
-			"counts, calls, first_command_s, verdict_source, reason, last_command), the latest commands it ran and its "+
-			"result. While the task is queued or running the call waits up to wait_seconds (default 30, capped at about "+
-			"40 s). Poll cheaply with since_step (the last step number you have seen) and brief=true for the header "+
-			"alone. max_commands (default 10) limits the commands listed. Statuses: running, done, done_unverified, "+
-			"failed, gave_up, cancelled, error. Fails with 'no agent/task yet' if agent_task was never used on the machine.",
-		s.agentStatus)
-	addTool(s, "agent_cancel",
-		"Cancel the latest task of the agent on a machine if it is queued or running. The cancel is asked for; a "+
-			"running task stops within about a second. Says 'no running task' when there is nothing to cancel.",
-		s.agentCancel)
+	addAgentTool(s, "agent_task",
+		"Give the LLM agent on a machine a task and queue it. The agent is created on first use, named after the machine. "+
+			"If it exists with another model, the agent is switched to model at once; a task that is already running keeps "+
+			"the model it started with. The call does not wait for the task: it returns at once, and a worker claims the task "+
+			"when one is free. The reply is 'task <id> queued with model <model>', followed by '; N unfinished task(s) of this "+
+			"agent existed at creation' when other tasks were queued or running, and then a 'warning: model ...' line when the "+
+			"model does not fit in GPU memory. Follow the task with agent_status. Up to two tasks of one agent run at the same "+
+			"time (agentd's default), so a task can run beside another one in the same machine and working directory. The "+
+			"machine must be running; a task for a stopped machine ends in state error ('vm is stopped'). Calling again queues "+
+			"another task; there is no retry protection. It fails with failed_precondition when the agent is not active (for "+
+			"example orphaned) or the machine is being deleted. agent_cancel stops all unfinished tasks of the machine's agents. "+
+			"With check_command the check decides the result: it runs after each batch of commands (unless check_each_step is "+
+			"false) and at the end, and a pass ends the task at once as done. Without check_command a model SUCCESS is reported "+
+			"as done_unverified. Limits: max_steps caps the commands (default 40); at the cap the task ends with reason "+
+			"step_limit. max_minutes (default 0, no limit) ends the task cancelled with reason timeout. max_call_tokens (default "+
+			"32768, 0 = no cap) caps one model reply; a reply that reaches the cap or repeats itself is discarded and the model "+
+			"is asked to wrap up, and the third such reply ends the task with reason token_limit or repetition. Those reasons "+
+			"end the task as gave_up unless the check passes. Refused with no change made: a missing or blank task, name or "+
+			"model, a model that is not installed, a machine that does not exist, and negative max_steps, max_minutes or "+
+			"max_call_tokens.",
+		s.agentTask, constrainAgentTask)
+	addAgentTool(s, "agent_status",
+		"Show the newest task of the agent on a machine (highest task ID). An older task that still runs is not shown while "+
+			"a newer one exists. While that task is queued or running, the call waits up to wait_seconds (default 30; capped by "+
+			"the server's max wait, 40 s by default) and returns early when the state changes. Output, one item per line: "+
+			"(1) 'status: <state>  (<N> commands run, model <model>[, verdict: <V>][, verdict_source: <check|model>][, reason: <r>])'. "+
+			"model is the agent's current model, which can differ from the model the task started with. verdict is the model's "+
+			"own VERDICT line (SUCCESS or FAILED). reason is one of repetition, token_limit, step_limit, timeout or 'check passed'. "+
+			"(2) 'header: {json}' with the keys status, step (the since_step cursor), max_steps, elapsed_s, prompt_tokens, "+
+			"gen_tokens, calls, first_command_s (null until the first command), verdict_source, reason, last_command (clipped to "+
+			"120 characters, null when none). (3) 'timing: ...' with created, started and finished times in UTC and the elapsed "+
+			"seconds; a stamp that is not set is left out. (4) 'tokens: prompt P, generated G over C model calls', with a note on "+
+			"aborted calls, and 'last calls: #i Ns N tok [partial] [end]; ...' listing up to the latest 5 model calls, when the "+
+			"task has made a model call. (5) The newest max_commands commands (default 10), oldest first, as '$ <command>' lines, "+
+			"clipped to 200 characters with newlines shown as spaces; their output is not shown. (6) While a model call streams "+
+			"and the task runs: '[model answer so far: ...]' (last 600 characters) and '[model reasoning (raw, may be noise): ...]' "+
+			"(last 300 characters). Reasoning is not kept after the call. (7) A blank line, '=== RESULT ===' and the model's "+
+			"final report, capped at 32 KiB (the head is kept, then '...[truncated]'). It ends with '[check_command exit N]' when "+
+			"a check ran (the check's end state replaces 'exit N' when it did not exit). It reads '(no result yet)' while the task runs and '(none)' when there is none. "+
+			"States: running (queued or running; a queued task shows step 0 and no started stamp); done (check_command passed); done_unverified (model SUCCESS, no check_command); "+
+			"failed (check_command failed, or no check and model FAILED); gave_up (a limit ended the task and no check passed, or "+
+			"no check and no VERDICT); cancelled (agent_cancel, or max_minutes ran out); error (infrastructure or protocol failure: "+
+			"the VM is not running or was deleted, a VM command failed, the model backend failed, or more than 3 unusable tool calls in a row). "+
+			"A done_unverified task has no reason. A cancel request that has not been acted on is not shown, and a running task "+
+			"stays running if its worker died. "+
+			"brief=true returns the header only while the task runs, and the header plus the RESULT section once it has ended. "+
+			"since_step=N lists only the steps after N (N is the header step value of the previous reply; 0 for the first poll), as "+
+			"'[N] $ <command>' lines, with no timing line and no live text, and the RESULT section only once the task has ended. "+
+			"If more than max_commands steps are newer, only the newest are listed and the line '(N earlier steps after since_step "+
+			"not shown; raise max_commands)' is added. For a poll that should return at once, pass wait_seconds 0. max_commands 0 "+
+			"lists no commands. Errors: 'no agent/task yet on machine '<name>' (use agent_task)' when the machine has no task, and "+
+			"'not_found: no machine named ...' for an unknown machine.",
+		s.agentStatus, constrainAgentStatus)
+	addAgentTool(s, "agent_cancel",
+		"Cancel the unfinished tasks of the agents on a machine: every task that is queued or running, not only the newest one. "+
+			"A queued task is cancelled at once. A running task is flagged and stops within about a second, and its running "+
+			"command is stopped; it then shows state cancelled. Finished tasks are not changed. The reply is 'cancel requested "+
+			"for N task(s): <task IDs, comma-separated>', where N is the number of tasks asked to stop, or 'no running task' when "+
+			"there is none, including when the machine has no agent. A failed cancel is an error that also lists the tasks "+
+			"cancelled before it. An unknown machine fails with 'not_found: no machine named ...'.",
+		s.agentCancel, constrainAgentCancel)
+}
+
+// addAgentTool registers a tool like addTool, with an input schema derived from In. constrain adds the bounds and
+// patterns that the SDK checks before the handler runs; a call that breaks one fails with a validation error that
+// names the property.
+func addAgentTool[In any](s *Server, name, description string, h func(ctx context.Context, in In) (string, error),
+	constrain func(props map[string]*jsonschema.Schema)) {
+	addToolSchema(s, name, description, func(sch *jsonschema.Schema) { constrain(sch.Properties) }, h)
+}
+
+// setName applies the machine name rule to the name property.
+func setName(props map[string]*jsonschema.Schema) {
+	props["name"].Pattern = machineNamePattern
+}
+
+// atLeast sets the lower bound of an integer property.
+func atLeast(p *jsonschema.Schema, lo float64) { p.Minimum = &lo }
+
+// atMostInt32 sets the upper bound of an integer property to the int32 range agentd takes.
+func atMostInt32(p *jsonschema.Schema) {
+	hi := float64(int32Max)
+	p.Maximum = &hi
+}
+
+func constrainAgentTask(props map[string]*jsonschema.Schema) {
+	setName(props)
+	minLen := 1
+	props["model"].MinLength = &minLen
+	atLeast(props["max_steps"], 0)
+	atMostInt32(props["max_steps"])
+	atLeast(props["max_minutes"], 0)
+	atMostInt32(props["max_minutes"])
+	atLeast(props["max_call_tokens"], 0)
+	atMostInt32(props["max_call_tokens"])
+}
+
+func constrainAgentStatus(props map[string]*jsonschema.Schema) {
+	setName(props)
+	atLeast(props["wait_seconds"], 0)
+	atLeast(props["since_step"], 0)
+	atMostInt32(props["since_step"])
+	atLeast(props["max_commands"], 0)
+}
+
+func constrainAgentCancel(props map[string]*jsonschema.Schema) {
+	setName(props)
 }
 
 // agentModels lists the installed models as a JSON list.
@@ -220,10 +315,10 @@ func (s *Server) agentTask(ctx context.Context, in agentTaskArgs) (string, error
 	}
 	var lines []string
 	if ahead > 0 {
-		lines = append(lines, fmt.Sprintf("task %s queued with model %s behind %d unfinished task(s) of this machine's agent "+
-			"(agent_cancel stops the running one)", res.Msg.GetId(), in.Model, ahead))
+		lines = append(lines, fmt.Sprintf("task %s queued with model %s; %d unfinished task(s) of this agent existed at creation",
+			res.Msg.GetId(), in.Model, ahead))
 	} else {
-		lines = append(lines, fmt.Sprintf("task %s started with model %s", res.Msg.GetId(), in.Model))
+		lines = append(lines, fmt.Sprintf("task %s queued with model %s", res.Msg.GetId(), in.Model))
 	}
 	if !chosen.GetFitsVram() {
 		lines = append(lines, fmt.Sprintf("warning: model %s (%.1f GiB) exceeds the VRAM budget, so it will probably "+
@@ -232,19 +327,36 @@ func (s *Server) agentTask(ctx context.Context, in agentTaskArgs) (string, error
 	return strings.Join(lines, "\n"), nil
 }
 
-// tasksAhead counts the agent's tasks that are still queued or running, so a new task that has to wait is
-// reported as queued. It is best effort: on a listing error it reports 0.
+// tasksAhead counts the agent's tasks that are queued or running when a new task is created, for the reply.
+// It is best effort: on a listing error it reports 0.
 func (s *Server) tasksAhead(ctx context.Context, agentID string) int {
-	n := 0
-	for _, st := range []agentdv1.TaskState{agentdv1.TaskState_TASK_STATE_RUNNING, agentdv1.TaskState_TASK_STATE_QUEUED} {
-		res, err := s.cfg.Clients.Tasks.ListTasks(ctx, connect.NewRequest(&agentdv1.ListTasksRequest{
-			AgentId: agentID, State: st, PageSize: 50}))
-		if err != nil {
-			return 0
-		}
-		n += len(res.Msg.GetTasks())
+	live, err := s.liveTasks(ctx, agentID)
+	if err != nil {
+		return 0
 	}
-	return n
+	return len(live)
+}
+
+// liveTasks returns the agent's tasks that are queued or running, oldest first. It reads every page.
+func (s *Server) liveTasks(ctx context.Context, agentID string) ([]*agentdv1.Task, error) {
+	var live []*agentdv1.Task
+	for _, st := range []agentdv1.TaskState{agentdv1.TaskState_TASK_STATE_QUEUED, agentdv1.TaskState_TASK_STATE_RUNNING} {
+		token := ""
+		for {
+			res, err := s.cfg.Clients.Tasks.ListTasks(ctx, connect.NewRequest(&agentdv1.ListTasksRequest{
+				AgentId: agentID, State: st, PageSize: agentListPageSize, PageToken: token}))
+			if err != nil {
+				return nil, err
+			}
+			live = append(live, res.Msg.GetTasks()...)
+			token = res.Msg.GetNextPageToken()
+			if token == "" {
+				break
+			}
+		}
+	}
+	slices.SortFunc(live, func(a, b *agentdv1.Task) int { return strings.Compare(a.GetId(), b.GetId()) })
+	return live, nil
 }
 
 // agentStatus reports the latest task of the machine's agent, waiting while it is queued or running.
@@ -308,9 +420,9 @@ func (s *Server) agentStatus(ctx context.Context, in agentStatusArgs) (string, e
 	switch {
 	case in.Brief || maxCommands == 0:
 	case view.hasSince:
-		steps, err = s.tailSteps(ctx, task.GetId(), view.since, maxCommands)
+		steps, view.dropped, err = s.tailSteps(ctx, task.GetId(), view.since, maxCommands)
 	default:
-		steps, err = s.tailSteps(ctx, task.GetId(), 0, maxCommands)
+		steps, _, err = s.tailSteps(ctx, task.GetId(), 0, maxCommands)
 	}
 	if err != nil {
 		return "", err
@@ -327,25 +439,59 @@ type statusView struct {
 	brief    bool  // header only, plus the final report once the task ended
 	hasSince bool  // poll mode: only commands after since
 	since    int32 // the last step the caller has seen
+	dropped  int   // poll mode: newer steps left out because only the newest max_commands are listed
 }
 
-// agentCancel cancels the latest task when it is queued or running.
+// agentCancel cancels every unfinished task of the machine's agents: queued tasks at once, running tasks by a
+// stop request. Agents of the machine are the ones agentd lists for its VM.
 func (s *Server) agentCancel(ctx context.Context, in agentCancelArgs) (string, error) {
 	vm, err := s.vmByName(ctx, in.Project, in.Name)
 	if err != nil {
 		return "", err
 	}
-	_, task, err := s.agentAndLatestTask(ctx, s.project(in.Project), vm.GetId(), in.Name)
+	agents, err := s.vmAgents(ctx, s.project(in.Project), vm.GetId())
 	if err != nil {
 		return "", err
 	}
-	if task == nil || !isLive(task.GetState()) {
+	var live []*agentdv1.Task
+	for _, a := range agents {
+		tasks, err := s.liveTasks(ctx, a.GetId())
+		if err != nil {
+			return "", err
+		}
+		live = append(live, tasks...)
+	}
+	if len(live) == 0 {
 		return "no running task", nil
 	}
-	if _, err := s.cfg.Clients.Tasks.CancelTask(ctx, connect.NewRequest(&agentdv1.CancelTaskRequest{Id: task.GetId()})); err != nil {
-		return "", err
+	slices.SortFunc(live, func(a, b *agentdv1.Task) int { return strings.Compare(a.GetId(), b.GetId()) })
+	ids := make([]string, 0, len(live))
+	for _, t := range live {
+		if _, err := s.cfg.Clients.Tasks.CancelTask(ctx, connect.NewRequest(&agentdv1.CancelTaskRequest{Id: t.GetId()})); err != nil {
+			return "", fmt.Errorf("cancelled %d of %d task(s) (%s) before task %s failed: %s",
+				len(ids), len(live), strings.Join(ids, ", "), t.GetId(), errText(err))
+		}
+		ids = append(ids, t.GetId())
 	}
-	return fmt.Sprintf("cancel requested for task %s", task.GetId()), nil
+	return fmt.Sprintf("cancel requested for %d task(s): %s", len(ids), strings.Join(ids, ", ")), nil
+}
+
+// vmAgents returns every agentd agent on the VM vmID.
+func (s *Server) vmAgents(ctx context.Context, project, vmID string) ([]*agentdv1.Agent, error) {
+	var all []*agentdv1.Agent
+	token := ""
+	for {
+		res, err := s.cfg.Clients.Agents.ListAgents(ctx, connect.NewRequest(&agentdv1.ListAgentsRequest{
+			ProjectId: project, VmId: vmID, PageSize: agentListPageSize, PageToken: token}))
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, res.Msg.GetAgents()...)
+		token = res.Msg.GetNextPageToken()
+		if token == "" {
+			return all, nil
+		}
+	}
 }
 
 // installedModels returns the models installed on the LLM backend.
@@ -409,23 +555,25 @@ func (s *Server) latestTask(ctx context.Context, agentID string) (*agentdv1.Task
 	}
 }
 
-// tailSteps returns the last n steps of a task that come after step number after (0 for all). agentd pages
-// forward only, so every page is read and only the last n are kept.
-func (s *Server) tailSteps(ctx context.Context, taskID string, after int32, n int) ([]*agentdv1.Step, error) {
+// tailSteps returns the last n steps of a task that come after step number after (0 for all), and how many
+// steps after it were left out. agentd pages forward only, so every page is read and only the last n are kept.
+func (s *Server) tailSteps(ctx context.Context, taskID string, after int32, n int) ([]*agentdv1.Step, int, error) {
 	var tail []*agentdv1.Step
+	total := 0
 	for {
 		res, err := s.cfg.Clients.Tasks.ListSteps(ctx, connect.NewRequest(&agentdv1.ListStepsRequest{
 			TaskId: taskID, AfterSeq: after, Limit: agentStepPageSize}))
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		page := res.Msg.GetSteps()
+		total += len(page)
 		tail = append(tail, page...)
 		if len(tail) > n {
 			tail = tail[len(tail)-n:]
 		}
 		if len(page) < agentStepPageSize {
-			return tail, nil
+			return tail, total - len(tail), nil
 		}
 		after = page[len(page)-1].GetSeq()
 	}
@@ -485,6 +633,9 @@ func renderAgentStatus(agent *agentdv1.Agent, task *agentdv1.Task, steps []*agen
 		if calls := callsLine(task.GetCalls()); calls != "" {
 			b.WriteString(calls + "\n")
 		}
+	}
+	if view.hasSince && view.dropped > 0 {
+		fmt.Fprintf(&b, "(%d earlier steps after since_step not shown; raise max_commands)\n", view.dropped)
 	}
 	for _, st := range steps {
 		if view.hasSince {

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -92,7 +94,7 @@ func (f *exeExec) ListJobs(_ context.Context, req *connect.Request[vmdv1.ListJob
 }
 
 func exeJob(state vmdv1.JobState) *vmdv1.Job {
-	return &vmdv1.Job{Id: "job-1", VmId: "vm-1", Command: "make", State: state, StartedAt: timestamppb.New(time.Now())}
+	return &vmdv1.Job{Id: "job_00000000000000000000000001", VmId: "vm-1", Command: "make", State: state, StartedAt: timestamppb.New(time.Now())}
 }
 
 func exeReply(j *vmdv1.Job, stdout string) *vmdv1.JobOutput {
@@ -140,7 +142,7 @@ func TestExeAgentExecFollowsUntilSucceeded(t *testing.T) {
 	if !v.Done || v.State != "succeeded" || v.ExitCode == nil || *v.ExitCode != 0 {
 		t.Fatalf("want done succeeded exit 0, got %+v", v)
 	}
-	if v.Stdout != "done\n" || v.JobID != "job-1" {
+	if v.Stdout != "done\n" || v.JobID != "job_00000000000000000000000001" {
 		t.Errorf("stdout/job_id: %+v", v)
 	}
 	req := ex.startReq
@@ -222,13 +224,13 @@ func TestExeAgentExecValidation(t *testing.T) {
 		want string
 	}{
 		{"no name", map[string]any{"command": "make"}, "missing properties"},
-		{"empty name", map[string]any{"name": "", "command": "make"}, "name is required"},
+		{"empty name", map[string]any{"name": "", "command": "make"}, "/properties/name"},
 		{"empty command", map[string]any{"name": "box", "command": "  "}, "command is required"},
-		{"zero timeout", map[string]any{"name": "box", "command": "make", "timeout": 0}, "timeout must be between"},
-		{"huge timeout", map[string]any{"name": "box", "command": "make", "timeout": 604801}, "timeout must be between"},
-		{"negative wait", map[string]any{"name": "box", "command": "make", "wait_seconds": -1}, "wait_seconds must not be negative"},
-		{"zero max_output", map[string]any{"name": "box", "command": "make", "max_output": 0}, "max_output must be between"},
-		{"big max_output", map[string]any{"name": "box", "command": "make", "max_output": 70000}, "max_output must be between"},
+		{"zero timeout", map[string]any{"name": "box", "command": "make", "timeout": 0}, "/properties/timeout"},
+		{"huge timeout", map[string]any{"name": "box", "command": "make", "timeout": 604801}, "/properties/timeout"},
+		{"negative wait", map[string]any{"name": "box", "command": "make", "wait_seconds": -1}, "/properties/wait_seconds"},
+		{"zero max_output", map[string]any{"name": "box", "command": "make", "max_output": 0}, "/properties/max_output"},
+		{"big max_output", map[string]any{"name": "box", "command": "make", "max_output": 70000}, "/properties/max_output"},
 		{"unknown machine", map[string]any{"name": "nope", "command": "make"}, "not_found"},
 	}
 	for _, c := range cases {
@@ -260,7 +262,7 @@ func TestExeAgentExecPollHappyPathTailDefault(t *testing.T) {
 	done := exeExit(exeJob(vmdv1.JobState_JOB_STATE_FAILED), 2)
 	ex := &exeExec{pollReplies: []*vmdv1.JobOutput{exeReply(running, "a"), exeReply(done, "bye")}}
 	cs := exeSession(t, ex)
-	text, isErr := callTool(t, cs, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job-1", "wait_seconds": 30})
+	text, isErr := callTool(t, cs, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001", "wait_seconds": 30})
 	v := exeMustOK(t, text, isErr)
 	if !v.Done || v.State != "failed" || v.ExitCode == nil || *v.ExitCode != 2 || v.Stdout != "bye" {
 		t.Errorf("got %+v", v)
@@ -284,7 +286,7 @@ func TestExeAgentExecPollOffsetModeAccumulatesWithinMaxOutput(t *testing.T) {
 	ex := &exeExec{pollReplies: []*vmdv1.JobOutput{first, second}}
 	cs := exeSession(t, ex)
 	text, isErr := callTool(t, cs, "agent_exec_poll", map[string]any{
-		"name": "box", "job_id": "job-1", "stdout_offset": 3, "max_output": 5})
+		"name": "box", "job_id": "job_00000000000000000000000001", "stdout_offset": 3, "max_output": 5})
 	v := exeMustOK(t, text, isErr)
 	if v.Stdout != "abcde" || v.StdoutOffset != 8 || !v.More || v.Done {
 		t.Errorf("want accumulated abcde at offset 8 with more, got %+v", v)
@@ -317,7 +319,7 @@ func TestExeAgentExecPollTailOptionResolution(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			ex := &exeExec{pollReplies: []*vmdv1.JobOutput{exeReply(exeExit(exeJob(vmdv1.JobState_JOB_STATE_SUCCEEDED), 0), "")}}
 			cs := exeSession(t, ex)
-			args := map[string]any{"name": "box", "job_id": "job-1", "wait_seconds": 0}
+			args := map[string]any{"name": "box", "job_id": "job_00000000000000000000000001", "wait_seconds": 0}
 			for k, v := range c.args {
 				args[k] = v
 			}
@@ -335,8 +337,8 @@ func TestExeAgentExecPollRefusesJobOfOtherMachine(t *testing.T) {
 	foreign.VmId = "vm-2"
 	ex := &exeExec{pollReplies: []*vmdv1.JobOutput{exeReply(foreign, "secret")}}
 	cs := exeSession(t, ex)
-	text, isErr := callTool(t, cs, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job-1"})
-	if !isErr || text != "job job-1 does not belong to machine 'box'" {
+	text, isErr := callTool(t, cs, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001"})
+	if !isErr || text != "job job_00000000000000000000000001 does not belong to machine 'box'" {
 		t.Fatalf("want ownership error, got isErr=%v %q", isErr, text)
 	}
 	if strings.Contains(text, "secret") {
@@ -350,14 +352,15 @@ func TestExeAgentExecPollValidationAndErrors(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"no name", map[string]any{"job_id": "job-1"}, "missing properties"},
-		{"empty name", map[string]any{"name": "", "job_id": "job-1"}, "name is required"},
+		{"no name", map[string]any{"job_id": "job_00000000000000000000000001"}, "missing properties"},
+		{"empty name", map[string]any{"name": "", "job_id": "job_00000000000000000000000001"}, "/properties/name"},
 		{"no job id", map[string]any{"name": "box"}, "missing properties"},
-		{"empty job id", map[string]any{"name": "box", "job_id": ""}, "job_id is required"},
-		{"negative offset", map[string]any{"name": "box", "job_id": "job-1", "stderr_offset": -1}, "must not be negative"},
-		{"negative wait", map[string]any{"name": "box", "job_id": "job-1", "wait_seconds": -3}, "wait_seconds must not be negative"},
-		{"bad max_output", map[string]any{"name": "box", "job_id": "job-1", "max_output": 65537}, "max_output must be between"},
-		{"unknown machine", map[string]any{"name": "nope", "job_id": "job-1"}, "not_found"},
+		{"empty job id", map[string]any{"name": "box", "job_id": ""}, "/properties/job_id"},
+		{"job id not in vmd form", map[string]any{"name": "box", "job_id": "job-1"}, "/properties/job_id"},
+		{"negative offset", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001", "stderr_offset": -1}, "/properties/stderr_offset"},
+		{"negative wait", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001", "wait_seconds": -3}, "/properties/wait_seconds"},
+		{"bad max_output", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001", "max_output": 65537}, "/properties/max_output"},
+		{"unknown machine", map[string]any{"name": "nope", "job_id": "job_00000000000000000000000001"}, "not_found"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -369,10 +372,10 @@ func TestExeAgentExecPollValidationAndErrors(t *testing.T) {
 		})
 	}
 
-	ex := &exeExec{pollErr: connect.NewError(connect.CodeNotFound, errors.New("no job job-1"))}
+	ex := &exeExec{pollErr: connect.NewError(connect.CodeNotFound, errors.New("no job job_00000000000000000000000001"))}
 	cs := exeSession(t, ex)
-	text, isErr := callTool(t, cs, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job-1"})
-	if !isErr || text != "not_found: no job job-1" {
+	text, isErr := callTool(t, cs, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001"})
+	if !isErr || text != "not_found: no job job_00000000000000000000000001" {
 		t.Fatalf("want downstream error, got isErr=%v %q", isErr, text)
 	}
 }
@@ -381,7 +384,7 @@ func TestExeOutputIsValidUTF8AndKeysAreFixed(t *testing.T) {
 	bad := exeExit(exeJob(vmdv1.JobState_JOB_STATE_SUCCEEDED), 0)
 	ex := &exeExec{pollReplies: []*vmdv1.JobOutput{{Job: bad, Stdout: []byte("ok\xff\xfe"), Stderr: []byte("\xc3")}}}
 	cs := exeSession(t, ex)
-	text, isErr := callTool(t, cs, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job-1", "wait_seconds": 0})
+	text, isErr := callTool(t, cs, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001", "wait_seconds": 0})
 	exeMustOK(t, text, isErr)
 	if !utf8.ValidString(text) {
 		t.Fatalf("output is not valid UTF-8: %q", text)
@@ -407,7 +410,7 @@ func TestExeOutputIsValidUTF8AndKeysAreFixed(t *testing.T) {
 	killed.KilledReason = "timed out and was killed"
 	ex2 := &exeExec{pollReplies: []*vmdv1.JobOutput{exeReply(killed, "")}}
 	cs2 := exeSession(t, ex2)
-	text2, isErr2 := callTool(t, cs2, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job-1", "wait_seconds": 0})
+	text2, isErr2 := callTool(t, cs2, "agent_exec_poll", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001", "wait_seconds": 0})
 	v2 := exeMustOK(t, text2, isErr2)
 	if v2.State != "timed_out" || v2.KilledReason != "timed out and was killed" || v2.ExitCode != nil {
 		t.Errorf("got %+v", v2)
@@ -445,13 +448,13 @@ func TestExeAgentExecCancelChecksOwnershipThenCancels(t *testing.T) {
 		cancelReply: exeReply(cancelled, ""),
 		listFn: func(r *vmdv1.ListJobsRequest) (*vmdv1.ListJobsResponse, error) {
 			if r.GetPageToken() == "" {
-				return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job-0", VmId: "vm-1"}}, NextPageToken: "p2"}, nil
+				return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job_00000000000000000000000000", VmId: "vm-1"}}, NextPageToken: "p2"}, nil
 			}
-			return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job-1", VmId: "vm-1"}}}, nil
+			return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job_00000000000000000000000001", VmId: "vm-1"}}}, nil
 		},
 	}
 	cs := exeSession(t, ex)
-	text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"name": "box", "job_id": "job-1"})
+	text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001"})
 	v := exeMustOK(t, text, isErr)
 	if v.State != "cancelled" || !v.Done || v.KilledReason != "cancelled" {
 		t.Errorf("got %+v", v)
@@ -459,7 +462,7 @@ func TestExeAgentExecCancelChecksOwnershipThenCancels(t *testing.T) {
 	if len(ex.lists) != 2 || ex.lists[1].GetPageToken() != "p2" {
 		t.Errorf("ownership must search every page of the machine's jobs, got %d list calls", len(ex.lists))
 	}
-	if !reflect.DeepEqual(ex.cancels, []string{"job-1"}) {
+	if !reflect.DeepEqual(ex.cancels, []string{"job_00000000000000000000000001"}) {
 		t.Errorf("cancels = %v", ex.cancels)
 	}
 }
@@ -467,12 +470,12 @@ func TestExeAgentExecCancelChecksOwnershipThenCancels(t *testing.T) {
 func TestExeAgentExecCancelRefusesJobOfOtherMachine(t *testing.T) {
 	ex := &exeExec{
 		listFn: func(*vmdv1.ListJobsRequest) (*vmdv1.ListJobsResponse, error) {
-			return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job-9", VmId: "vm-2"}}}, nil
+			return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job_00000000000000000000000009", VmId: "vm-2"}}}, nil
 		},
 	}
 	cs := exeSession(t, ex)
-	text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"name": "box", "job_id": "job-1"})
-	if !isErr || text != "job job-1 does not belong to machine 'box'" {
+	text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001"})
+	if !isErr || text != "job job_00000000000000000000000001 does not belong to machine 'box'" {
 		t.Fatalf("want ownership error, got isErr=%v %q", isErr, text)
 	}
 	if len(ex.cancels) != 0 {
@@ -484,11 +487,11 @@ func TestExeAgentExecCancelDownstreamError(t *testing.T) {
 	ex := &exeExec{
 		cancelErr: connect.NewError(connect.CodeFailedPrecondition, errors.New("vm vm-1 is stopped")),
 		listFn: func(*vmdv1.ListJobsRequest) (*vmdv1.ListJobsResponse, error) {
-			return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job-1", VmId: "vm-1"}}}, nil
+			return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job_00000000000000000000000001", VmId: "vm-1"}}}, nil
 		},
 	}
 	cs := exeSession(t, ex)
-	text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"name": "box", "job_id": "job-1"})
+	text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001"})
 	if !isErr || text != "failed_precondition: vm vm-1 is stopped" {
 		t.Fatalf("want downstream error, got isErr=%v %q", isErr, text)
 	}
@@ -496,17 +499,17 @@ func TestExeAgentExecCancelDownstreamError(t *testing.T) {
 
 func TestExeAgentExecCancelValidationAndErrors(t *testing.T) {
 	cs := exeSession(t, &exeExec{})
-	if text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"name": "box", "job_id": ""}); !isErr || !strings.Contains(text, "job_id is required") {
+	if text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"name": "box", "job_id": ""}); !isErr || !strings.Contains(text, "/properties/job_id") {
 		t.Errorf("empty job_id: isErr=%v %q", isErr, text)
 	}
-	if text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"job_id": "job-1"}); !isErr || !strings.Contains(text, "missing properties") {
+	if text, isErr := callTool(t, cs, "agent_exec_cancel", map[string]any{"job_id": "job_00000000000000000000000001"}); !isErr || !strings.Contains(text, "missing properties") {
 		t.Errorf("missing name: isErr=%v %q", isErr, text)
 	}
 	ex := &exeExec{listFn: func(*vmdv1.ListJobsRequest) (*vmdv1.ListJobsResponse, error) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("no access"))
 	}}
 	cs2 := exeSession(t, ex)
-	if text, isErr := callTool(t, cs2, "agent_exec_cancel", map[string]any{"name": "box", "job_id": "job-1"}); !isErr || text != "permission_denied: no access" {
+	if text, isErr := callTool(t, cs2, "agent_exec_cancel", map[string]any{"name": "box", "job_id": "job_00000000000000000000000001"}); !isErr || text != "permission_denied: no access" {
 		t.Errorf("list error: isErr=%v %q", isErr, text)
 	}
 }
@@ -514,13 +517,13 @@ func TestExeAgentExecCancelValidationAndErrors(t *testing.T) {
 func TestExeAgentExecListFormatsNewestFirst(t *testing.T) {
 	base := time.Now().Add(-time.Hour)
 	long := strings.Repeat("x", 100) + "\nnext"
-	a := &vmdv1.Job{Id: "job-a", VmId: "vm-1", Command: "first", State: vmdv1.JobState_JOB_STATE_FAILED,
+	a := &vmdv1.Job{Id: "job_00000000000000000000000002", VmId: "vm-1", Command: "first", State: vmdv1.JobState_JOB_STATE_FAILED,
 		StartedAt: timestamppb.New(base), FinishedAt: timestamppb.New(base.Add(3 * time.Second))}
 	a = exeExit(a, 2)
-	b := &vmdv1.Job{Id: "job-b", VmId: "vm-1", Command: long, State: vmdv1.JobState_JOB_STATE_SUCCEEDED,
+	b := &vmdv1.Job{Id: "job_00000000000000000000000003", VmId: "vm-1", Command: long, State: vmdv1.JobState_JOB_STATE_SUCCEEDED,
 		StartedAt: timestamppb.New(base.Add(10 * time.Second)), FinishedAt: timestamppb.New(base.Add(12 * time.Second))}
 	b = exeExit(b, 0)
-	c := &vmdv1.Job{Id: "job-c", VmId: "vm-1", Command: "running now", State: vmdv1.JobState_JOB_STATE_RUNNING,
+	c := &vmdv1.Job{Id: "job_00000000000000000000000004", VmId: "vm-1", Command: "running now", State: vmdv1.JobState_JOB_STATE_RUNNING,
 		StartedAt: timestamppb.New(base.Add(20 * time.Second))}
 	ex := &exeExec{listFn: func(*vmdv1.ListJobsRequest) (*vmdv1.ListJobsResponse, error) {
 		// vmd returns ascending ID order: a, b, c.
@@ -535,16 +538,16 @@ func TestExeAgentExecListFormatsNewestFirst(t *testing.T) {
 	if len(lines) != 3 {
 		t.Fatalf("want 3 lines, got %d: %q", len(lines), text)
 	}
-	if !strings.HasPrefix(lines[0], "job-c running exit=- ") || !strings.HasSuffix(lines[0], "s running now") {
+	if !strings.HasPrefix(lines[0], "job_00000000000000000000000004 running exit=- ") || !strings.HasSuffix(lines[0], "s running now") {
 		t.Errorf("line 0 = %q", lines[0])
 	}
-	if lines[1] != "job-b succeeded exit=0 2.0s "+strings.Repeat("x", 77)+"..." {
+	if lines[1] != "job_00000000000000000000000003 succeeded exit=0 2.0s "+strings.Repeat("x", 77)+"..." {
 		t.Errorf("line 1 = %q", lines[1])
 	}
-	if lines[2] != "job-a failed exit=2 3.0s first" {
+	if lines[2] != "job_00000000000000000000000002 failed exit=2 3.0s first" {
 		t.Errorf("line 2 = %q", lines[2])
 	}
-	if ex.lists[0].GetPageSize() != 50 || ex.lists[0].GetVmId() != "vm-1" {
+	if ex.lists[0].GetPageSize() != execListPageSize || ex.lists[0].GetVmId() != "vm-1" {
 		t.Errorf("ListJobs request: %+v", ex.lists[0])
 	}
 }
@@ -558,23 +561,97 @@ func TestExeAgentExecListEmptyAndMorePages(t *testing.T) {
 		t.Errorf("empty list: isErr=%v %q", isErr, text)
 	}
 
+	// A machine whose listing never ends: the tool stops after execListMaxPages pages and says so.
 	ex2 := &exeExec{listFn: func(*vmdv1.ListJobsRequest) (*vmdv1.ListJobsResponse, error) {
-		return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job-1", VmId: "vm-1", State: vmdv1.JobState_JOB_STATE_LOST}}, NextPageToken: "more"}, nil
+		return &vmdv1.ListJobsResponse{Jobs: []*vmdv1.Job{{Id: "job_00000000000000000000000001", VmId: "vm-1", State: vmdv1.JobState_JOB_STATE_LOST}}, NextPageToken: "more"}, nil
 	}}
 	cs2 := exeSession(t, ex2)
 	text, isErr := callTool(t, cs2, "agent_exec_list", map[string]any{"name": "box"})
 	if isErr {
 		t.Fatalf("tool error: %s", text)
 	}
+	if len(ex2.lists) != execListMaxPages {
+		t.Errorf("ListJobs calls = %d, want the bound %d", len(ex2.lists), execListMaxPages)
+	}
 	lines := strings.Split(text, "\n")
-	if len(lines) != 2 || !strings.HasPrefix(lines[0], "job-1 lost exit=- ") || !strings.Contains(lines[1], "more jobs exist") {
-		t.Errorf("got %q", text)
+	// One job per page, so the bound leaves execListMaxPages jobs, then the marker line.
+	if len(lines) != execListMaxPages+1 || !strings.HasPrefix(lines[0], "job_00000000000000000000000001 lost exit=- ") ||
+		!strings.Contains(lines[len(lines)-1], "the newest jobs may be missing") {
+		t.Errorf("got %d lines: %q", len(lines), text)
+	}
+}
+
+// exeListPages serves a machine's jobs in pages of size, oldest first, the way vmd does. ids are the job IDs in
+// ascending order.
+func exeListPages(ids []int, size int) func(*vmdv1.ListJobsRequest) (*vmdv1.ListJobsResponse, error) {
+	return func(r *vmdv1.ListJobsRequest) (*vmdv1.ListJobsResponse, error) {
+		start := 0
+		if r.GetPageToken() != "" {
+			start, _ = strconv.Atoi(r.GetPageToken())
+		}
+		end := min(start+size, len(ids))
+		res := &vmdv1.ListJobsResponse{}
+		for _, n := range ids[start:end] {
+			res.Jobs = append(res.Jobs, &vmdv1.Job{Id: exeJobID(n), VmId: "vm-1", Command: "cmd", State: vmdv1.JobState_JOB_STATE_SUCCEEDED})
+		}
+		if end < len(ids) {
+			res.NextPageToken = strconv.Itoa(end)
+		}
+		return res, nil
+	}
+}
+
+// exeJobID is the vmd-shaped ID of job number n (n has at most 26 digits).
+func exeJobID(n int) string { return fmt.Sprintf("job_%026d", n) }
+
+// TestExeAgentExecListShowsNewestAcrossPages is the regression test for the ordering bug: vmd pages oldest first, so
+// the tool must read every page and show the newest 50 jobs, newest first.
+func TestExeAgentExecListShowsNewestAcrossPages(t *testing.T) {
+	ids := make([]int, 0, 120)
+	for n := 1; n <= 120; n++ {
+		ids = append(ids, n)
+	}
+	ex := &exeExec{listFn: exeListPages(ids, 50)} // 3 pages: 50, 50, 20
+	cs := exeSession(t, ex)
+	text, isErr := callTool(t, cs, "agent_exec_list", map[string]any{"name": "box"})
+	if isErr {
+		t.Fatalf("tool error: %s", text)
+	}
+	if len(ex.lists) != 3 {
+		t.Fatalf("want 3 page fetches, got %d", len(ex.lists))
+	}
+	lines := strings.Split(text, "\n")
+	if len(lines) != execPageSize {
+		t.Fatalf("want the newest %d jobs, got %d lines", execPageSize, len(lines))
+	}
+	if !strings.HasPrefix(lines[0], exeJobID(120)+" ") || !strings.HasPrefix(lines[len(lines)-1], exeJobID(71)+" ") {
+		t.Errorf("want job 120 first and job 71 last, got %q ... %q", lines[0], lines[len(lines)-1])
+	}
+	if strings.Contains(text, "more than") {
+		t.Errorf("no bound marker expected when every page was read: %q", lines[len(lines)-1])
+	}
+}
+
+// TestExeAgentExecListSinglePageNewestFirst checks a machine whose jobs fit in one page.
+func TestExeAgentExecListSinglePageNewestFirst(t *testing.T) {
+	ex := &exeExec{listFn: exeListPages([]int{1, 2, 3}, 200)}
+	cs := exeSession(t, ex)
+	text, isErr := callTool(t, cs, "agent_exec_list", map[string]any{"name": "box"})
+	if isErr {
+		t.Fatalf("tool error: %s", text)
+	}
+	lines := strings.Split(text, "\n")
+	if len(lines) != 3 || !strings.HasPrefix(lines[0], exeJobID(3)+" ") || !strings.HasPrefix(lines[2], exeJobID(1)+" ") {
+		t.Errorf("want jobs 3,2,1, got %q", text)
+	}
+	if len(ex.lists) != 1 {
+		t.Errorf("one page should need one fetch, got %d", len(ex.lists))
 	}
 }
 
 func TestExeAgentExecListValidationAndErrors(t *testing.T) {
 	cs := exeSession(t, &exeExec{})
-	if text, isErr := callTool(t, cs, "agent_exec_list", map[string]any{"name": ""}); !isErr || !strings.Contains(text, "name is required") {
+	if text, isErr := callTool(t, cs, "agent_exec_list", map[string]any{"name": ""}); !isErr || !strings.Contains(text, "/properties/name") {
 		t.Errorf("missing name: isErr=%v %q", isErr, text)
 	}
 	if text, isErr := callTool(t, cs, "agent_exec_list", map[string]any{"name": "nope"}); !isErr || !strings.Contains(text, "not_found") {

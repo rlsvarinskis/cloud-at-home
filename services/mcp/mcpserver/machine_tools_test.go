@@ -298,20 +298,26 @@ func TestMachCreateValidation(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"uppercase", map[string]any{"name": "Web"}, "is invalid"},
-		{"underscore", map[string]any{"name": "web_1"}, "is invalid"},
-		{"leading hyphen", map[string]any{"name": "-web"}, "is invalid"},
-		{"too long", map[string]any{"name": strings.Repeat("a", 32)}, "is invalid"},
-		{"cpus too many", map[string]any{"name": "web", "cpus": 33}, "cpus must be between 1 and 32"},
-		{"cpus negative", map[string]any{"name": "web", "cpus": -1}, "cpus must be between 1 and 32"},
-		{"memory too much", map[string]any{"name": "web", "memory_gb": 57}, "memory_gb must be between 1 and 56"},
-		{"memory negative", map[string]any{"name": "web", "memory_gb": -4}, "memory_gb must be between 1 and 56"},
-		{"disk negative", map[string]any{"name": "web", "disk_gb": -1}, "disk_gb must be at least 1"},
+		// The SDK checks the schema before the handler runs, so each error names the property that failed.
+		{"uppercase", map[string]any{"name": "Web"}, "name"},
+		{"underscore", map[string]any{"name": "web_1"}, "name"},
+		{"leading hyphen", map[string]any{"name": "-web"}, "name"},
+		{"leading digit", map[string]any{"name": "1web"}, "name"},
+		{"trailing hyphen", map[string]any{"name": "web-"}, "name"},
+		{"too long", map[string]any{"name": strings.Repeat("a", 32)}, "name"},
+		{"missing name", map[string]any{}, "name"},
+		{"cpus too many", map[string]any{"name": "web", "cpus": 33}, "cpus"},
+		{"cpus negative", map[string]any{"name": "web", "cpus": -1}, "cpus"},
+		{"memory too much", map[string]any{"name": "web", "memory_gb": 57}, "memory_gb"},
+		{"memory negative", map[string]any{"name": "web", "memory_gb": -4}, "memory_gb"},
+		{"disk too much", map[string]any{"name": "web", "disk_gb": 4097}, "disk_gb"},
+		{"disk negative", map[string]any{"name": "web", "disk_gb": -1}, "disk_gb"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vms := &machVMs{}
 			text, isErr := machCall(t, Clients{VMs: vms, Images: machImgs()}, "agent_create", tc.args)
+			machWantErr(t, text, isErr, "validating")
 			machWantErr(t, text, isErr, tc.want)
 			if len(vms.calls) != 0 {
 				t.Fatalf("validation failure still called vmd: %v", vms.calls)
@@ -626,6 +632,9 @@ func TestMachStopDownstreamError(t *testing.T) {
 
 // --- agent_destroy ---------------------------------------------------------------------------------------
 
+// destroyRequested is agent_destroy's result: deletion is requested, not finished.
+const destroyRequested = "machine 'web' deletion requested; it is being deleted (agent_list shows deleting until it is gone)"
+
 func TestMachDestroy(t *testing.T) {
 	vms := &machVMs{vms: []*vmdv1.VM{machVM("vm_1", "web", vmdv1.VMState_VM_STATE_STOPPED, 8, 16384)}}
 	ags := &machAgents{
@@ -633,7 +642,7 @@ func TestMachDestroy(t *testing.T) {
 		delErrs: map[string]error{"a2": connect.NewError(connect.CodeNotFound, errors.New("gone"))},
 	}
 	text, isErr := machCall(t, Clients{VMs: vms, Agents: ags}, "agent_destroy", map[string]any{"name": "web"})
-	machWantOK(t, text, isErr, "machine 'web' destroyed")
+	machWantOK(t, text, isErr, destroyRequested)
 	if strings.Join(ags.attempts, ",") != "a1,a2" {
 		t.Fatalf("deleted agents %v, want a1,a2 (a3 belongs to another VM)", ags.attempts)
 	}
@@ -645,7 +654,7 @@ func TestMachDestroy(t *testing.T) {
 func TestMachDestroyForce(t *testing.T) {
 	vms := &machVMs{vms: []*vmdv1.VM{machVM("vm_1", "web", vmdv1.VMState_VM_STATE_STOPPED, 8, 16384)}}
 	text, isErr := machCall(t, Clients{VMs: vms, Agents: &machAgents{}}, "agent_destroy", map[string]any{"name": "web", "force": true})
-	machWantOK(t, text, isErr, "machine 'web' destroyed")
+	machWantOK(t, text, isErr, destroyRequested)
 	if !vms.deleteReq.GetForce() {
 		t.Fatal("force not passed to DeleteVM")
 	}
@@ -689,9 +698,10 @@ func TestMachResizeValidation(t *testing.T) {
 		want string
 	}{
 		{"nothing", map[string]any{"name": "web"}, "give cpus, memory_gb or both"},
-		{"cpus too many", map[string]any{"name": "web", "cpus": 33}, "cpus must be between 1 and 32"},
-		{"cpus negative", map[string]any{"name": "web", "cpus": -2}, "cpus must be between 1 and 32"},
-		{"memory too much", map[string]any{"name": "web", "memory_gb": 60}, "memory_gb must be between 1 and 56"},
+		{"cpus too many", map[string]any{"name": "web", "cpus": 33}, "cpus"},
+		{"cpus negative", map[string]any{"name": "web", "cpus": -2}, "cpus"},
+		{"memory too much", map[string]any{"name": "web", "memory_gb": 60}, "memory_gb"},
+		{"bad name", map[string]any{"name": "web-", "cpus": 4}, "name"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
